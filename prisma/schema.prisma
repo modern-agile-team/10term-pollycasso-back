@@ -42,18 +42,20 @@ enum MatchStatus {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  username  String?   @unique
-  password  String?
-  nickname  String    @unique
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime? @map("updated_at")
+  id             Int       @id @default(autoincrement())
+  username       String?   @unique @db.VarChar(20)
+  hashedPassword String?   @map("hashed_password") @db.VarChar(60)
+  nickname       String    @unique @db.VarChar(20)
+  provider       Provider?
+  providerId     String?   @map("provider_id") @db.VarChar(50)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  profile       UserProfile?
-  oauthAccounts OAuthAccount[]
-  roomUsers     RoomUser[]
-  votes         Vote[]
+  profile   UserProfile?
+  roomUsers RoomUser[]
+  votes     Vote[]
 
+  @@unique([provider, providerId])
   @@map("users")
 }
 
@@ -65,9 +67,9 @@ model UserProfile {
   experience      Int       @default(0)
   coin            Int       @default(0)
   createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime? @map("updated_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
   tutorialDone    Boolean   @default(false) @map("tutorial_done")
-  lastLogin       DateTime? @map("last_login")
+  lastLoginAt     DateTime? @map("last_login_at")
   totalAttendance Int?      @map("total_attendance")
   isOnline        Boolean   @default(false) @map("is_online")
 
@@ -76,29 +78,17 @@ model UserProfile {
   @@map("user_profiles")
 }
 
-model OAuthAccount {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @map("user_id")
-  provider   Provider
-  providerId String   @map("provider_id") @db.VarChar(50)
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@unique([provider, providerId])
-  @@map("oauth_accounts")
-}
-
 model Room {
-  id           Int       @id @default(autoincrement())
-  name         String
-  mode         RoomMode
-  maxPlayers   Int       @map("max_players")
-  isPrivate    Boolean   @default(false) @map("is_private")
-  passwordHash String?   @map("password_hash")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  startedAt    DateTime? @map("started_at")
-  endedAt      DateTime? @map("ended_at")
+  id             Int       @id @default(autoincrement())
+  name           String
+  mode           RoomMode
+  maxPlayers     Int       @map("max_players")
+  isPrivate      Boolean   @default(false) @map("is_private")
+  hashedPassword String?   @map("hashed_password") @db.VarChar(60)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  startedAt      DateTime? @map("started_at")
+  endedAt        DateTime? @map("ended_at")
 
   roomUsers RoomUser[]
   matches   Match[]
@@ -107,14 +97,15 @@ model Room {
 }
 
 model RoomUser {
-  id       Int       @id @default(autoincrement())
-  roomId   Int       @map("room_id")
-  userId   Int       @map("user_id")
-  role     Role      @default(PLAYER)
-  team     Team      @default(NONE)
-  ready    Boolean   @default(false)
-  joinedAt DateTime  @default(now()) @map("joined_at")
-  leftAt   DateTime? @map("left_at")
+  id        Int       @id @default(autoincrement())
+  roomId    Int       @map("room_id")
+  userId    Int       @map("user_id")
+  role      Role      @default(PLAYER)
+  team      Team      @default(NONE)
+  ready     Boolean   @default(false)
+  joinedAt  DateTime  @default(now()) @map("joined_at")
+  leftAt    DateTime? @map("left_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id])
   room         Room          @relation(fields: [roomId], references: [id])
@@ -131,6 +122,7 @@ model Match {
   status    MatchStatus
   startedAt DateTime    @default(now()) @map("started_at")
   endedAt   DateTime?   @map("ended_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
 
   room         Room          @relation(fields: [roomId], references: [id])
   matchResults MatchResult[]
@@ -158,7 +150,7 @@ model Drawing {
   id         Int    @id @default(autoincrement())
   matchId    Int    @map("match_id")
   roomUserId Int    @map("room_user_id")
-  imagePath  String @map("image_path")
+  imagePath  String @map("image_path") @db.VarChar(255)
 
   match    Match    @relation(fields: [matchId], references: [id])
   roomUser RoomUser @relation(fields: [roomUserId], references: [id])

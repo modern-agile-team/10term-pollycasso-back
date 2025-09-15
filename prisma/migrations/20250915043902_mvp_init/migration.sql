@@ -19,11 +19,13 @@ CREATE TYPE "public"."MatchStatus" AS ENUM ('PENDING', 'ACTIVE', 'COMPLETED');
 -- CreateTable
 CREATE TABLE "public"."users" (
     "id" SERIAL NOT NULL,
-    "username" TEXT,
-    "password" TEXT,
-    "nickname" TEXT NOT NULL,
+    "username" VARCHAR(20),
+    "hashed_password" VARCHAR(60),
+    "nickname" VARCHAR(20) NOT NULL,
+    "provider" "public"."Provider",
+    "provider_id" VARCHAR(50),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3),
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -37,24 +39,13 @@ CREATE TABLE "public"."user_profiles" (
     "experience" INTEGER NOT NULL DEFAULT 0,
     "coin" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3),
+    "updated_at" TIMESTAMP(3) NOT NULL,
     "tutorial_done" BOOLEAN NOT NULL DEFAULT false,
-    "last_login" TIMESTAMP(3),
+    "last_login_at" TIMESTAMP(3),
     "total_attendance" INTEGER,
     "is_online" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "user_profiles_pkey" PRIMARY KEY ("user_id")
-);
-
--- CreateTable
-CREATE TABLE "public"."oauth_accounts" (
-    "id" SERIAL NOT NULL,
-    "user_id" INTEGER NOT NULL,
-    "provider" "public"."Provider" NOT NULL,
-    "provider_id" VARCHAR(50) NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "oauth_accounts_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -64,8 +55,9 @@ CREATE TABLE "public"."rooms" (
     "mode" "public"."RoomMode" NOT NULL,
     "max_players" INTEGER NOT NULL,
     "is_private" BOOLEAN NOT NULL DEFAULT false,
-    "password_hash" TEXT,
+    "hashed_password" VARCHAR(60),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
     "started_at" TIMESTAMP(3),
     "ended_at" TIMESTAMP(3),
 
@@ -82,6 +74,7 @@ CREATE TABLE "public"."room_users" (
     "ready" BOOLEAN NOT NULL DEFAULT false,
     "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "left_at" TIMESTAMP(3),
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "room_users_pkey" PRIMARY KEY ("id")
 );
@@ -93,6 +86,7 @@ CREATE TABLE "public"."matches" (
     "status" "public"."MatchStatus" NOT NULL,
     "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "ended_at" TIMESTAMP(3),
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "matches_pkey" PRIMARY KEY ("id")
 );
@@ -113,7 +107,7 @@ CREATE TABLE "public"."drawings" (
     "id" SERIAL NOT NULL,
     "match_id" INTEGER NOT NULL,
     "room_user_id" INTEGER NOT NULL,
-    "image_path" TEXT NOT NULL,
+    "image_path" VARCHAR(255) NOT NULL,
 
     CONSTRAINT "drawings_pkey" PRIMARY KEY ("id")
 );
@@ -136,7 +130,7 @@ CREATE UNIQUE INDEX "users_username_key" ON "public"."users"("username");
 CREATE UNIQUE INDEX "users_nickname_key" ON "public"."users"("nickname");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "oauth_accounts_provider_provider_id_key" ON "public"."oauth_accounts"("provider", "provider_id");
+CREATE UNIQUE INDEX "users_provider_provider_id_key" ON "public"."users"("provider", "provider_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "room_users_room_id_user_id_key" ON "public"."room_users"("room_id", "user_id");
@@ -152,9 +146,6 @@ CREATE UNIQUE INDEX "votes_match_id_drawing_id_voter_id_key" ON "public"."votes"
 
 -- AddForeignKey
 ALTER TABLE "public"."user_profiles" ADD CONSTRAINT "user_profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "public"."oauth_accounts" ADD CONSTRAINT "oauth_accounts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."room_users" ADD CONSTRAINT "room_users_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
