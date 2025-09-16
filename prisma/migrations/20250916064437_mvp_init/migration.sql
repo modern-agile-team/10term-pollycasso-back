@@ -60,23 +60,24 @@ CREATE TABLE "public"."rooms" (
     "updated_at" TIMESTAMP(3) NOT NULL,
     "started_at" TIMESTAMP(3),
     "ended_at" TIMESTAMP(3),
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "rooms_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "public"."room_users" (
+CREATE TABLE "public"."room_members" (
     "id" SERIAL NOT NULL,
     "room_id" INTEGER NOT NULL,
     "user_id" INTEGER NOT NULL,
     "role" "public"."Role" NOT NULL DEFAULT 'PLAYER',
     "team" "public"."Team" NOT NULL DEFAULT 'NONE',
-    "ready" BOOLEAN NOT NULL DEFAULT false,
+    "isReady" BOOLEAN NOT NULL DEFAULT false,
     "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "left_at" TIMESTAMP(3),
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "room_users_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "room_members_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -84,6 +85,8 @@ CREATE TABLE "public"."matches" (
     "id" SERIAL NOT NULL,
     "room_id" INTEGER NOT NULL,
     "status" "public"."MatchStatus" NOT NULL,
+    "topic" VARCHAR(100) NOT NULL,
+    "topic_writer_id" INTEGER NOT NULL,
     "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "ended_at" TIMESTAMP(3),
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -133,7 +136,7 @@ CREATE UNIQUE INDEX "users_nickname_key" ON "public"."users"("nickname");
 CREATE UNIQUE INDEX "users_provider_provider_id_key" ON "public"."users"("provider", "provider_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "room_users_room_id_user_id_key" ON "public"."room_users"("room_id", "user_id");
+CREATE UNIQUE INDEX "room_members_room_id_user_id_key" ON "public"."room_members"("room_id", "user_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "match_results_room_user_id_match_id_key" ON "public"."match_results"("room_user_id", "match_id");
@@ -148,16 +151,19 @@ CREATE UNIQUE INDEX "votes_match_id_drawing_id_voter_id_key" ON "public"."votes"
 ALTER TABLE "public"."user_profiles" ADD CONSTRAINT "user_profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."room_users" ADD CONSTRAINT "room_users_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."room_members" ADD CONSTRAINT "room_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."room_users" ADD CONSTRAINT "room_users_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "public"."rooms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."room_members" ADD CONSTRAINT "room_members_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "public"."rooms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."matches" ADD CONSTRAINT "matches_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "public"."rooms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."match_results" ADD CONSTRAINT "match_results_room_user_id_fkey" FOREIGN KEY ("room_user_id") REFERENCES "public"."room_users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."matches" ADD CONSTRAINT "matches_topic_writer_id_fkey" FOREIGN KEY ("topic_writer_id") REFERENCES "public"."room_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."match_results" ADD CONSTRAINT "match_results_room_user_id_fkey" FOREIGN KEY ("room_user_id") REFERENCES "public"."room_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."match_results" ADD CONSTRAINT "match_results_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -166,7 +172,7 @@ ALTER TABLE "public"."match_results" ADD CONSTRAINT "match_results_match_id_fkey
 ALTER TABLE "public"."drawings" ADD CONSTRAINT "drawings_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."drawings" ADD CONSTRAINT "drawings_room_user_id_fkey" FOREIGN KEY ("room_user_id") REFERENCES "public"."room_users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."drawings" ADD CONSTRAINT "drawings_room_user_id_fkey" FOREIGN KEY ("room_user_id") REFERENCES "public"."room_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."votes" ADD CONSTRAINT "votes_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -51,27 +51,27 @@ model User {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  profile   UserProfile?
-  roomUsers RoomUser[]
-  votes     Vote[]
+  profile     UserProfile?
+  roomMembers RoomMember[]
+  votes       Vote[]
 
   @@unique([provider, providerId])
   @@map("users")
 }
 
 model UserProfile {
-  userId          Int       @id @map("user_id")
-  profileImage    String?   @map("profile_image")
-  introduce       String?
-  level           Int       @default(1)
-  experience      Int       @default(0)
-  coin            Int       @default(0)
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  tutorialDone    Boolean   @default(false) @map("tutorial_done")
-  lastLoginAt     DateTime? @map("last_login_at")
-  totalAttendance Int?      @map("total_attendance")
-  isOnline        Boolean   @default(false) @map("is_online")
+  userId              Int       @id @map("user_id")
+  profileImage        String?   @map("profile_image")
+  introduce           String?
+  level               Int       @default(1)
+  experience          Int       @default(0)
+  coin                Int       @default(0)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  isTutorialCompleted Boolean   @default(false) @map("tutorial_done")
+  lastLoginAt         DateTime? @map("last_login_at")
+  totalAttendance     Int?      @map("total_attendance")
+  isOnline            Boolean   @default(false) @map("is_online")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -89,45 +89,50 @@ model Room {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   startedAt      DateTime? @map("started_at")
   endedAt        DateTime? @map("ended_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  roomUsers RoomUser[]
-  matches   Match[]
+  roomMembers RoomMember[]
+  matches     Match[]
 
   @@map("rooms")
 }
 
-model RoomUser {
+model RoomMember {
   id        Int       @id @default(autoincrement())
   roomId    Int       @map("room_id")
   userId    Int       @map("user_id")
   role      Role      @default(PLAYER)
   team      Team      @default(NONE)
-  ready     Boolean   @default(false)
+  isReady   Boolean   @default(false)
   joinedAt  DateTime  @default(now()) @map("joined_at")
   leftAt    DateTime? @map("left_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
-  user         User          @relation(fields: [userId], references: [id])
-  room         Room          @relation(fields: [roomId], references: [id])
-  matchResults MatchResult[]
-  drawings     Drawing[]
+  user                 User          @relation(fields: [userId], references: [id])
+  room                 Room          @relation(fields: [roomId], references: [id])
+  matchResults         MatchResult[]
+  drawings             Drawing[]
+  matchesAsTopicWriter Match[]
 
   @@unique([roomId, userId])
-  @@map("room_users")
+  @@map("room_members")
 }
 
 model Match {
-  id        Int         @id @default(autoincrement())
-  roomId    Int         @map("room_id")
-  status    MatchStatus
-  startedAt DateTime    @default(now()) @map("started_at")
-  endedAt   DateTime?   @map("ended_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
+  id            Int         @id @default(autoincrement())
+  roomId        Int         @map("room_id")
+  status        MatchStatus
+  topic         String      @db.VarChar(100)
+  topicWriterId Int         @map("topic_writer_id")
+  startedAt     DateTime    @default(now()) @map("started_at")
+  endedAt       DateTime?   @map("ended_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
 
   room         Room          @relation(fields: [roomId], references: [id])
   matchResults MatchResult[]
   drawings     Drawing[]
   votes        Vote[]
+  topicWriter  RoomMember    @relation(fields: [topicWriterId], references: [id])
 
   @@map("matches")
 }
@@ -139,8 +144,8 @@ model MatchResult {
   result     Result
   recordedAt DateTime @default(now()) @map("recorded_at")
 
-  roomUser RoomUser @relation(fields: [roomUserId], references: [id])
-  match    Match    @relation(fields: [matchId], references: [id])
+  roomUser RoomMember @relation(fields: [roomUserId], references: [id])
+  match    Match      @relation(fields: [matchId], references: [id])
 
   @@unique([roomUserId, matchId])
   @@map("match_results")
@@ -152,9 +157,9 @@ model Drawing {
   roomUserId Int    @map("room_user_id")
   imagePath  String @map("image_path") @db.VarChar(255)
 
-  match    Match    @relation(fields: [matchId], references: [id])
-  roomUser RoomUser @relation(fields: [roomUserId], references: [id])
-  votes    Vote[]
+  match      Match      @relation(fields: [matchId], references: [id])
+  roomMember RoomMember @relation(fields: [roomUserId], references: [id])
+  votes      Vote[]
 
   @@unique([matchId, roomUserId])
   @@map("drawings")
