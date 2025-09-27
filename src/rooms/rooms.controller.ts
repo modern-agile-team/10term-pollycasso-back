@@ -15,6 +15,7 @@ import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { QueryRoomDto } from './dto/query-room.dto';
 import { ResRoomDto } from './dto/res-room.dto';
+import { ResCursorDto } from './dto/res-cursor.dto';
 
 @Controller('rooms')
 export class RoomsController {
@@ -22,36 +23,31 @@ export class RoomsController {
 
   @Post()
   async create(@Body() createRoomDto: CreateRoomDto) {
-    const createdRoom = await this.roomsService.create(createRoomDto);
-    return new ResRoomDto(createdRoom);
+    const room = await this.roomsService.createRoom(createRoomDto);
+    return new ResRoomDto(room);
   }
 
   @Get()
   async findAll(@Query() query: QueryRoomDto) {
-    const { data, hasNextData, nextCursor } = await this.roomsService.findAll(query);
-
-    return {
-      rooms: ResRoomDto.transformRoomEntitiesToDto(data),
-      hasNextData,
-      nextCursor,
-    };
+    const { rooms, hasNextData, nextCursor } = await this.roomsService.getRooms(query);
+    return ResCursorDto.fromEntities(rooms, nextCursor, hasNextData);
   }
 
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    const room = await this.roomsService.findOne(id);
+    const room = await this.roomsService.getRoom(id);
     return new ResRoomDto(room);
   }
 
   @Patch(':id')
   async update(@Param('id', ParseIntPipe) id: number, @Body() updateRoomDto: UpdateRoomDto) {
-    const updatedRoom = await this.roomsService.update(id, updateRoomDto);
+    const updatedRoom = await this.roomsService.updateRoom(id, updateRoomDto);
     return new ResRoomDto(updatedRoom);
   }
 
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id', ParseIntPipe) id: number) {
-    await this.roomsService.remove(id);
+    await this.roomsService.deleteRoom(id);
   }
 }

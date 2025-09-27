@@ -1,9 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { RoomsRepository } from './rooms.repository';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
-import { RoomsRepository } from './rooms.repository';
-import { QueryRoomDto } from './dto/query-room.dto';
 import { PasswordEncoderService } from 'src/common/hashing/password-encoder.service';
+import { RoomInterface, RoomQueryInterface } from './rooms.interface';
 import { RoomMode } from '@prisma/client';
 
 @Injectable()
@@ -22,80 +22,80 @@ export class RoomsService {
     }
   }
 
-  private async getHashedPasswordForRoom(
+  private async hashPasswordIfNeeded(
     password?: string,
     isPrivate?: boolean,
-    currentHashedPassword: string | null = null,
+    currentHash: string | null = null,
   ): Promise<string | null> {
     if (isPrivate === false) {
       if (password) throw new BadRequestException('공개 방은 비밀번호를 설정할 수 없습니다.');
       return null;
     }
 
-    if (isPrivate === true) {
-      if (!password) throw new BadRequestException('비공개 방은 비밀번호가 필요합니다.');
-      return await this.passwordEncoderService.hash(password);
+    if (isPrivate === true && !password) {
+      throw new BadRequestException('비공개 방은 비밀번호가 필요합니다.');
     }
 
-    if (password) return await this.passwordEncoderService.hash(password);
-
-    return currentHashedPassword;
+    return password ? await this.passwordEncoderService.hash(password) : currentHash;
   }
 
-  // 방 생성
-  async create(createRoomDto: CreateRoomDto) {
+  async createRoom(createRoomDto: CreateRoomDto) {
     this.validateRoomCapacity(createRoomDto.mode, createRoomDto.maxPlayers);
 
-    const hashedPassword = await this.getHashedPasswordForRoom(
+    const hashedPassword = await this.hashPasswordIfNeeded(
       createRoomDto.password,
       createRoomDto.isPrivate,
     );
 
-    const createData = { ...createRoomDto, hashedPassword };
-    delete createData.password;
-    return await this.roomsRepository.create(createData);
-  }
-
-  // 전체 방 조회
-  async findAll(query: QueryRoomDto) {
-    const { data, hasNextData, nextCursor } = await this.roomsRepository.findAll(query);
-    return {
-      data,
-      hasNextData: hasNextData,
-      nextCursor,
+    const roomData: RoomInterface = {
+      name: createRoomDto.name,
+      mode: createRoomDto.mode,
+      maxPlayers: createRoomDto.maxPlayers,
+      isPrivate: createRoomDto.isPrivate,
+      hashedPassword,
     };
+
+    return this.roomsRepository.create(roomData);
   }
 
-  // 단일 방 조회
-  async findOne(id: number) {
+  async getRooms(query: RoomQueryInterface) {
+    const { data, hasNextData, nextCursor } = await this.roomsRepository.findAll(query);
+    return { rooms: data, hasNextData, nextCursor };
+  }
+
+  async getRoom(id: number) {
     const room = await this.roomsRepository.findOne(id);
     if (!room) throw new NotFoundException(`${id}번 방이 존재하지 않습니다.`);
     return room;
   }
 
-  // 방 수정
-  async update(id: number, updateRoomDto: UpdateRoomDto) {
-    const room = await this.findOne(id);
+  async updateRoom(id: number, updateRoomDto: UpdateRoomDto) {
+    const room = await this.getRoom(id);
 
     if (updateRoomDto.maxPlayers !== undefined) {
       const mode = updateRoomDto.mode ?? room.mode;
       this.validateRoomCapacity(mode, updateRoomDto.maxPlayers);
     }
 
-    const hashedPassword = await this.getHashedPasswordForRoom(
+    const hashedPassword = await this.hashPasswordIfNeeded(
       updateRoomDto.password,
       updateRoomDto.isPrivate,
       room.hashedPassword,
     );
 
-    const updateData = { ...updateRoomDto, hashedPassword };
-    delete updateData.password;
-    return this.roomsRepository.update(id, updateData);
+    const roomData: RoomInterface = {
+      name: updateRoomDto.name ?? room.name,
+      mode: updateRoomDto.mode ?? room.mode,
+      maxPlayers: updateRoomDto.maxPlayers ?? room.maxPlayers,
+      isPrivate: updateRoomDto.isPrivate ?? room.isPrivate,
+      hashedPassword,
+    };
+
+    return this.roomsRepository.update(id, roomData);
   }
 
-  // 방 삭제 (soft delete)
-  async remove(id: number) {
-    await this.findOne(id);
+  async deleteRoom(id: number) {
+    await this.getRoom(id);
     await this.roomsRepository.softDelete(id);
   }
 }
