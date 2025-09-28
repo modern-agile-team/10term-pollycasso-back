@@ -41,6 +41,11 @@ enum MatchStatus {
   COMPLETED
 }
 
+enum RoomStatus {
+  WAITING
+  IN_PROGRESS
+}
+
 model User {
   id             Int       @id @default(autoincrement())
   username       String?   @unique @db.VarChar(20)
@@ -79,17 +84,19 @@ model UserProfile {
 }
 
 model Room {
-  id             Int       @id @default(autoincrement())
+  id             Int        @id @default(autoincrement())
   name           String
   mode           RoomMode
-  maxPlayers     Int       @map("max_players")
-  isPrivate      Boolean   @default(false) @map("is_private")
-  hashedPassword String?   @map("hashed_password") @db.VarChar(60)
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  startedAt      DateTime? @map("started_at")
-  endedAt        DateTime? @map("ended_at")
-  deletedAt      DateTime? @map("deleted_at")
+  maxPlayers     Int        @map("max_players")
+  currentPlayers Int        @default(0)
+  isPrivate      Boolean    @default(false) @map("is_private")
+  hashedPassword String?    @map("hashed_password") @db.VarChar(60)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  startedAt      DateTime?  @map("started_at")
+  endedAt        DateTime?  @map("ended_at")
+  deletedAt      DateTime?  @map("deleted_at")
+  status         RoomStatus @default(WAITING)
 
   roomMembers RoomMember[]
   matches     Match[]
