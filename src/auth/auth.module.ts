@@ -3,22 +3,23 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from 'src/users/users.module';
 import { PasswordEncoderService } from '../common/hashing/password-encoder.service';
-import { JwtModule } from '@nestjs/jwt';
 import { LocalStrategy } from './strategies/local.strategy';
-import { ConfigService } from '@nestjs/config';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { RedisModule } from './redis/redis.module';
+import { TokenModule } from './token/token.module';
+import { CookieService } from './cookie/cookie.service';
+import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
 
 @Module({
-  imports: [
-    UsersModule,
-    JwtModule.registerAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_ACCESS_SECRET'),
-        signOptions: { expiresIn: configService.get<string>('JWT_ACCESS_EXPIRATION') },
-      }),
-    }),
-  ],
+  imports: [UsersModule, RedisModule, TokenModule],
   controllers: [AuthController],
-  providers: [AuthService, PasswordEncoderService, LocalStrategy],
+  providers: [
+    AuthService,
+    PasswordEncoderService,
+    LocalStrategy,
+    JwtStrategy,
+    CookieService,
+    RefreshTokenStrategy,
+  ],
 })
 export class AuthModule {}

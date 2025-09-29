@@ -14,6 +14,6 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('아이디 또는 비밀번호가 일치하지 않습니다.');
     }
-    return user;
+    return { ...user, sub: user.id };
   }
 }

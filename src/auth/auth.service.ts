@@ -1,16 +1,21 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { SignupRequestDto } from './dto/requests/signup-request.dto';
 import { PasswordEncoderService } from '../common/hashing/password-encoder.service';
-import { JwtService } from '@nestjs/jwt';
-import { Paylode } from './interfaces/paylode.interface';
+import { JwtPaylode } from './interfaces/jwt-paylode.interface';
+import { TokenService } from './token/token.service';
+import { RedisService } from './redis/redis.service';
+import { ConfigService } from '@nestjs/config';
+import { userData } from './interfaces/user-data.interface';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UsersService,
     private readonly passwordEncoderService: PasswordEncoderService,
-    private jwtService: JwtService,
+    private readonly tokenService: TokenService,
+    private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
   ) {}
 
   // 회원가입
@@ -46,13 +51,39 @@ export class AuthService {
   }
 
   // 로그인
-  async login(userData: any) {
-    const paylode: Paylode = {
-      username: userData.username,
+  async login(userData: userData) {
+    const paylode: JwtPaylode = {
+      sub: userData.sub,
       nickname: userData.nickname,
     };
+    const accessToken = this.tokenService.createAccessToken(paylode);
+    const refreshToken = this.tokenService.createRefreshToken(paylode);
+
+    const key = `refresh:${paylode.sub}`;
+    const ttl = parseInt(this.configService.getOrThrow<string>('REDIS_TTL'));
+
+    await this.redisService.set(key, refreshToken, ttl);
+
     return {
-      access_token: this.jwtService.sign(paylode),
+      accessToken,
+      refreshToken,
     };
+  }
+
+  // accessToken 재발급
+  async refreshToken(userData: userData) {
+    const paylode: JwtPaylode = {
+      sub: userData.sub,
+      nickname: userData.nickname,
+    };
+    const accessToken = this.tokenService.createAccessToken(paylode);
+    return accessToken;
+  }
+
+  // 로그아웃
+  async logout(userData: JwtPaylode) {
+    console.log(userData);
+    const key = `refresh:${userData.sub}`;
+    await this.redisService.del(key);
   }
 }

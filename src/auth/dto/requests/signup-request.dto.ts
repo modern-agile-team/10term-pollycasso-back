@@ -42,7 +42,7 @@ export class SignupRequestDto {
 
   @IsString()
   @IsNotEmpty({ message: 'nickname은 필수입니다.' })
-  @Length(2, 20, { message: '닉네임은 2자 이상 20자 이하로 입력해주세요.' })
+  @Length(2, 20)
   @Matches(/^[가-힣a-zA-Z0-9]+$/, {
     message: '닉네임은 한글, 영어, 숫자만 사용가능합니다.',
   })
