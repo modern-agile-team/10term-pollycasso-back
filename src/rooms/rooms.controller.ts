@@ -11,11 +11,11 @@ import {
   HttpCode,
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
-import { CreateRoomDto } from './dto/create-room.dto';
-import { UpdateRoomDto } from './dto/update-room.dto';
-import { QueryRoomDto } from './dto/query-room.dto';
-import { ResRoomDto } from './dto/res-room.dto';
-import { ResCursorDto } from './dto/res-cursor.dto';
+import { CreateRoomDto } from './dto/requests/create-room.dto';
+import { UpdateRoomDto } from './dto/requests/update-room.dto';
+import { QueryRoomDto } from './dto/requests/query-room.dto';
+import { ResRoomDto } from './dto/responses/res-room.dto';
+import { ResCursorDto } from './dto/responses/res-cursor.dto';
 
 @Controller('rooms')
 export class RoomsController {
