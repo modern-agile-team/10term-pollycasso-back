@@ -9,11 +9,11 @@ export interface CreateRoomInput {
 }
 
 export interface UpdateRoomInput {
-  name: string;
-  mode: RoomMode;
-  maxPlayers: number;
-  isPrivate: boolean;
-  hashedPassword: string | null;
+  name?: string;
+  mode?: RoomMode;
+  maxPlayers?: number;
+  isPrivate?: boolean;
+  hashedPassword?: string | null;
 }
 
 export interface FindRoomsQuery {

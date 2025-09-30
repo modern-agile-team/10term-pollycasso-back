@@ -1,7 +1,5 @@
 import { RoomMode } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
-import { CreateRoomDto } from './dto/requests/create-room.dto';
-import { UpdateRoomDto } from './dto/requests/update-room.dto';
 
 export class Room {
   private constructor(
@@ -12,27 +10,33 @@ export class Room {
     public hasPassword: boolean,
   ) {}
 
-  static create(dto: CreateRoomDto): Room {
-    const room = new Room(
-      dto.name,
-      dto.mode,
-      dto.maxPlayers,
-      dto.isPrivate ?? false,
-      !!dto.password,
-    );
+  static create(
+    name: string,
+    mode: RoomMode,
+    maxPlayers: number,
+    isPrivate: boolean,
+    hasPassword: boolean,
+  ): Room {
+    const room = new Room(name, mode, maxPlayers, isPrivate, hasPassword);
     room.validate();
     return room;
   }
 
-  update(dto: UpdateRoomDto, hasNewPassword: boolean): void {
-    if (dto.name !== undefined) this.name = dto.name;
-    if (dto.mode !== undefined) this.mode = dto.mode;
-    if (dto.maxPlayers !== undefined) this.maxPlayers = dto.maxPlayers;
-    if (dto.isPrivate !== undefined) this.isPrivate = dto.isPrivate;
+  update(
+    name?: string,
+    mode?: RoomMode,
+    maxPlayers?: number,
+    isPrivate?: boolean,
+    hasNewPassword?: boolean,
+  ): void {
+    if (name !== undefined) this.name = name;
+    if (mode !== undefined) this.mode = mode;
+    if (maxPlayers !== undefined) this.maxPlayers = maxPlayers;
+    if (isPrivate !== undefined) this.isPrivate = isPrivate;
 
     if (hasNewPassword) {
       this.hasPassword = true;
-    } else if (dto.isPrivate === false) {
+    } else if (isPrivate === false) {
       this.hasPassword = false;
     }
 

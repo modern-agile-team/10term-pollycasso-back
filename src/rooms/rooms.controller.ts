@@ -11,11 +11,9 @@ import {
   HttpCode,
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
-import { CreateRoomDto } from './dto/requests/create-room.dto';
-import { UpdateRoomDto } from './dto/requests/update-room.dto';
-import { QueryRoomDto } from './dto/requests/query-room.dto';
-import { ResRoomDto } from './dto/responses/res-room.dto';
-import { ResCursorDto } from './dto/responses/res-cursor.dto';
+import { CreateRoomDto } from './dtos/requests/create-room.dto';
+import { UpdateRoomDto } from './dtos/requests/update-room.dto';
+import { QueryRoomDto } from './dtos/requests/query-room.dto';
 
 @Controller('rooms')
 export class RoomsController {
@@ -23,26 +21,22 @@ export class RoomsController {
 
   @Post()
   async create(@Body() createRoomDto: CreateRoomDto) {
-    const room = await this.roomsService.createRoom(createRoomDto);
-    return new ResRoomDto(room);
+    return this.roomsService.createRoom(createRoomDto);
   }
 
   @Get()
   async findAll(@Query() query: QueryRoomDto) {
-    const { rooms, hasNextData, nextCursor } = await this.roomsService.getRooms(query);
-    return ResCursorDto.fromEntities(rooms, nextCursor, hasNextData);
+    return this.roomsService.getRooms(query);
   }
 
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    const room = await this.roomsService.getRoom(id);
-    return new ResRoomDto(room);
+    return this.roomsService.getRoom(id);
   }
 
   @Patch(':id')
   async update(@Param('id', ParseIntPipe) id: number, @Body() updateRoomDto: UpdateRoomDto) {
-    const updatedRoom = await this.roomsService.updateRoom(id, updateRoomDto);
-    return new ResRoomDto(updatedRoom);
+    return this.roomsService.updateRoom(id, updateRoomDto);
   }
 
   @Delete(':id')

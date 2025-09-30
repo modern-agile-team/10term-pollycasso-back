@@ -10,6 +10,7 @@ import {
   Length,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateRoomDto {

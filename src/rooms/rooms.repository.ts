@@ -5,16 +5,14 @@ import { CreateRoomInput, FindRoomsQuery, UpdateRoomInput } from './rooms.interf
 
 @Injectable()
 export class RoomsRepository {
-  private readonly ITEMS_PER_PAGE = 6;
-
   constructor(private readonly prisma: PrismaService) {}
 
   create(input: CreateRoomInput): Promise<PrismaRoom> {
     return this.prisma.room.create({ data: input });
   }
 
-  async findAll(query: FindRoomsQuery) {
-    const { name, mode, isPrivate, status, cursor } = query;
+  async findAll(query: FindRoomsQuery): Promise<PrismaRoom[]> {
+    const { name, mode, isPrivate, status } = query;
     const where: Prisma.RoomWhereInput = { deletedAt: null };
 
     if (name) where.name = { contains: name };
@@ -22,18 +20,10 @@ export class RoomsRepository {
     if (isPrivate !== undefined) where.isPrivate = isPrivate;
     if (status) where.status = status;
 
-    const rooms = await this.prisma.room.findMany({
+    return this.prisma.room.findMany({
       where,
       orderBy: { id: 'desc' },
-      take: this.ITEMS_PER_PAGE + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-
-    const hasNextData = rooms.length > this.ITEMS_PER_PAGE;
-    const data = hasNextData ? rooms.slice(0, this.ITEMS_PER_PAGE) : rooms;
-    const nextCursor = data.length > 0 ? data[data.length - 1].id : null;
-
-    return { data, hasNextData, nextCursor: hasNextData ? nextCursor : null };
   }
 
   findOne(id: number): Promise<PrismaRoom | null> {
