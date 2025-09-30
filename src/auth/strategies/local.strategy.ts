@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { Strategy } from 'passport-local';
 import { PassportStrategy } from '@nestjs/passport';
 import { AuthService } from '../auth.service';
+import { userData } from '../interfaces/user-data.interface';
 
 @Injectable()
 export class LocalStrategy extends PassportStrategy(Strategy) {
@@ -9,11 +10,11 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     super();
   }
 
-  async validate(username: string, password: string): Promise<any> {
+  async validate(username: string, password: string): Promise<userData> {
     const user = await this.authService.validateUser(username, password);
     if (!user) {
       throw new UnauthorizedException('아이디 또는 비밀번호가 일치하지 않습니다.');
     }
-    return { ...user, sub: user.id };
+    return user;
   }
 }

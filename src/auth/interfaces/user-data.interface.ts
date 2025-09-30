@@ -1,9 +1,9 @@
 export interface userData {
-  sub: string;
-  username?: string;
+  id: number;
+  username: string | null;
   nickname: string;
-  provider?: string;
-  providerId?: string;
+  provider: string | null;
+  providerId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -32,7 +32,7 @@ export class SignupRequestDto {
 
   @IsString()
   @IsNotEmpty({ message: 'password는 필수입니다.' })
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+{}\[\]:;"'<>,.?/\\|]).+$/, {
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d)(?=.*[!"#$%&'()*+,\-./:;<=>?@[₩\]^_`{|}~]).{8,20}$/, {
     message: '비밀번호는 영문, 숫자, 특수문자를 각각 1자 이상 포함해야 합니다.',
   })
   @Length(8, 20, {

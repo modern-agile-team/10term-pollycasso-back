@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { JwtPaylode } from '../interfaces/jwt-paylode.interface';
+import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -10,14 +10,14 @@ export class TokenService {
     private readonly configService: ConfigService,
   ) {}
 
-  createAccessToken(paylode: JwtPaylode) {
+  createAccessToken(paylode: JwtPayload) {
     return this.jwtService.sign(paylode, {
       secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
       expiresIn: this.configService.getOrThrow<string>('JWT_ACCESS_EXPIRATION'),
     });
   }
 
-  createRefreshToken(paylode: JwtPaylode) {
+  createRefreshToken(paylode: JwtPayload) {
     return this.jwtService.sign(paylode, {
       secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       expiresIn: this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRATION'),

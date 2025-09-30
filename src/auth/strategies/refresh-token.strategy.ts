@@ -4,7 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Request } from 'express';
 import { Strategy } from 'passport-jwt';
 import { RedisService } from '../redis/redis.service';
-import { JwtPaylode } from '../interfaces/jwt-paylode.interface';
+import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 @Injectable()
 export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'refresh-token') {
@@ -14,19 +14,19 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'refresh-to
   ) {
     super({
       jwtFromRequest: (req: Request) => {
-        const refreshToken = req.cookies?.['refreshToken'];
-        return refreshToken;
+        const refreshToken = req.cookies?.['refreshToken'] as string | undefined;
+        return refreshToken ?? null;
       },
       secretOrKey: configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       passReqToCallback: true,
     });
   }
-  async validate(req: Request, payload: JwtPaylode) {
-    const refreshToken = req.cookies['refreshToken'];
+  async validate(req: Request, payload: JwtPayload) {
+    const refreshToken = req.cookies['refreshToken'] as string;
 
-    const key = `refresh:${String(payload.sub)}`;
+    const key: string = `refresh:${String(payload.sub)}`;
 
-    const cachedRefreshToken = await this.redisService.get(key);
+    const cachedRefreshToken: string | null = await this.redisService.get(key);
     if (!cachedRefreshToken || refreshToken !== cachedRefreshToken) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }

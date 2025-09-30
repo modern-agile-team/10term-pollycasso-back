@@ -22,4 +22,7 @@ async function bootstrap() {
   );
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('❌ 서버 시작 중 오류 발생:', err);
+  process.exit(1); // ✅ 프로세스 강제 종료 (중요)
+});
