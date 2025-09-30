@@ -8,11 +8,12 @@ import { PasswordEncoderService } from 'src/common/hashing/password-encoder.serv
 import { PaginationService } from 'src/common/pagination/pagination.service';
 import { PaginatedResult } from 'src/common/pagination/pagination.interface';
 import { FindRoomsQuery } from './rooms.interface';
-import { Room } from './rooms.entity';
-import { ROOMS_PER_PAGE } from './rooms.constants';
+import { Room } from './entities/rooms.entity';
 
 @Injectable()
 export class RoomsService {
+  private readonly ROOMS_PER_PAGE = 6;
+
   constructor(
     private readonly roomsRepository: RoomsRepository,
     private readonly passwordEncoderService: PasswordEncoderService,
@@ -54,7 +55,7 @@ export class RoomsService {
     const prismaRooms = await this.roomsRepository.findAll(findQuery);
     const { data, nextCursor, hasNextPage } = this.paginationService.paginateById(
       prismaRooms,
-      ROOMS_PER_PAGE,
+      this.ROOMS_PER_PAGE,
       query.cursor,
     );
 
@@ -89,6 +90,6 @@ export class RoomsService {
   async deleteRoom(id: number): Promise<void> {
     const prismaRoom = await this.roomsRepository.findOne(id);
     if (!prismaRoom) throw new NotFoundException(`${id}번 방이 존재하지 않습니다.`);
-    await this.roomsRepository.softDelete(id);
+    await this.roomsRepository.remove(id);
   }
 }

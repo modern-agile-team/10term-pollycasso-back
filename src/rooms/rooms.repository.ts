@@ -13,7 +13,7 @@ export class RoomsRepository {
 
   async findAll(query: FindRoomsQuery): Promise<PrismaRoom[]> {
     const { name, mode, isPrivate, status } = query;
-    const where: Prisma.RoomWhereInput = { deletedAt: null };
+    const where: Prisma.RoomWhereInput = {};
 
     if (name) where.name = { contains: name };
     if (mode) where.mode = mode;
@@ -27,14 +27,14 @@ export class RoomsRepository {
   }
 
   findOne(id: number): Promise<PrismaRoom | null> {
-    return this.prisma.room.findFirst({ where: { id, deletedAt: null } });
+    return this.prisma.room.findUnique({ where: { id } });
   }
 
   update(id: number, input: UpdateRoomInput): Promise<PrismaRoom> {
     return this.prisma.room.update({ where: { id }, data: input });
   }
 
-  softDelete(id: number): Promise<PrismaRoom> {
-    return this.prisma.room.update({ where: { id }, data: { deletedAt: new Date() } });
+  remove(id: number): Promise<PrismaRoom> {
+    return this.prisma.room.delete({ where: { id } });
   }
 }
