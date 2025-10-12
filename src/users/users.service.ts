@@ -13,7 +13,7 @@ export class UsersService {
   }
 
   // 비밀번호 확인용 유저 조회
-  async findUserForAuth(username: string): Promise<User | null> {
+  async findUserByUsername(username: string): Promise<User | null> {
     return this.usersRepository.findOneByUsername(username);
   }
 

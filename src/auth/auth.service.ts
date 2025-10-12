@@ -4,8 +4,7 @@ import { SignupRequestDto } from './dto/requests/signup-request.dto';
 import { PasswordEncoderService } from '../common/hashing/password-encoder.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { TokenService } from './token/token.service';
-import { RedisService } from './redis/redis.service';
-import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../redis/redis.service';
 import { userData } from './interfaces/user-data.interface';
 import { TokenDto } from './dto/responses/token.dto';
 import { AccessTokenDto } from './dto/responses/access-token.dto';
@@ -17,7 +16,6 @@ export class AuthService {
     private readonly passwordEncoderService: PasswordEncoderService,
     private readonly tokenService: TokenService,
     private readonly redisService: RedisService,
-    private readonly configService: ConfigService,
   ) {}
 
   // 회원가입
@@ -48,7 +46,7 @@ export class AuthService {
 
   // 유저 검증
   async validateUser(username: string, password: string): Promise<userData | null> {
-    const user = await this.userService.findUserForAuth(username);
+    const user = await this.userService.findUserByUsername(username);
     if (!user || !user.hashedPassword) return null;
 
     const isMatch = await this.passwordEncoderService.compare(password, user.hashedPassword);
@@ -60,17 +58,12 @@ export class AuthService {
 
   // 로그인
   async login(userData: userData): Promise<TokenDto> {
-    const paylode: JwtPayload = {
+    const payload: JwtPayload = {
       sub: userData.id,
       nickname: userData.nickname,
     };
-    const accessToken = this.tokenService.createAccessToken(paylode);
-    const refreshToken = this.tokenService.createRefreshToken(paylode);
-
-    const key = `refresh:${paylode.sub}`;
-    const ttl = parseInt(this.configService.getOrThrow<string>('REDIS_TTL'));
-
-    await this.redisService.set(key, refreshToken, ttl);
+    const accessToken = this.tokenService.createAccessToken(payload);
+    const refreshToken = await this.tokenService.createRefreshToken(payload);
 
     return {
       accessToken,
@@ -79,15 +72,12 @@ export class AuthService {
   }
 
   // accessToken 재발급
-  refreshToken(userData: JwtPayload): AccessTokenDto {
-    const { sub, nickname } = userData;
-    const accessToken = this.tokenService.createAccessToken({ sub, nickname });
-    return { accessToken };
+  refreshAccessOnly(userData: JwtPayload): AccessTokenDto {
+    return this.tokenService.refreshAccessOnly(userData);
   }
 
   // 로그아웃
   async logout(userData: JwtPayload) {
-    const key = `refresh:${userData.sub}`;
-    await this.redisService.del(key);
+    await this.tokenService.revokeToken(userData.sub);
   }
 }

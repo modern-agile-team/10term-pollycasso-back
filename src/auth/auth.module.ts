@@ -5,7 +5,7 @@ import { UsersModule } from 'src/users/users.module';
 import { PasswordEncoderService } from '../common/hashing/password-encoder.service';
 import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { RedisModule } from './redis/redis.module';
+import { RedisModule } from '../redis/redis.module';
 import { TokenModule } from './token/token.module';
 import { CookieService } from './cookie/cookie.service';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
