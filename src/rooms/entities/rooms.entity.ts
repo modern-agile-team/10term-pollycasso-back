@@ -58,7 +58,7 @@ export class Room {
     }
   }
 
-  static fromPrisma(data: {
+  static fromPersistence(data: {
     name: string;
     mode: RoomMode;
     maxPlayers: number;
@@ -68,7 +68,7 @@ export class Room {
     return new Room(data.name, data.mode, data.maxPlayers, data.isPrivate, !!data.hashedPassword);
   }
 
-  toPrisma(hashedPassword: string | null) {
+  toPersistence(hashedPassword: string | null) {
     return {
       name: this.name,
       mode: this.mode,

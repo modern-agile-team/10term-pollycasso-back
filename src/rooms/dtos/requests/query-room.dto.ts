@@ -1,5 +1,5 @@
 import { RoomMode, RoomStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryRoomDto {
@@ -12,6 +12,11 @@ export class QueryRoomDto {
   mode?: RoomMode;
 
   @IsOptional()
+  @Transform(({ value }): boolean => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   @IsBoolean({ message: '비공개 여부는 true 또는 false이어야 합니다.' })
   isPrivate?: boolean;
 

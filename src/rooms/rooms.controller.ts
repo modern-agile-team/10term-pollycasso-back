@@ -14,6 +14,7 @@ import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
+import { ResRoomDto } from './dtos/responses/res-room.dto';
 
 @Controller('rooms')
 export class RoomsController {
@@ -21,22 +22,30 @@ export class RoomsController {
 
   @Post()
   async create(@Body() createRoomDto: CreateRoomDto) {
-    return this.roomsService.createRoom(createRoomDto);
+    const room = await this.roomsService.createRoom(createRoomDto);
+    return new ResRoomDto(room);
   }
 
   @Get()
   async findAll(@Query() query: QueryRoomDto) {
-    return this.roomsService.getRooms(query);
+    const { data, nextCursor, hasNextPage } = await this.roomsService.getRooms(query);
+    return {
+      data: data.map((room) => new ResRoomDto(room)),
+      nextCursor,
+      hasNextPage,
+    };
   }
 
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.roomsService.getRoom(id);
+    const room = await this.roomsService.getRoom(id);
+    return new ResRoomDto(room);
   }
 
   @Patch(':id')
   async update(@Param('id', ParseIntPipe) id: number, @Body() updateRoomDto: UpdateRoomDto) {
-    return this.roomsService.updateRoom(id, updateRoomDto);
+    const room = await this.roomsService.updateRoom(id, updateRoomDto);
+    return new ResRoomDto(room);
   }
 
   @Delete(':id')

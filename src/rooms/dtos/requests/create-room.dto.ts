@@ -1,4 +1,5 @@
 import { RoomMode } from '@prisma/client';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -22,15 +23,21 @@ export class CreateRoomDto {
   mode: RoomMode;
 
   @IsInt({ message: '최대 인원은 숫자여야 합니다.' })
+  @Type(() => Number)
   @Min(1, { message: '인원은 최소 1명이어야 합니다.' })
   maxPlayers: number;
 
   @IsOptional()
+  @Transform(({ value }): boolean => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   @IsBoolean({ message: '비공개 여부는 true 또는 false이어야 합니다.' })
   isPrivate?: boolean;
 
   @IsOptional()
-  @IsNumberString({ no_symbols: true }, { message: '비밀번호는 숫자만 가능합니다.' })
-  @Length(4, 4, { message: '비밀번호는 숫자 4자리여야 합니다.' })
+  @IsNumberString({ no_symbols: true }, { message: '비밀번호는 숫자만 입력 가능합니다.' })
+  @Length(4, 4, { message: '비밀번호는 4자리여야 합니다.' })
   password?: string;
 }

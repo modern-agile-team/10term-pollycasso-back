@@ -11,6 +11,10 @@ export class RoomsRepository {
     return this.prisma.room.create({ data: input });
   }
 
+  findOne(id: number): Promise<PrismaRoom | null> {
+    return this.prisma.room.findUnique({ where: { id } });
+  }
+
   async findAll(query: FindRoomsQuery): Promise<PrismaRoom[]> {
     const { name, mode, isPrivate, status } = query;
     const where: Prisma.RoomWhereInput = {};
@@ -24,10 +28,6 @@ export class RoomsRepository {
       where,
       orderBy: { id: 'desc' },
     });
-  }
-
-  findOne(id: number): Promise<PrismaRoom | null> {
-    return this.prisma.room.findUnique({ where: { id } });
   }
 
   update(id: number, input: UpdateRoomInput): Promise<PrismaRoom> {
