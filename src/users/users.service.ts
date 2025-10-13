@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { Prisma, User } from '@prisma/client';
-import { userData } from 'src/auth/interfaces/user-data.interface';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  // 검증용
-  async checkUserExists(where: Prisma.UserWhereUniqueInput): Promise<boolean> {
-    return this.usersRepository.exists(where);
+  // 아이디 또는 닉네임으로 유저 조회
+  async findUserByUsernameOrNickname(username: string, nickname: string): Promise<User | null> {
+    return this.usersRepository.findByUsernameOrNickname(username, nickname);
   }
 
   // 비밀번호 확인용 유저 조회
@@ -18,7 +17,7 @@ export class UsersService {
   }
 
   // 유저 생성
-  async createUser(userData: Prisma.UserCreateInput): Promise<userData> {
+  async createUser(userData: Prisma.UserCreateInput): Promise<User> {
     return this.usersRepository.createUser(userData);
   }
 }

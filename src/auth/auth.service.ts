@@ -4,7 +4,6 @@ import { SignupRequestDto } from './dto/requests/signup-request.dto';
 import { PasswordEncoderService } from '../common/hashing/password-encoder.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { TokenService } from './token/token.service';
-import { RedisService } from '../redis/redis.service';
 import { userData } from './interfaces/user-data.interface';
 import { TokenDto } from './dto/responses/token.dto';
 import { AccessTokenDto } from './dto/responses/access-token.dto';
@@ -15,22 +14,22 @@ export class AuthService {
     private readonly userService: UsersService,
     private readonly passwordEncoderService: PasswordEncoderService,
     private readonly tokenService: TokenService,
-    private readonly redisService: RedisService,
   ) {}
 
   // 회원가입
   async signup(signupRequestDto: SignupRequestDto): Promise<TokenDto> {
-    const existsUsername = await this.userService.checkUserExists({
-      username: signupRequestDto.username,
-    });
-    if (existsUsername) {
-      throw new ConflictException('이미 사용 중인 아이디입니다.');
-    }
-    const existsNickname = await this.userService.checkUserExists({
-      nickname: signupRequestDto.nickname,
-    });
-    if (existsNickname) {
-      throw new ConflictException('이미 사용 중인 닉네임입니다.');
+    const existingUser = await this.userService.findUserByUsernameOrNickname(
+      signupRequestDto.username,
+      signupRequestDto.nickname,
+    );
+
+    if (existingUser) {
+      if (existingUser.username === signupRequestDto.username) {
+        throw new ConflictException('이미 사용 중인 아이디입니다.');
+      }
+      if (existingUser.nickname === signupRequestDto.nickname) {
+        throw new ConflictException('이미 사용 중인 닉네임입니다.');
+      }
     }
 
     const hashedPassword = await this.passwordEncoderService.hash(signupRequestDto.password);
@@ -73,7 +72,11 @@ export class AuthService {
 
   // accessToken 재발급
   refreshAccessOnly(userData: JwtPayload): AccessTokenDto {
-    return this.tokenService.refreshAccessOnly(userData);
+    const payload: JwtPayload = {
+      sub: userData.sub,
+      nickname: userData.nickname,
+    };
+    return this.tokenService.refreshAccessOnly(payload);
   }
 
   // 로그아웃
