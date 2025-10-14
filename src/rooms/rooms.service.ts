@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { RoomsRepository } from './rooms.repository';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
@@ -7,11 +7,13 @@ import { Room } from './entities/rooms.entity';
 import { PasswordEncoderService } from 'src/common/hashing/password-encoder.service';
 import { PaginationDto } from 'src/common/pagination/pagination.dto';
 import { ERROR_MESSAGES, ROOM_CONSTANTS } from './constants/room.constant';
+import type { IRoomsRepository } from './interfaces/rooms.repository.interface';
 
 @Injectable()
 export class RoomsService {
   constructor(
-    private readonly roomsRepository: RoomsRepository,
+    @Inject('IRoomsRepository')
+    private readonly roomsRepository: IRoomsRepository,
     private readonly passwordEncoderService: PasswordEncoderService,
   ) {}
 

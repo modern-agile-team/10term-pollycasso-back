@@ -6,6 +6,13 @@ import { PasswordEncoderService } from 'src/common/hashing/password-encoder.serv
 
 @Module({
   controllers: [RoomsController],
-  providers: [RoomsService, RoomsRepository, PasswordEncoderService],
+  providers: [
+    RoomsService,
+    {
+      provide: 'IRoomsRepository', 
+      useClass: RoomsRepository,
+    },
+    PasswordEncoderService,
+  ],
 })
 export class RoomsModule {}

@@ -4,9 +4,10 @@ import { Room } from './entities/rooms.entity';
 import { RoomMapper } from './entities/mappers/rooms.mapper';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { Prisma } from '@prisma/client';
+import { IRoomsRepository } from './interfaces/rooms.repository.interface';
 
 @Injectable()
-export class RoomsRepository {
+export class RoomsRepository implements IRoomsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(room: Room): Promise<Room> {
