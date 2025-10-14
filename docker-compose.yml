@@ -1,0 +1,73 @@
+networks:
+  web:
+    driver: bridge
+
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: always
+    command:
+      - '--api.insecure=true'
+      - '--providers.docker=true'
+      - '--entrypoints.web.address=:80'
+      - '--entrypoints.websecure.address=:443'
+      - '--certificatesresolvers.letsencrypt.acme.httpchallenge=true'
+      - '--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web'
+      - '--certificatesresolvers.letsencrypt.acme.email=c0d1ngyje@gmail.com'
+      - '--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json'
+    ports:
+      - '80:80'
+      - '443:443'
+      - '8080:8080'
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - './letsencrypt:/letsencrypt'
+    networks:
+      - web
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: always
+    networks:
+      - web
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pollycasso-back
+    restart: always
+    env_file:
+      - ./.env
+    expose:
+      - '3000'
+    depends_on:
+      redis:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=Host(`api.pollycasso.com`)
+      - traefik.http.routers.api.entrypoints=web
+      - traefik.http.routers.api.service=api
+      - traefik.http.services.api.loadbalancer.server.port=3000
+      - traefik.docker.network=web
+      - traefik.http.routers.api-secure.rule=Host(`api.pollycasso.com`)
+      - traefik.http.routers.api-secure.entrypoints=websecure
+      - traefik.http.routers.api-secure.tls.certresolver=letsencrypt
+      - traefik.http.routers.api-secure.service=api
+      - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+      - traefik.http.routers.api.middlewares=https-redirect@docker
+    networks:
+      - web
+volumes:
+  redis-data:

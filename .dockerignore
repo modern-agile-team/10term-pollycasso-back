@@ -1,0 +1,22 @@
+node_modules
+
+# Git
+.git
+.gitignore
+
+.env
+.env.local
+
+# Prisma
+prisma/dev.db
+prisma/migrations/*/README.md
+
+# Test files
+*.spec.ts
+*.test.ts
+
+# Build output
+dist
+build
+.next
+.cache
