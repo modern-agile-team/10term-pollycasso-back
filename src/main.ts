@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException, ValidationError } from '@nestjs/common';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
@@ -18,8 +19,22 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors: ValidationError[]) => {
+        const formattedErrors = errors.map((err) => ({
+          field: err.property,
+          reason: Object.values(err.constraints!),
+        }));
+
+        return new BadRequestException({
+          code: 400,
+          message: '입력값에 오류가 있습니다.',
+          errors: formattedErrors,
+        });
+      },
     }),
   );
+
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   await app.listen(process.env.PORT ?? 3000);
 }

@@ -16,6 +16,9 @@ CREATE TYPE "public"."Team" AS ENUM ('A', 'B', 'NONE');
 -- CreateEnum
 CREATE TYPE "public"."MatchStatus" AS ENUM ('PENDING', 'ACTIVE', 'COMPLETED');
 
+-- CreateEnum
+CREATE TYPE "public"."RoomStatus" AS ENUM ('WAITING', 'IN_PROGRESS');
+
 -- CreateTable
 CREATE TABLE "public"."users" (
     "id" SERIAL NOT NULL,
@@ -26,6 +29,8 @@ CREATE TABLE "public"."users" (
     "provider_id" VARCHAR(50),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "is_deleted" BOOLEAN NOT NULL DEFAULT false,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -49,18 +54,33 @@ CREATE TABLE "public"."user_profiles" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."user_stats" (
+    "user_id" INTEGER NOT NULL,
+    "total_matches" INTEGER NOT NULL DEFAULT 0,
+    "total_wins" INTEGER NOT NULL DEFAULT 0,
+    "total_draws" INTEGER NOT NULL DEFAULT 0,
+    "total_loses" INTEGER NOT NULL DEFAULT 0,
+    "win_rate" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "total_votes_received" INTEGER NOT NULL DEFAULT 0,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_stats_pkey" PRIMARY KEY ("user_id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."rooms" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "mode" "public"."RoomMode" NOT NULL,
     "max_players" INTEGER NOT NULL,
+    "currentPlayers" INTEGER NOT NULL DEFAULT 0,
     "is_private" BOOLEAN NOT NULL DEFAULT false,
     "hashed_password" VARCHAR(60),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "started_at" TIMESTAMP(3),
     "ended_at" TIMESTAMP(3),
-    "deleted_at" TIMESTAMP(3),
+    "status" "public"."RoomStatus" NOT NULL DEFAULT 'WAITING',
 
     CONSTRAINT "rooms_pkey" PRIMARY KEY ("id")
 );
@@ -69,7 +89,10 @@ CREATE TABLE "public"."rooms" (
 CREATE TABLE "public"."room_members" (
     "id" SERIAL NOT NULL,
     "room_id" INTEGER NOT NULL,
-    "user_id" INTEGER NOT NULL,
+    "user_id" INTEGER,
+    "user_nickname" VARCHAR(20),
+    "user_level" INTEGER,
+    "user_tier" VARCHAR(20),
     "role" "public"."Role" NOT NULL DEFAULT 'PLAYER',
     "team" "public"."Team" NOT NULL DEFAULT 'NONE',
     "is_ready" BOOLEAN NOT NULL DEFAULT false,
@@ -83,10 +106,10 @@ CREATE TABLE "public"."room_members" (
 -- CreateTable
 CREATE TABLE "public"."matches" (
     "id" SERIAL NOT NULL,
-    "room_id" INTEGER NOT NULL,
+    "room_id" INTEGER,
     "status" "public"."MatchStatus" NOT NULL,
     "topic" VARCHAR(100) NOT NULL,
-    "topic_writer_id" INTEGER NOT NULL,
+    "topic_writer_id" INTEGER,
     "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "ended_at" TIMESTAMP(3),
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -97,7 +120,7 @@ CREATE TABLE "public"."matches" (
 -- CreateTable
 CREATE TABLE "public"."match_results" (
     "id" SERIAL NOT NULL,
-    "room_user_id" INTEGER NOT NULL,
+    "room_user_id" INTEGER,
     "match_id" INTEGER NOT NULL,
     "result" "public"."Result" NOT NULL,
     "recorded_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -109,8 +132,9 @@ CREATE TABLE "public"."match_results" (
 CREATE TABLE "public"."drawings" (
     "id" SERIAL NOT NULL,
     "match_id" INTEGER NOT NULL,
-    "room_user_id" INTEGER NOT NULL,
+    "room_user_id" INTEGER,
     "image_path" VARCHAR(255) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "drawings_pkey" PRIMARY KEY ("id")
 );
@@ -120,8 +144,9 @@ CREATE TABLE "public"."votes" (
     "id" SERIAL NOT NULL,
     "match_id" INTEGER NOT NULL,
     "drawing_id" INTEGER NOT NULL,
-    "voter_id" INTEGER NOT NULL,
+    "voter_id" INTEGER,
     "rating" INTEGER NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "votes_pkey" PRIMARY KEY ("id")
 );
@@ -136,7 +161,16 @@ CREATE UNIQUE INDEX "users_nickname_key" ON "public"."users"("nickname");
 CREATE UNIQUE INDEX "users_provider_provider_id_key" ON "public"."users"("provider", "provider_id");
 
 -- CreateIndex
+CREATE INDEX "user_stats_win_rate_idx" ON "public"."user_stats"("win_rate" DESC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "room_members_room_id_user_id_key" ON "public"."room_members"("room_id", "user_id");
+
+-- CreateIndex
+CREATE INDEX "match_results_result_idx" ON "public"."match_results"("result");
+
+-- CreateIndex
+CREATE INDEX "match_results_recorded_at_idx" ON "public"."match_results"("recorded_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "match_results_room_user_id_match_id_key" ON "public"."match_results"("room_user_id", "match_id");
@@ -145,40 +179,46 @@ CREATE UNIQUE INDEX "match_results_room_user_id_match_id_key" ON "public"."match
 CREATE UNIQUE INDEX "drawings_match_id_room_user_id_key" ON "public"."drawings"("match_id", "room_user_id");
 
 -- CreateIndex
+CREATE INDEX "votes_rating_idx" ON "public"."votes"("rating");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "votes_match_id_drawing_id_voter_id_key" ON "public"."votes"("match_id", "drawing_id", "voter_id");
 
 -- AddForeignKey
-ALTER TABLE "public"."user_profiles" ADD CONSTRAINT "user_profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."user_profiles" ADD CONSTRAINT "user_profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."room_members" ADD CONSTRAINT "room_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."user_stats" ADD CONSTRAINT "user_stats_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."room_members" ADD CONSTRAINT "room_members_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "public"."rooms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."room_members" ADD CONSTRAINT "room_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."matches" ADD CONSTRAINT "matches_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "public"."rooms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."room_members" ADD CONSTRAINT "room_members_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "public"."rooms"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."matches" ADD CONSTRAINT "matches_topic_writer_id_fkey" FOREIGN KEY ("topic_writer_id") REFERENCES "public"."room_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."matches" ADD CONSTRAINT "matches_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "public"."rooms"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."match_results" ADD CONSTRAINT "match_results_room_user_id_fkey" FOREIGN KEY ("room_user_id") REFERENCES "public"."room_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."matches" ADD CONSTRAINT "matches_topic_writer_id_fkey" FOREIGN KEY ("topic_writer_id") REFERENCES "public"."room_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."match_results" ADD CONSTRAINT "match_results_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."match_results" ADD CONSTRAINT "match_results_room_user_id_fkey" FOREIGN KEY ("room_user_id") REFERENCES "public"."room_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."drawings" ADD CONSTRAINT "drawings_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."match_results" ADD CONSTRAINT "match_results_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."drawings" ADD CONSTRAINT "drawings_room_user_id_fkey" FOREIGN KEY ("room_user_id") REFERENCES "public"."room_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."drawings" ADD CONSTRAINT "drawings_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."votes" ADD CONSTRAINT "votes_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."drawings" ADD CONSTRAINT "drawings_room_user_id_fkey" FOREIGN KEY ("room_user_id") REFERENCES "public"."room_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."votes" ADD CONSTRAINT "votes_drawing_id_fkey" FOREIGN KEY ("drawing_id") REFERENCES "public"."drawings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."votes" ADD CONSTRAINT "votes_match_id_fkey" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."votes" ADD CONSTRAINT "votes_voter_id_fkey" FOREIGN KEY ("voter_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."votes" ADD CONSTRAINT "votes_drawing_id_fkey" FOREIGN KEY ("drawing_id") REFERENCES "public"."drawings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."votes" ADD CONSTRAINT "votes_voter_id_fkey" FOREIGN KEY ("voter_id") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE CASCADE;

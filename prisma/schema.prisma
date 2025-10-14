@@ -16,7 +16,6 @@ enum Result {
 enum Provider {
   GOOGLE
   KAKAO
-  NAVER
 }
 
 enum RoomMode {
@@ -57,6 +56,7 @@ model User {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   profile     UserProfile?
+  stats       UserStats?
   roomMembers RoomMember[]
   votes       Vote[]
 
@@ -78,9 +78,25 @@ model UserProfile {
   totalAttendance     Int?      @map("total_attendance")
   isOnline            Boolean   @default(false) @map("is_online")
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_profiles")
+}
+
+model UserStats {
+  userId             Int      @id @map("user_id")
+  totalMatches       Int      @default(0) @map("total_matches")
+  totalWins          Int      @default(0) @map("total_wins")
+  totalDraws         Int      @default(0) @map("total_draws")
+  totalLoses         Int      @default(0) @map("total_loses")
+  winRate            Float    @default(0) @map("win_rate")
+  totalVotesReceived Int      @default(0) @map("total_votes_received")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([winRate(sort: Desc)])
+  @@map("user_stats")
 }
 
 model Room {
@@ -95,7 +111,6 @@ model Room {
   updatedAt      DateTime   @updatedAt @map("updated_at")
   startedAt      DateTime?  @map("started_at")
   endedAt        DateTime?  @map("ended_at")
-  deletedAt      DateTime?  @map("deleted_at")
   status         RoomStatus @default(WAITING)
 
   roomMembers RoomMember[]
@@ -105,9 +120,14 @@ model Room {
 }
 
 model RoomMember {
-  id        Int       @id @default(autoincrement())
-  roomId    Int       @map("room_id")
-  userId    Int       @map("user_id")
+  id     Int  @id @default(autoincrement())
+  roomId Int  @map("room_id")
+  userId Int? @map("user_id")
+
+  userNickname String? @map("user_nickname") @db.VarChar(20)
+  userLevel    Int?    @map("user_level")
+  userTier     String? @map("user_tier") @db.VarChar(20)
+
   role      Role      @default(PLAYER)
   team      Team      @default(NONE)
   isReady   Boolean   @default(false) @map("is_ready")
@@ -115,8 +135,8 @@ model RoomMember {
   leftAt    DateTime? @map("left_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
-  user                 User          @relation(fields: [userId], references: [id])
-  room                 Room          @relation(fields: [roomId], references: [id])
+  user                 User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  room                 Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
   matchResults         MatchResult[]
   drawings             Drawing[]
   matchesAsTopicWriter Match[]
@@ -127,45 +147,47 @@ model RoomMember {
 
 model Match {
   id            Int         @id @default(autoincrement())
-  roomId        Int         @map("room_id")
+  roomId        Int?        @map("room_id")
   status        MatchStatus
   topic         String      @db.VarChar(100)
-  topicWriterId Int         @map("topic_writer_id")
+  topicWriterId Int?        @map("topic_writer_id")
   startedAt     DateTime    @default(now()) @map("started_at")
   endedAt       DateTime?   @map("ended_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
-  room         Room          @relation(fields: [roomId], references: [id])
+  room         Room?         @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  topicWriter  RoomMember?   @relation(fields: [topicWriterId], references: [id], onDelete: SetNull)
   matchResults MatchResult[]
   drawings     Drawing[]
   votes        Vote[]
-  topicWriter  RoomMember    @relation(fields: [topicWriterId], references: [id])
 
   @@map("matches")
 }
 
 model MatchResult {
   id         Int      @id @default(autoincrement())
-  roomUserId Int      @map("room_user_id")
+  roomUserId Int?     @map("room_user_id")
   matchId    Int      @map("match_id")
   result     Result
   recordedAt DateTime @default(now()) @map("recorded_at")
 
-  roomUser RoomMember @relation(fields: [roomUserId], references: [id])
-  match    Match      @relation(fields: [matchId], references: [id])
+  roomUser RoomMember? @relation(fields: [roomUserId], references: [id], onDelete: SetNull)
+  match    Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
   @@unique([roomUserId, matchId])
+  @@index([result])
+  @@index([recordedAt])
   @@map("match_results")
 }
 
 model Drawing {
   id         Int    @id @default(autoincrement())
   matchId    Int    @map("match_id")
-  roomUserId Int    @map("room_user_id")
+  roomUserId Int?   @map("room_user_id")
   imagePath  String @map("image_path") @db.VarChar(255)
 
-  match      Match      @relation(fields: [matchId], references: [id])
-  roomMember RoomMember @relation(fields: [roomUserId], references: [id])
+  match      Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  roomMember RoomMember? @relation(fields: [roomUserId], references: [id], onDelete: SetNull)
   votes      Vote[]
 
   @@unique([matchId, roomUserId])
@@ -173,16 +195,18 @@ model Drawing {
 }
 
 model Vote {
-  id        Int @id @default(autoincrement())
-  matchId   Int @map("match_id")
-  drawingId Int @map("drawing_id")
-  voterId   Int @map("voter_id")
+  id        Int       @id @default(autoincrement())
+  matchId   Int       @map("match_id")
+  drawingId Int       @map("drawing_id")
+  voterId   Int?      @map("voter_id")
   rating    Int
+  deletedAt DateTime? @map("deleted_at")
 
-  match   Match   @relation(fields: [matchId], references: [id])
-  drawing Drawing @relation(fields: [drawingId], references: [id])
-  voter   User    @relation(fields: [voterId], references: [id])
+  match   Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  drawing Drawing @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  voter   User?   @relation(fields: [voterId], references: [id], onDelete: SetNull)
 
   @@unique([matchId, drawingId, voterId])
+  @@index([rating])
   @@map("votes")
 }

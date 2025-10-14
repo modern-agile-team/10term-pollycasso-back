@@ -18,8 +18,4 @@ export class ResRoomDto {
     this.isPrivate = room.isPrivate;
     this.status = room.status;
   }
-
-  static transformRoomEntitiesToDto(rooms: Room[]): ResRoomDto[] {
-    return rooms.map((room) => new ResRoomDto(room));
-  }
 }
