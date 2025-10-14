@@ -49,7 +49,7 @@ model User {
   id             Int       @id @default(autoincrement())
   username       String?   @unique @db.VarChar(20)
   hashedPassword String?   @map("hashed_password") @db.VarChar(60)
-  nickname       String    @unique @db.VarChar(20)
+  nickname       String    @unique @db.VarChar(30)
   provider       Provider?
   providerId     String?   @map("provider_id") @db.VarChar(50)
   createdAt      DateTime  @default(now()) @map("created_at")
