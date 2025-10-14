@@ -27,14 +27,13 @@ export class CreateRoomDto {
   @Min(1, { message: '인원은 최소 1명이어야 합니다.' })
   maxPlayers: number;
 
-  @IsOptional()
   @Transform(({ value }): boolean => {
     if (value === 'true') return true;
     if (value === 'false') return false;
     return value;
   })
   @IsBoolean({ message: '비공개 여부는 true 또는 false이어야 합니다.' })
-  isPrivate?: boolean;
+  isPrivate: boolean;
 
   @IsOptional()
   @IsNumberString({ no_symbols: true }, { message: '비밀번호는 숫자만 입력 가능합니다.' })

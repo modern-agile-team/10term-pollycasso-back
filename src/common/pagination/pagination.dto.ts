@@ -1,19 +1,14 @@
-import { PaginatedResult } from './pagination.interface';
-
-export class PaginationDto<T extends { id: number }> implements PaginatedResult<T> {
+export class PaginationDto<T extends { id: number | null }> {
   readonly data: T[];
   readonly hasNextPage: boolean;
   readonly nextCursor: number | null;
 
-  constructor(items: T[], pageSize: number, cursor?: number) {
-    const startIndex = cursor ? items.findIndex((item) => item.id === cursor) + 1 : 0;
+  constructor(items: T[], pageSize: number) {
+    const hasNextPage = items.length > pageSize;
+    const data = hasNextPage ? items.slice(0, pageSize) : items;
 
-    const sliced = items.slice(startIndex, startIndex + pageSize);
-    const hasNextPage = items.length > startIndex + pageSize;
-    const nextCursor = hasNextPage ? sliced[sliced.length - 1].id : null;
-
-    this.data = sliced;
+    this.data = data;
     this.hasNextPage = hasNextPage;
-    this.nextCursor = nextCursor;
+    this.nextCursor = hasNextPage && data.length > 0 ? data[data.length - 1].id : null;
   }
 }

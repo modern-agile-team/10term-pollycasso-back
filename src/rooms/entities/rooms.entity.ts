@@ -1,80 +1,161 @@
-import { RoomMode } from '@prisma/client';
+import { RoomMode, RoomStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
+import { PasswordEncoderService } from 'src/common/hashing/password-encoder.service';
+import { ERROR_MESSAGES, ROOM_CONSTANTS } from '../constants/room.constants';
+
+interface RoomUpdateParams {
+  name?: string;
+  mode?: RoomMode;
+  maxPlayers?: number;
+  isPrivate?: boolean;
+  plainPassword?: string | null;
+  status?: RoomStatus;
+}
 
 export class Room {
   private constructor(
+    private _id: number | null,
     public name: string,
     public mode: RoomMode,
     public maxPlayers: number,
+    public currentPlayers: number,
     public isPrivate: boolean,
-    public hasPassword: boolean,
-  ) {}
+    private hashedPassword: string | null,
+    private _status: RoomStatus,
+    public readonly createdAt: Date,
+  ) {
+    this.validate();
+  }
 
-  static create(
+  static async create(
     name: string,
     mode: RoomMode,
     maxPlayers: number,
     isPrivate: boolean,
-    hasPassword: boolean,
-  ): Room {
-    const room = new Room(name, mode, maxPlayers, isPrivate, hasPassword);
-    room.validate();
-    return room;
+    plainPassword: string | null,
+    passwordEncoder: PasswordEncoderService,
+  ): Promise<Room> {
+    if (!isPrivate && plainPassword) {
+      throw new BadRequestException(ERROR_MESSAGES.PUBLIC_ROOM_NO_PASSWORD);
+    }
+
+    const hashedPassword = isPrivate ? await passwordEncoder.hash(plainPassword!) : null;
+
+    return new Room(
+      null,
+      name,
+      mode,
+      maxPlayers,
+      ROOM_CONSTANTS.INITIAL_CURRENT_PLAYERS,
+      isPrivate,
+      hashedPassword,
+      RoomStatus.WAITING,
+      new Date(),
+    );
   }
 
-  update(
-    name?: string,
-    mode?: RoomMode,
-    maxPlayers?: number,
-    isPrivate?: boolean,
-    hasNewPassword?: boolean,
-  ): void {
-    if (name !== undefined) this.name = name;
-    if (mode !== undefined) this.mode = mode;
-    if (maxPlayers !== undefined) this.maxPlayers = maxPlayers;
-    if (isPrivate !== undefined) this.isPrivate = isPrivate;
+  static load(
+    id: number,
+    name: string,
+    mode: RoomMode,
+    maxPlayers: number,
+    currentPlayers: number,
+    isPrivate: boolean,
+    hashedPassword: string | null,
+    status: RoomStatus,
+    createdAt: Date,
+  ): Room {
+    return new Room(
+      id,
+      name,
+      mode,
+      maxPlayers,
+      currentPlayers,
+      isPrivate,
+      hashedPassword,
+      status,
+      createdAt,
+    );
+  }
 
-    if (hasNewPassword) {
-      this.hasPassword = true;
-    } else if (isPrivate === false) {
-      this.hasPassword = false;
+  get id(): number | null {
+    return this._id;
+  }
+
+  get status(): RoomStatus {
+    return this._status;
+  }
+
+  getHashedPassword(): string | null {
+    return this.hashedPassword;
+  }
+
+  hasPassword(): boolean {
+    return this.hashedPassword !== null;
+  }
+
+  async update(params: RoomUpdateParams, passwordEncoder: PasswordEncoderService): Promise<void> {
+    if (params.name !== undefined) this.name = params.name;
+    if (params.mode !== undefined) this.mode = params.mode;
+    if (params.maxPlayers !== undefined) this.maxPlayers = params.maxPlayers;
+    if (params.status !== undefined) this._status = params.status;
+
+    if (params.isPrivate !== undefined) {
+      this.isPrivate = params.isPrivate;
     }
+
+    await this.updatePassword(params.plainPassword, passwordEncoder);
 
     this.validate();
   }
 
+  private async updatePassword(
+    plainPassword: string | null | undefined,
+    passwordEncoder: PasswordEncoderService,
+  ) {
+    if (this.isPrivate) {
+      if (plainPassword) {
+        this.hashedPassword = await passwordEncoder.hash(plainPassword);
+      } else if (!this.hasPassword()) {
+        throw new BadRequestException(ERROR_MESSAGES.PRIVATE_ROOM_NEEDS_PASSWORD);
+      }
+    } else {
+      if (plainPassword) {
+        throw new BadRequestException(ERROR_MESSAGES.PUBLIC_ROOM_NO_PASSWORD);
+      }
+      this.hashedPassword = null;
+    }
+  }
+
   private validate(): void {
-    if (this.mode === RoomMode.SOLO && (this.maxPlayers < 3 || this.maxPlayers > 6)) {
-      throw new BadRequestException('SOLO 모드는 3~6명이어야 합니다.');
+    this.validatePlayerCount();
+    this.validatePassword();
+  }
+
+  private validatePlayerCount(): void {
+    if (this.mode === RoomMode.SOLO) {
+      if (
+        this.maxPlayers < ROOM_CONSTANTS.SOLO_MIN_PLAYERS ||
+        this.maxPlayers > ROOM_CONSTANTS.SOLO_MAX_PLAYERS
+      ) {
+        throw new BadRequestException(ERROR_MESSAGES.SOLO_MODE_PLAYERS);
+      }
     }
-    if (this.mode === RoomMode.TEAM && ![4, 6].includes(this.maxPlayers)) {
-      throw new BadRequestException('TEAM 모드는 4명 또는 6명이어야 합니다.');
-    }
-    if (this.isPrivate && !this.hasPassword) {
-      throw new BadRequestException('비공개 방은 비밀번호가 필요합니다.');
-    }
-    if (!this.isPrivate && this.hasPassword) {
-      throw new BadRequestException('공개 방은 비밀번호를 설정할 수 없습니다.');
+
+    if (
+      this.mode === RoomMode.TEAM &&
+      !(ROOM_CONSTANTS.TEAM_ALLOWED_PLAYERS as readonly number[]).includes(this.maxPlayers)
+    ) {
+      throw new BadRequestException(ERROR_MESSAGES.TEAM_MODE_PLAYERS);
     }
   }
 
-  static fromPersistence(data: {
-    name: string;
-    mode: RoomMode;
-    maxPlayers: number;
-    isPrivate: boolean;
-    hashedPassword: string | null;
-  }): Room {
-    return new Room(data.name, data.mode, data.maxPlayers, data.isPrivate, !!data.hashedPassword);
-  }
-
-  toPersistence(hashedPassword: string | null) {
-    return {
-      name: this.name,
-      mode: this.mode,
-      maxPlayers: this.maxPlayers,
-      isPrivate: this.isPrivate,
-      hashedPassword,
-    };
+  private validatePassword(): void {
+    if (this.isPrivate && !this.hasPassword()) {
+      throw new BadRequestException(ERROR_MESSAGES.PRIVATE_ROOM_NEEDS_PASSWORD);
+    }
+    if (!this.isPrivate && this.hasPassword()) {
+      throw new BadRequestException(ERROR_MESSAGES.PUBLIC_ROOM_NO_PASSWORD);
+    }
   }
 }

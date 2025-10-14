@@ -1,40 +1,56 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma, Room as PrismaRoom } from '@prisma/client';
-import { CreateRoomInput, FindRoomsQuery, UpdateRoomInput } from './rooms.interface';
+import { Room } from './entities/rooms.entity';
+import { RoomMapper } from './entities/mappers/rooms.mapper';
+import { QueryRoomDto } from './dtos/requests/query-room.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class RoomsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(input: CreateRoomInput): Promise<PrismaRoom> {
-    return this.prisma.room.create({ data: input });
+  async create(room: Room): Promise<Room> {
+    const data = RoomMapper.toPersistence(room);
+    const prismaRoom = await this.prisma.room.create({ data });
+    return RoomMapper.toEntity(prismaRoom);
   }
 
-  findOne(id: number): Promise<PrismaRoom | null> {
-    return this.prisma.room.findUnique({ where: { id } });
+  async findOne(id: number): Promise<Room | null> {
+    const prismaRoom = await this.prisma.room.findUnique({ where: { id } });
+    if (!prismaRoom) return null;
+    return RoomMapper.toEntity(prismaRoom);
   }
 
-  async findAll(query: FindRoomsQuery): Promise<PrismaRoom[]> {
-    const { name, mode, isPrivate, status } = query;
-    const where: Prisma.RoomWhereInput = {};
+  async findAll(query: QueryRoomDto, take: number): Promise<Room[]> {
+    const where = this.createRoomFilter(query);
 
-    if (name) where.name = { contains: name };
-    if (mode) where.mode = mode;
-    if (isPrivate !== undefined) where.isPrivate = isPrivate;
-    if (status) where.status = status;
-
-    return this.prisma.room.findMany({
+    const prismaRooms = await this.prisma.room.findMany({
       where,
+      take: take + 1,
+      cursor: query.cursor ? { id: query.cursor } : undefined,
       orderBy: { id: 'desc' },
+      skip: query.cursor ? 1 : 0,
     });
+
+    return prismaRooms.map((r) => RoomMapper.toEntity(r));
   }
 
-  update(id: number, input: UpdateRoomInput): Promise<PrismaRoom> {
-    return this.prisma.room.update({ where: { id }, data: input });
+  async update(id: number, room: Room): Promise<Room> {
+    const data = RoomMapper.toPersistence(room);
+    const prismaRoom = await this.prisma.room.update({ where: { id }, data });
+    return RoomMapper.toEntity(prismaRoom);
   }
 
-  remove(id: number): Promise<PrismaRoom> {
-    return this.prisma.room.delete({ where: { id } });
+  async remove(id: number): Promise<void> {
+    await this.prisma.room.delete({ where: { id } });
+  }
+
+  private createRoomFilter(query: QueryRoomDto): Prisma.RoomWhereInput {
+    const where: Prisma.RoomWhereInput = {};
+    if (query.name?.trim()) where.name = { contains: query.name.trim() };
+    if (query.mode) where.mode = query.mode;
+    if (query.isPrivate !== undefined) where.isPrivate = query.isPrivate;
+    if (query.status) where.status = query.status;
+    return where;
   }
 }
