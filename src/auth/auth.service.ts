@@ -17,7 +17,7 @@ export class AuthService {
   ) {}
 
   // 회원가입
-  async signup(signupRequestDto: SignupRequestDto): Promise<TokenDto> {
+  async signup(signupRequestDto: SignupRequestDto): Promise<void> {
     const existingUser = await this.userService.findUserByUsernameOrNickname(
       signupRequestDto.username,
       signupRequestDto.nickname,
@@ -34,13 +34,13 @@ export class AuthService {
 
     const hashedPassword = await this.passwordEncoderService.hash(signupRequestDto.password);
 
-    const newUser = await this.userService.createUser({
+    await this.userService.createUser({
       username: signupRequestDto.username,
       nickname: signupRequestDto.nickname,
       hashedPassword,
     });
 
-    return this.login(newUser);
+    return;
   }
 
   // 유저 검증
@@ -80,7 +80,8 @@ export class AuthService {
   }
 
   // 로그아웃
-  async logout(userData: JwtPayload) {
+  async logout(userData: JwtPayload): Promise<void> {
     await this.tokenService.revokeToken(userData.sub);
+    return;
   }
 }
