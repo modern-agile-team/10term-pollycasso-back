@@ -42,9 +42,7 @@ services:
       - web
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${IMAGE_NAME}:${IMAGE_TAG:-latest}
     container_name: pollycasso-back
     restart: always
     env_file:
