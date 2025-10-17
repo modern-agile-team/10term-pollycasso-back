@@ -1,4 +1,4 @@
-import { Room as PrismaRoom } from '@prisma/client';
+import { Prisma, Room as PrismaRoom } from '@prisma/client';
 import { Room } from '../rooms.entity';
 
 export class RoomMapper {
@@ -15,13 +15,13 @@ export class RoomMapper {
     );
   }
 
-  static toPersistence(room: Room) {
+  static toPersistence(room: Room): Prisma.RoomCreateInput {
     return {
       name: room.name,
       mode: room.mode,
       maxPlayers: room.maxPlayers,
       isPrivate: room.isPrivate,
-      hashedPassword: room.getHashedPassword(),
+      hashedPassword: room.hashedPassword,
     };
   }
 }
