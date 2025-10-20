@@ -33,7 +33,7 @@ export class AuthController {
 
     this.setRefreshToken(res, refreshToken);
 
-    return { access_token: accessToken };
+    return { accessToken };
   }
 
   @UseGuards(RefreshTokenGuard)
@@ -61,10 +61,12 @@ export class AuthController {
   }
 
   private commonCookieOptions() {
+    const isProd = this.configService.get<string>('NODE_ENV') === 'production';
     return {
       httpOnly: true,
       secure: this.configService.get<string>('COOKIE_SECURE') === 'true',
       sameSite: 'lax' as const,
+      domain: isProd ? '.pollycasso.com' : undefined,
       path: '/',
     };
   }

@@ -1,18 +1,17 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { SignupRequestDto } from './dto/requests/signup-request.dto';
-import { PasswordEncoderService } from '../common/hashing/password-encoder.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { TokenService } from './token/token.service';
 import { userData } from './interfaces/user-data.interface';
 import { TokenDto } from './dto/responses/token.dto';
 import { AccessTokenDto } from './dto/responses/access-token.dto';
+import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UsersService,
-    private readonly passwordEncoderService: PasswordEncoderService,
     private readonly tokenService: TokenService,
   ) {}
 
@@ -32,7 +31,7 @@ export class AuthService {
       }
     }
 
-    const hashedPassword = await this.passwordEncoderService.hash(signupRequestDto.password);
+    const hashedPassword = await PasswordEncoderUtil.hash(signupRequestDto.password);
 
     await this.userService.createUser({
       username: signupRequestDto.username,
@@ -48,7 +47,7 @@ export class AuthService {
     const user = await this.userService.findUserByUsername(username);
     if (!user || !user.hashedPassword) return null;
 
-    const isMatch = await this.passwordEncoderService.compare(password, user.hashedPassword);
+    const isMatch = await PasswordEncoderUtil.compare(password, user.hashedPassword);
     if (!isMatch) return null;
 
     const { hashedPassword: _, ...result } = user;

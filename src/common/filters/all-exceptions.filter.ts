@@ -1,17 +1,16 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException } from '@nestjs/common';
 import { Response } from 'express';
 
-interface HttpExceptionResponse {
-  message: string | string[];
-  errors?: unknown[];
-  statusCode?: number;
-  error?: string;
+interface ErrorResponse {
+  status: number;
+  code: string;
+  errors: unknown[];
 }
 
-interface ErrorResponse {
-  code: number;
-  message: string | string[];
-  errors: unknown[];
+interface HttpExceptionResponse {
+  code?: string;
+  message?: string;
+  errors?: unknown[];
 }
 
 @Catch()
@@ -21,28 +20,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
 
     let status = 500;
-    const body: ErrorResponse = {
-      code: 500,
-      message: '서버 오류가 발생했습니다.',
-      errors: [],
-    };
+    let code = 'INTERNAL_SERVER_ERROR';
+    let errors: unknown[] = [];
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
       if (typeof exceptionResponse === 'string') {
-        body.code = status;
-        body.message = exceptionResponse;
-        body.errors = [];
-      } else {
-        const responseObj = exceptionResponse as HttpExceptionResponse;
-        body.code = status;
-        body.message = responseObj.message;
-        body.errors = responseObj.errors || [];
+        code = exceptionResponse;
+      } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+        const resp = exceptionResponse as HttpExceptionResponse;
+        code = resp.code ?? (typeof resp.message === 'string' ? resp.message : code);
+        errors = Array.isArray(resp.errors) ? resp.errors : [];
       }
     }
 
+    const body: ErrorResponse = { status, code, errors };
     response.status(status).json(body);
   }
 }

@@ -1,80 +1,65 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { RoomsRepository } from './rooms.repository';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
-import { PasswordEncoderService } from 'src/common/hashing/password-encoder.service';
-import { FindRoomsQuery } from './rooms.interface';
-import { Room } from './entities/rooms.entity';
+import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
 import { PaginationDto } from 'src/common/pagination/pagination.dto';
+import { ERROR_CODES, ROOM_CONSTANTS } from './constants/room.constant';
+import type { IRoomsRepository } from './interfaces/rooms.repository.interface';
+import { Room } from './entities/rooms.entity';
 
 @Injectable()
 export class RoomsService {
-  private readonly ROOMS_PER_PAGE = 6;
-
   constructor(
-    private readonly roomsRepository: RoomsRepository,
-    private readonly passwordEncoderService: PasswordEncoderService,
+    @Inject('IRoomsRepository')
+    private readonly roomsRepository: IRoomsRepository,
   ) {}
 
-  async createRoom(dto: CreateRoomDto) {
+  async createRoom(dto: CreateRoomDto): Promise<Room> {
+    const hashedPassword =
+      dto.isPrivate && dto.password ? await PasswordEncoderUtil.hash(dto.password) : null;
+
     const room = Room.create(
       dto.name,
       dto.mode,
       dto.maxPlayers,
       dto.isPrivate ?? false,
-      !!dto.password,
+      hashedPassword,
     );
 
-    const hashedPassword = dto.password
-      ? await this.passwordEncoderService.hash(dto.password)
-      : null;
-
-    return this.roomsRepository.create(room.toPersistence(hashedPassword));
+    return this.roomsRepository.create(room);
   }
 
-  async getRoom(id: number) {
-    const prismaRoom = await this.roomsRepository.findOne(id);
-    if (!prismaRoom) throw new NotFoundException(`${id}번 방이 존재하지 않습니다.`);
-    return prismaRoom;
+  async updateRoom(id: number, dto: UpdateRoomDto): Promise<Room> {
+    const room = await this.getRoom(id);
+
+    const hashedPassword =
+      dto.isPrivate && dto.password ? await PasswordEncoderUtil.hash(dto.password) : null;
+
+    await room.update({
+      name: dto.name,
+      mode: dto.mode,
+      maxPlayers: dto.maxPlayers,
+      isPrivate: dto.isPrivate,
+      hashedPassword,
+    });
+
+    return this.roomsRepository.update(id, room);
   }
 
-  async getRooms(query: QueryRoomDto) {
-    const findQuery: FindRoomsQuery = {
-      name: query.name,
-      mode: query.mode,
-      isPrivate: query.isPrivate,
-      status: query.status,
-      cursor: query.cursor,
-    };
-
-    const prismaRooms = await this.roomsRepository.findAll(findQuery);
-    return new PaginationDto(prismaRooms, this.ROOMS_PER_PAGE, query.cursor);
+  async getRoom(id: number): Promise<Room> {
+    const room = await this.roomsRepository.findOne(id);
+    if (!room) throw new NotFoundException(ERROR_CODES.ROOM_NOT_FOUND);
+    return room;
   }
 
-  async updateRoom(id: number, dto: UpdateRoomDto) {
-    const existingPrismaRoom = await this.roomsRepository.findOne(id);
-    if (!existingPrismaRoom) throw new NotFoundException(`${id}번 방이 존재하지 않습니다.`);
-
-    const room = Room.fromPersistence(existingPrismaRoom);
-
-    let hashedPassword = existingPrismaRoom.hashedPassword;
-    const hasNewPassword = !!dto.password;
-
-    if (hasNewPassword) {
-      hashedPassword = await this.passwordEncoderService.hash(dto.password!);
-    } else if (dto.isPrivate === false) {
-      hashedPassword = null;
-    }
-
-    room.update(dto.name, dto.mode, dto.maxPlayers, dto.isPrivate, hasNewPassword);
-
-    return this.roomsRepository.update(id, room.toPersistence(hashedPassword));
+  async getRooms(query: QueryRoomDto): Promise<PaginationDto<Room>> {
+    const rooms = await this.roomsRepository.findAll(query, ROOM_CONSTANTS.ROOMS_PER_PAGE);
+    return new PaginationDto<Room>(rooms, ROOM_CONSTANTS.ROOMS_PER_PAGE);
   }
 
   async deleteRoom(id: number): Promise<void> {
-    const prismaRoom = await this.roomsRepository.findOne(id);
-    if (!prismaRoom) throw new NotFoundException(`${id}번 방이 존재하지 않습니다.`);
+    await this.getRoom(id);
     await this.roomsRepository.remove(id);
   }
 }
