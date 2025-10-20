@@ -48,8 +48,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_NAME }}
-          tags: |
           # main 브랜치인 경우 latest 태그를, develop 브랜치인 경우 develop-latest 태그를 추가
+          tags: |
             type=raw,value=latest,enable={{branch == 'main'}}
             type=raw,value=develop-latest,enable={{branch == 'develop'}}
             type=sha
