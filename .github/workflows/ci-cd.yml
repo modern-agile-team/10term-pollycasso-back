@@ -50,8 +50,8 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           # main 브랜치인 경우 latest 태그를, develop 브랜치인 경우 develop-latest 태그를 추가
           tags: |
-            type=raw,value=latest,enable={{branch == 'main'}}
-            type=raw,value=develop-latest,enable={{branch == 'develop'}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=develop-latest,enable=${{ github.ref == 'refs/heads/develop' }}
             type=sha
 
       - name: Build and conditionally push Docker image
