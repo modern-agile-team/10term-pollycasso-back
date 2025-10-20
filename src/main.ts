@@ -26,8 +26,8 @@ async function bootstrap() {
         }));
 
         return new BadRequestException({
-          code: 400,
-          message: '입력값에 오류가 있습니다.',
+          status: 400,
+          code: 'INVALID_INPUT',
           errors: formattedErrors,
         });
       },

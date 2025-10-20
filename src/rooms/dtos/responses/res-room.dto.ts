@@ -1,4 +1,5 @@
-import { Room, RoomMode, RoomStatus } from '@prisma/client';
+import { RoomMode, RoomStatus } from '@prisma/client';
+import { Room } from '../../entities/rooms.entity';
 
 export class ResRoomDto {
   readonly id: number;
@@ -10,7 +11,7 @@ export class ResRoomDto {
   readonly status: RoomStatus;
 
   constructor(room: Room) {
-    this.id = room.id;
+    this.id = room.id!;
     this.name = room.name;
     this.mode = room.mode;
     this.maxPlayers = room.maxPlayers;
