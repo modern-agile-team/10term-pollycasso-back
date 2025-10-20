@@ -65,7 +65,7 @@ export class Room {
     return this._hashedPassword;
   }
 
-  async update(params: RoomUpdateParams): Promise<void> {
+  update(params: RoomUpdateParams): void {
     if (params.name !== undefined) this.name = params.name;
     if (params.mode !== undefined) this.mode = params.mode;
     if (params.maxPlayers !== undefined) this.maxPlayers = params.maxPlayers;

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
@@ -36,7 +36,7 @@ export class RoomsService {
     const hashedPassword =
       dto.isPrivate && dto.password ? await PasswordEncoderUtil.hash(dto.password) : null;
 
-    await room.update({
+    room.update({
       name: dto.name,
       mode: dto.mode,
       maxPlayers: dto.maxPlayers,
