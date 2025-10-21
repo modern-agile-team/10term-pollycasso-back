@@ -71,7 +71,7 @@ jobs:
     env:
       DEPLOY_DIR: /home/ubuntu/10term-pollycasso-back
       COMPOSE_FILE: docker-compose.yml
-      IMAGE_TAG: ${{ github.sha }}
+      IMAGE_TAG: "${{ github.ref == 'refs/heads/main' ? 'latest' : 'develop-latest' }}"
     steps:
       - name: Restart via docker compose
         working-directory: ${{ env.DEPLOY_DIR }}
