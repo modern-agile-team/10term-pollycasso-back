@@ -9,42 +9,51 @@ import {
   ParseIntPipe,
   HttpCode,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
-import { ResRoomDto } from './dtos/responses/res-room.dto';
-import { PaginationDto } from 'src/common/pagination/pagination.dto';
+import { ResRoomDto } from './dtos/responses/room-response.dto';
+import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
+import { ApiRoom } from './decorators/room.swagger';
+import { PaginationRoomResponseDto } from './dtos/responses/pagination-room-response.dto';
 
 @Controller('rooms')
+@UseGuards(JwtAuthGuard)
 export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
   @Post()
-  async create(@Body() body: CreateRoomDto): Promise<ResRoomDto> {
+  @ApiRoom.createRoom()
+  async createRoom(@Body() body: CreateRoomDto): Promise<ResRoomDto> {
     const room = await this.roomsService.createRoom(body);
     return new ResRoomDto(room);
   }
 
   @Get()
-  async findAll(@Query() query: QueryRoomDto): Promise<PaginationDto<ResRoomDto>> {
-    const pagination = await this.roomsService.getRooms(query);
-    return {
-      data: pagination.data.map((room) => new ResRoomDto(room)),
-      hasNextPage: pagination.hasNextPage,
-      nextCursor: pagination.nextCursor,
-    };
+  @ApiRoom.getAllRooms()
+  async getAllRooms(@Query() query: QueryRoomDto): Promise<PaginationRoomResponseDto> {
+    const { rooms, hasNextPage, nextCursor } = await this.roomsService.getAllRooms(query);
+    const mappedRooms = rooms.map((room) => new ResRoomDto(room));
+    return new PaginationRoomResponseDto({
+      data: mappedRooms,
+      hasNextPage,
+      nextCursor,
+    });
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<ResRoomDto> {
-    const room = await this.roomsService.getRoom(id);
+  @ApiRoom.getOneRoom()
+  async getOneRoom(@Param('id', ParseIntPipe) id: number): Promise<ResRoomDto> {
+    const room = await this.roomsService.getOneRoom(id);
     return new ResRoomDto(room);
   }
 
   @Patch(':id')
-  async update(
+  @ApiRoom.updateRoom()
+  async updateRoom(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateRoomDto,
   ): Promise<ResRoomDto> {
@@ -53,8 +62,9 @@ export class RoomsController {
   }
 
   @Delete(':id')
+  @ApiRoom.removeRoom()
   @HttpCode(204)
-  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    await this.roomsService.deleteRoom(id);
+  async removeRoom(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.roomsService.removeRoom(id);
   }
 }

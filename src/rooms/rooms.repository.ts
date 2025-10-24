@@ -10,19 +10,19 @@ import { IRoomsRepository } from './interfaces/rooms.repository.interface';
 export class RoomsRepository implements IRoomsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(room: Room): Promise<Room> {
+  async createRoom(room: Room): Promise<Room> {
     const data = RoomMapper.toPersistence(room);
     const prismaRoom = await this.prisma.room.create({ data });
     return RoomMapper.toEntity(prismaRoom);
   }
 
-  async findOne(id: number): Promise<Room | null> {
+  async findOneRoom(id: number): Promise<Room | null> {
     const prismaRoom = await this.prisma.room.findUnique({ where: { id } });
     if (!prismaRoom) return null;
     return RoomMapper.toEntity(prismaRoom);
   }
 
-  async findAll(query: QueryRoomDto, take: number): Promise<Room[]> {
+  async findAllRooms(query: QueryRoomDto, take: number): Promise<Room[]> {
     const where = this.createRoomFilter(query);
 
     const prismaRooms = await this.prisma.room.findMany({
@@ -36,13 +36,13 @@ export class RoomsRepository implements IRoomsRepository {
     return prismaRooms.map((r) => RoomMapper.toEntity(r));
   }
 
-  async update(id: number, room: Room): Promise<Room> {
+  async updateRoom(id: number, room: Room): Promise<Room> {
     const data = RoomMapper.toPersistence(room);
     const prismaRoom = await this.prisma.room.update({ where: { id }, data });
     return RoomMapper.toEntity(prismaRoom);
   }
 
-  async remove(id: number): Promise<void> {
+  async deleteRoom(id: number): Promise<void> {
     await this.prisma.room.delete({ where: { id } });
   }
 
