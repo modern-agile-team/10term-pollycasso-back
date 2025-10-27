@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
 import { AccessTokenDto } from '../dto/responses/access-token.dto';
+import { ACCESS_TOKEN_ERROR_CODES } from '../constants/auth.constants';
 
 @Injectable()
 export class TokenService {
@@ -59,7 +60,7 @@ export class TokenService {
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token, { secret });
       return payload;
     } catch {
-      throw new UnauthorizedException('Invalid or expired token');
+      throw new UnauthorizedException(ACCESS_TOKEN_ERROR_CODES.INVALID_ACCESS_TOKEN);
     }
   }
 }

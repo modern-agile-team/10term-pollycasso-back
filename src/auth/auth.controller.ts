@@ -1,13 +1,14 @@
-import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
 import { SignupRequestDto } from './dto/requests/signup-request.dto';
-import { LocalAuthGuard } from './guard/local-auth.guard';
 import { JwtAuthGuard } from './guard/jwt-auth.guard';
 import { RefreshTokenGuard } from './guard/refresh-token.guard';
 import { ConfigService } from '@nestjs/config';
 import type { AuthenticatedRequest } from './interfaces/authenticated-request.interface';
 import type { RefreshAuthRequest } from './interfaces/refresh-auth-request.interface';
+import { LoginRequestDto } from './dto/requests/login-request.dto';
+import { validate } from 'class-validator';
 
 @Controller('auth')
 export class AuthController {
@@ -26,9 +27,16 @@ export class AuthController {
     return;
   }
 
-  @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Req() req: AuthenticatedRequest, @Res({ passthrough: true }) res: ExpressResponse) {
+  async login(
+    @Body() dto: LoginRequestDto,
+    @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ) {
+    const errors = await validate(dto);
+    if (errors.length > 0) {
+      throw new BadRequestException(errors);
+    }
     const { accessToken, refreshToken } = await this.authService.login(req.user);
 
     this.setRefreshToken(res, refreshToken);

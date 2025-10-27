@@ -1,5 +1,37 @@
-import { Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { REFRESH_TOKEN_ERROR_CODES } from '../constants/auth.constants';
+import { TokenExpiredError } from '@nestjs/jwt';
 
 @Injectable()
-export class RefreshTokenGuard extends AuthGuard('refresh-token') {}
+export class RefreshTokenGuard extends AuthGuard('refresh-token') {
+  handleRequest<TUser = any>(
+    err: Error | null,
+    user: TUser,
+    info: unknown,
+    _context: ExecutionContext,
+    _status?: any,
+  ): TUser {
+    if (info && typeof info === 'object') {
+      const maybeInfo = info as Record<string, unknown>;
+      const messageValue = maybeInfo['message'];
+
+      if (typeof messageValue === 'string') {
+        if (messageValue === 'No auth token' || messageValue === 'jwt must be provided') {
+          throw new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.REFRESH_TOKEN_MISSING);
+        }
+        if (messageValue === 'jwt expired') {
+          throw new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.EXPIRED_REFRESH_TOKEN);
+        }
+      }
+    }
+    if (info instanceof TokenExpiredError) {
+      throw new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.EXPIRED_REFRESH_TOKEN);
+    }
+    if (err || !user) {
+      throw err || new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.INVALID_REFRESH_TOKEN);
+    }
+
+    return user;
+  }
+}
