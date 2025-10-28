@@ -5,6 +5,7 @@ import { RoomMapper } from './entities/mappers/rooms.mapper';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { Prisma } from '@prisma/client';
 import { IRoomsRepository } from './interfaces/rooms.repository.interface';
+import { paginate } from 'src/common/pagination/paginate.util';
 
 @Injectable()
 export class RoomsRepository implements IRoomsRepository {
@@ -22,18 +23,22 @@ export class RoomsRepository implements IRoomsRepository {
     return RoomMapper.toEntity(prismaRoom);
   }
 
-  async findAllRooms(query: QueryRoomDto, take: number): Promise<Room[]> {
+  async findAllRooms(
+    query: QueryRoomDto,
+    limit: number,
+  ): Promise<{ data: Room[]; hasNextPage: boolean; nextCursor: number | null }> {
     const where = this.createRoomFilter(query);
 
     const prismaRooms = await this.prisma.room.findMany({
       where,
-      take: take + 1,
+      take: limit + 1,
       cursor: query.cursor ? { id: query.cursor } : undefined,
-      orderBy: { id: 'desc' },
       skip: query.cursor ? 1 : 0,
     });
 
-    return prismaRooms.map((r) => RoomMapper.toEntity(r));
+    const rooms = prismaRooms.map((r) => RoomMapper.toEntity(r));
+
+    return paginate(rooms, limit);
   }
 
   async updateRoom(id: number, room: Room): Promise<Room> {

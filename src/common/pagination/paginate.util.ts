@@ -1,9 +1,9 @@
 export function paginate<T extends { id: number | null }>(
   items: T[],
-  pageSize: number,
+  limit: number,
 ): { data: T[]; hasNextPage: boolean; nextCursor: number | null } {
-  const hasNextPage = items.length > pageSize;
-  const data = hasNextPage ? items.slice(0, pageSize) : items;
+  const hasNextPage = items.length > limit;
+  const data = hasNextPage ? items.slice(0, limit) : items;
 
   let nextCursor: number | null = null;
   if (hasNextPage && data.length > 0) {

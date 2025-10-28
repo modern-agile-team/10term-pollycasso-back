@@ -17,8 +17,8 @@ import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { ResRoomDto } from './dtos/responses/room-response.dto';
 import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
-import { ApiRoom } from './decorators/room.swagger';
-import { PaginationRoomResponseDto } from './dtos/responses/pagination-room-response.dto';
+import { ApiRoom } from './room.swagger';
+import { PaginatedRoomResponseDto } from './dtos/responses/paginated-room-response.dto';
 
 @Controller('rooms')
 @UseGuards(JwtAuthGuard)
@@ -34,10 +34,10 @@ export class RoomsController {
 
   @Get()
   @ApiRoom.getAllRooms()
-  async getAllRooms(@Query() query: QueryRoomDto): Promise<PaginationRoomResponseDto> {
-    const { rooms, hasNextPage, nextCursor } = await this.roomsService.getAllRooms(query);
-    const mappedRooms = rooms.map((room) => new ResRoomDto(room));
-    return new PaginationRoomResponseDto({
+  async getAllRooms(@Query() query: QueryRoomDto): Promise<PaginatedRoomResponseDto> {
+    const { data, hasNextPage, nextCursor } = await this.roomsService.getAllRooms(query);
+    const mappedRooms = data.map((room) => new ResRoomDto(room));
+    return new PaginatedRoomResponseDto({
       data: mappedRooms,
       hasNextPage,
       nextCursor,

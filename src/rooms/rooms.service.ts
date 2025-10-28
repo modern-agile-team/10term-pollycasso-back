@@ -6,7 +6,6 @@ import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
 import { ERROR_CODES, ROOM_CONSTANTS } from './constants/room.constant';
 import type { IRoomsRepository } from './interfaces/rooms.repository.interface';
 import { Room } from './entities/rooms.entity';
-import { paginate } from 'src/common/pagination/paginate.util';
 
 @Injectable()
 export class RoomsService {
@@ -53,12 +52,8 @@ export class RoomsService {
     return room;
   }
 
-  async getAllRooms(
-    query: QueryRoomDto,
-  ): Promise<{ rooms: Room[]; hasNextPage: boolean; nextCursor: number | null }> {
-    const rooms = await this.roomsRepository.findAllRooms(query, ROOM_CONSTANTS.ROOMS_PER_PAGE);
-    const { data, hasNextPage, nextCursor } = paginate(rooms, ROOM_CONSTANTS.ROOMS_PER_PAGE);
-    return { rooms: data, hasNextPage, nextCursor };
+  async getAllRooms(query: QueryRoomDto) {
+    return this.roomsRepository.findAllRooms(query, ROOM_CONSTANTS.ROOMS_PER_PAGE);
   }
 
   async removeRoom(id: number): Promise<void> {

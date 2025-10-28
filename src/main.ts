@@ -9,7 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: ['http://localhost:3000', 'https://api.pollycasso.com'],
+    origin: ['http://localhost:3000', 'https://api.pollycasso.com', 'https://www.pollycasso.com'],
     credentials: true,
     methods: 'GET,POST,PUT,PATCH,DELETE',
     allowedHeaders: 'Origin, X-Requested-With, Content-Type, Accept, Authorization',

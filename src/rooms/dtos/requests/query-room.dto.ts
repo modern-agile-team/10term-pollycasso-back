@@ -50,6 +50,7 @@ export class QueryRoomDto {
   @ApiProperty({
     description: '페이지네이션 커서 (마지막으로 불러온 방 ID)',
     required: false,
+    minimum: 1,
   })
   cursor?: number;
 }

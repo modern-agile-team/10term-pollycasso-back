@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ResRoomDto } from './room-response.dto';
 
-export class PaginationRoomResponseDto {
+export class PaginatedRoomResponseDto {
   @ApiProperty({ type: [ResRoomDto] })
   data: ResRoomDto[];
 
