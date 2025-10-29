@@ -18,13 +18,13 @@ export class RoomsService {
     const hashedPassword =
       dto.isPrivate && dto.password ? await PasswordEncoderUtil.hash(dto.password) : null;
 
-    const room = Room.create(
-      dto.name,
-      dto.mode,
-      dto.maxPlayers,
-      dto.isPrivate ?? false,
+    const room = Room.create({
+      name: dto.name,
+      mode: dto.mode,
+      maxPlayers: dto.maxPlayers,
+      isPrivate: dto.isPrivate,
       hashedPassword,
-    );
+    });
 
     return this.roomsRepository.createRoom(room);
   }

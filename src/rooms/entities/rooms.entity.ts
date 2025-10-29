@@ -2,7 +2,25 @@ import { RoomMode, RoomStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
 import { ROOM_CONSTANTS, ERROR_CODES } from '../constants/room.constant';
 
-interface RoomUpdateParams {
+export interface RoomProps {
+  name: string;
+  mode: RoomMode;
+  maxPlayers: number;
+  currentPlayers: number;
+  isPrivate: boolean;
+  hashedPassword: string | null;
+  status: RoomStatus;
+}
+
+interface CreateRoomProps {
+  name: string;
+  mode: RoomMode;
+  maxPlayers: number;
+  isPrivate: boolean;
+  hashedPassword: string | null;
+}
+
+interface UpdateRoomProps {
   name?: string;
   mode?: RoomMode;
   maxPlayers?: number;
@@ -14,66 +32,63 @@ interface RoomUpdateParams {
 export class Room {
   private constructor(
     public id: number | null,
-    public name: string,
-    public mode: RoomMode,
-    public maxPlayers: number,
-    public currentPlayers: number,
-    public isPrivate: boolean,
-    private _hashedPassword: string | null,
-    private _status: RoomStatus,
+    private props: RoomProps,
   ) {
     this.validate();
   }
 
-  static create(
-    name: string,
-    mode: RoomMode,
-    maxPlayers: number,
-    isPrivate: boolean,
-    hashedPassword: string | null,
-  ): Room {
-    return new Room(
-      null,
+  static create(props: CreateRoomProps): Room {
+    const { name, mode, maxPlayers, isPrivate, hashedPassword } = props;
+    return new Room(null, {
       name,
       mode,
       maxPlayers,
-      ROOM_CONSTANTS.INITIAL_CURRENT_PLAYERS,
+      currentPlayers: ROOM_CONSTANTS.INITIAL_CURRENT_PLAYERS,
       isPrivate,
       hashedPassword,
-      RoomStatus.WAITING,
-    );
+      status: RoomStatus.WAITING,
+    });
   }
 
-  static load(
-    id: number,
-    name: string,
-    mode: RoomMode,
-    maxPlayers: number,
-    currentPlayers: number,
-    isPrivate: boolean,
-    hashedPassword: string | null,
-    status: RoomStatus,
-  ): Room {
-    return new Room(id, name, mode, maxPlayers, currentPlayers, isPrivate, hashedPassword, status);
+  static load(id: number, props: RoomProps): Room {
+    return new Room(id, props);
   }
 
-  get status(): RoomStatus {
-    return this._status;
+  get name() {
+    return this.props.name;
   }
 
-  get hashedPassword(): string | null {
-    return this._hashedPassword;
+  get mode() {
+    return this.props.mode;
   }
 
-  update(params: RoomUpdateParams): void {
-    if (params.name !== undefined) this.name = params.name;
-    if (params.mode !== undefined) this.mode = params.mode;
-    if (params.maxPlayers !== undefined) this.maxPlayers = params.maxPlayers;
-    if (params.status !== undefined) this._status = params.status;
-    if (params.isPrivate !== undefined) this.isPrivate = params.isPrivate;
-    if (params.hashedPassword !== undefined) {
-      this._hashedPassword = params.hashedPassword;
-    }
+  get maxPlayers() {
+    return this.props.maxPlayers;
+  }
+
+  get currentPlayers() {
+    return this.props.currentPlayers;
+  }
+
+  get isPrivate() {
+    return this.props.isPrivate;
+  }
+
+  get hashedPassword() {
+    return this.props.hashedPassword;
+  }
+
+  get status() {
+    return this.props.status;
+  }
+
+  update(props: UpdateRoomProps): void {
+    if (props.name !== undefined) this.props.name = props.name;
+    if (props.mode !== undefined) this.props.mode = props.mode;
+    if (props.maxPlayers !== undefined) this.props.maxPlayers = props.maxPlayers;
+    if (props.status !== undefined) this.props.status = props.status;
+    if (props.isPrivate !== undefined) this.props.isPrivate = props.isPrivate;
+    if (props.hashedPassword !== undefined) this.props.hashedPassword = props.hashedPassword;
 
     this.validate();
   }
@@ -84,30 +99,30 @@ export class Room {
   }
 
   private validatePlayerCount(): void {
-    if (this.mode === RoomMode.SOLO) {
+    if (this.props.mode === RoomMode.SOLO) {
       if (
-        this.maxPlayers < ROOM_CONSTANTS.SOLO_MIN_PLAYERS ||
-        this.maxPlayers > ROOM_CONSTANTS.SOLO_MAX_PLAYERS
+        this.props.maxPlayers < ROOM_CONSTANTS.SOLO_MIN_PLAYERS ||
+        this.props.maxPlayers > ROOM_CONSTANTS.SOLO_MAX_PLAYERS
       ) {
         throw new BadRequestException(ERROR_CODES.SOLO_MODE_PLAYERS);
       }
     }
 
     if (
-      this.mode === RoomMode.TEAM &&
-      !(ROOM_CONSTANTS.TEAM_ALLOWED_PLAYERS as readonly number[]).includes(this.maxPlayers)
+      this.props.mode === RoomMode.TEAM &&
+      !(ROOM_CONSTANTS.TEAM_ALLOWED_PLAYERS as readonly number[]).includes(this.props.maxPlayers)
     ) {
       throw new BadRequestException(ERROR_CODES.TEAM_MODE_PLAYERS);
     }
   }
 
   private validatePassword(): void {
-    if (this.isPrivate) {
-      if (!this._hashedPassword) {
+    if (this.props.isPrivate) {
+      if (!this.props.hashedPassword) {
         throw new BadRequestException(ERROR_CODES.PRIVATE_ROOM_NEEDS_PASSWORD);
       }
     } else {
-      this._hashedPassword = null;
+      this.props.hashedPassword = null;
     }
   }
 }
