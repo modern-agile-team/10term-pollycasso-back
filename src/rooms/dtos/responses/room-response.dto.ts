@@ -1,13 +1,21 @@
 import { RoomMode, RoomStatus } from '@prisma/client';
 import { Room } from '../../entities/rooms.entity';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class ResRoomDto {
+  @ApiProperty({ description: '방 ID', example: 1 })
   readonly id: number;
+  @ApiProperty({ description: '방 이름', example: '제발 들어와' })
   readonly name: string;
+  @ApiProperty({ description: '방 모드', example: RoomMode.SOLO })
   readonly mode: RoomMode;
+  @ApiProperty({ description: '방 최대 인원 수', example: 5 })
   readonly maxPlayers: number;
+  @ApiProperty({ description: '방 현재 인원 수', example: 3 })
   readonly currentPlayers: number;
+  @ApiProperty({ description: '방 비공개 여부', example: true })
   readonly isPrivate: boolean;
+  @ApiProperty({ description: '방 상태', example: RoomStatus.IN_PROGRESS })
   readonly status: RoomStatus;
 
   constructor(room: Room) {
