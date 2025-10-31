@@ -1,14 +1,13 @@
-import { BadRequestException, Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
 import { SignupRequestDto } from './dto/requests/signup-request.dto';
-import { JwtAuthGuard } from './guard/jwt-auth.guard';
+import { AccessTokenGuard } from './guard/access-token.guard';
 import { RefreshTokenGuard } from './guard/refresh-token.guard';
 import { ConfigService } from '@nestjs/config';
-import type { AuthenticatedRequest } from './interfaces/authenticated-request.interface';
 import type { RefreshAuthRequest } from './interfaces/refresh-auth-request.interface';
 import { LoginRequestDto } from './dto/requests/login-request.dto';
-import { validate } from 'class-validator';
+import { LOCAL_ERROR_CODES } from './constants/auth.constants';
 
 @Controller('auth')
 export class AuthController {
@@ -28,16 +27,12 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(
-    @Body() dto: LoginRequestDto,
-    @Req() req: AuthenticatedRequest,
-    @Res({ passthrough: true }) res: ExpressResponse,
-  ) {
-    const errors = await validate(dto);
-    if (errors.length > 0) {
-      throw new BadRequestException(errors);
+  async login(@Body() body: LoginRequestDto, @Res({ passthrough: true }) res: ExpressResponse) {
+    const user = await this.authService.validateUser(body.username, body.password);
+    if (!user) {
+      throw new UnauthorizedException(LOCAL_ERROR_CODES.INVALID_CREDENTIALS);
     }
-    const { accessToken, refreshToken } = await this.authService.login(req.user);
+    const { accessToken, refreshToken } = await this.authService.login(user);
 
     this.setRefreshToken(res, refreshToken);
 
@@ -50,7 +45,7 @@ export class AuthController {
     return this.authService.refreshAccessOnly(req.user);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AccessTokenGuard)
   @Post('logout')
   async logout(@Req() req: RefreshAuthRequest, @Res({ passthrough: true }) res: ExpressResponse) {
     await this.authService.logout(req.user);

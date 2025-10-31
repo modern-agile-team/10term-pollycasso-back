@@ -4,7 +4,7 @@ import { ACCESS_TOKEN_ERROR_CODES } from '../constants/auth.constants';
 import { TokenExpiredError } from '@nestjs/jwt';
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
+export class AccessTokenGuard extends AuthGuard('access-token') {
   handleRequest<TUser = any>(
     err: Error | null,
     user: TUser,

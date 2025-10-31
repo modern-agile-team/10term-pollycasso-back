@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { SignupRequestDto } from './dto/requests/signup-request.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
@@ -25,10 +25,10 @@ export class AuthService {
 
     if (existingUser) {
       if (existingUser.username === signupRequestDto.username) {
-        throw new NotFoundException(ERROR_CODES.USERNAME_ALREADY_EXISTS);
+        throw new ConflictException(ERROR_CODES.USERNAME_ALREADY_EXISTS);
       }
       if (existingUser.nickname === signupRequestDto.nickname) {
-        throw new NotFoundException(ERROR_CODES.NICKNAME_ALREADY_EXISTS);
+        throw new ConflictException(ERROR_CODES.NICKNAME_ALREADY_EXISTS);
       }
     }
 
