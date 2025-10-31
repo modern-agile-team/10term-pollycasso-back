@@ -83,12 +83,11 @@ export class Room {
   }
 
   update(props: UpdateRoomProps): void {
-    if (props.name !== undefined) this.props.name = props.name;
-    if (props.mode !== undefined) this.props.mode = props.mode;
-    if (props.maxPlayers !== undefined) this.props.maxPlayers = props.maxPlayers;
-    if (props.status !== undefined) this.props.status = props.status;
-    if (props.isPrivate !== undefined) this.props.isPrivate = props.isPrivate;
-    if (props.hashedPassword !== undefined) this.props.hashedPassword = props.hashedPassword;
+    const updates = Object.fromEntries(
+      Object.entries(props).filter(([, value]) => value !== undefined),
+    );
+
+    Object.assign(this.props, updates);
 
     this.validate();
   }

@@ -34,11 +34,16 @@ export class RoomsRepository implements IRoomsRepository {
       take: limit + 1,
       cursor: query.cursor ? { id: query.cursor } : undefined,
       skip: query.cursor ? 1 : 0,
+      orderBy: { id: 'desc' },
     });
 
-    const rooms = prismaRooms.map((r) => RoomMapper.toEntity(r));
+    const paginatedPrismaRooms = paginate(prismaRooms, limit);
 
-    return paginate(rooms, limit);
+    return {
+      data: paginatedPrismaRooms.data.map((room) => RoomMapper.toEntity(room)),
+      hasNextPage: paginatedPrismaRooms.hasNextPage,
+      nextCursor: paginatedPrismaRooms.nextCursor,
+    };
   }
 
   async updateRoom(id: number, room: Room): Promise<Room> {

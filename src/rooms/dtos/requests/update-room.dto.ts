@@ -14,9 +14,9 @@ import { RoomMode } from '@prisma/client';
 
 export class UpdateRoomDto {
   @IsOptional()
-  @IsString()
-  @IsNotEmpty()
   @MaxLength(15)
+  @IsNotEmpty()
+  @IsString()
   @ApiProperty({
     description: '방 이름',
     example: '제발 들어와',

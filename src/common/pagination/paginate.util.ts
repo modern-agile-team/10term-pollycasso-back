@@ -1,4 +1,4 @@
-export function paginate<T extends { id: number | null }>(
+export function paginate<T extends { id: number }>(
   items: T[],
   limit: number,
 ): { data: T[]; hasNextPage: boolean; nextCursor: number | null } {
