@@ -19,7 +19,7 @@ export class UpdateRoomDto {
   @IsString()
   @ApiProperty({
     description: '방 이름',
-    example: '제발 들어와',
+    example: '테스트용',
     maxLength: 15,
     required: false,
   })
