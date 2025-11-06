@@ -1,6 +1,6 @@
 import { RoomMode, RoomStatus } from '@prisma/client';
-import { BadRequestException } from '@nestjs/common';
-import { ROOM_CONSTANTS, ERROR_CODES } from '../constants/room.constant';
+import { BadRequestException, HttpStatus } from '@nestjs/common';
+import { ROOM_CONSTANTS, DOMAIN_ERRORS, ERROR_CODES } from '../constants/room.constant';
 
 export interface RoomProps {
   name: string;
@@ -103,7 +103,11 @@ export class Room {
         this.props.maxPlayers < ROOM_CONSTANTS.SOLO_MIN_PLAYERS ||
         this.props.maxPlayers > ROOM_CONSTANTS.SOLO_MAX_PLAYERS
       ) {
-        throw new BadRequestException(ERROR_CODES.SOLO_MODE_PLAYERS);
+        throw new BadRequestException({
+          status: HttpStatus.BAD_REQUEST,
+          code: ERROR_CODES.SOLO_MODE_PLAYERS,
+          errors: [DOMAIN_ERRORS[ERROR_CODES.SOLO_MODE_PLAYERS]],
+        });
       }
     }
 
@@ -111,14 +115,22 @@ export class Room {
       this.props.mode === RoomMode.TEAM &&
       !(ROOM_CONSTANTS.TEAM_ALLOWED_PLAYERS as readonly number[]).includes(this.props.maxPlayers)
     ) {
-      throw new BadRequestException(ERROR_CODES.TEAM_MODE_PLAYERS);
+      throw new BadRequestException({
+        status: HttpStatus.BAD_REQUEST,
+        code: ERROR_CODES.TEAM_MODE_PLAYERS,
+        errors: [DOMAIN_ERRORS[ERROR_CODES.TEAM_MODE_PLAYERS]],
+      });
     }
   }
 
   private validatePassword(): void {
     if (this.props.isPrivate) {
       if (!this.props.hashedPassword) {
-        throw new BadRequestException(ERROR_CODES.PRIVATE_ROOM_NEEDS_PASSWORD);
+        throw new BadRequestException({
+          status: HttpStatus.BAD_REQUEST,
+          code: ERROR_CODES.PRIVATE_ROOM_NEEDS_PASSWORD,
+          errors: [DOMAIN_ERRORS[ERROR_CODES.PRIVATE_ROOM_NEEDS_PASSWORD]],
+        });
       }
     } else {
       this.props.hashedPassword = null;
