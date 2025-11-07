@@ -16,12 +16,12 @@ import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { ResRoomDto } from './dtos/responses/room-response.dto';
-import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
+import { AccessTokenGuard } from 'src/auth/guard/access-token.guard';
 import { ApiRoom } from './room.swagger';
 import { PaginatedRoomResponseDto } from './dtos/responses/paginated-room-response.dto';
 
 @Controller('rooms')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AccessTokenGuard)
 export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 

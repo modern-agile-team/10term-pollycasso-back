@@ -1,4 +1,14 @@
-import { Body, Controller, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
 import { SignupRequestDto } from './dto/requests/signup-request.dto';
@@ -8,6 +18,8 @@ import { ConfigService } from '@nestjs/config';
 import type { RefreshAuthRequest } from './interfaces/refresh-auth-request.interface';
 import { LoginRequestDto } from './dto/requests/login-request.dto';
 import { LOCAL_ERROR_CODES } from './constants/auth.constants';
+import { ApiAuth } from 'src/auth/auth.swagger';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
@@ -21,12 +33,15 @@ export class AuthController {
   }
 
   @Post('signup')
+  @ApiAuth.signup()
   async create(@Body() data: SignupRequestDto): Promise<void> {
     await this.authService.signup(data);
     return;
   }
 
   @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiAuth.login()
   async login(@Body() body: LoginRequestDto, @Res({ passthrough: true }) res: ExpressResponse) {
     const user = await this.authService.validateUser(body.username, body.password);
     if (!user) {
@@ -41,12 +56,17 @@ export class AuthController {
 
   @UseGuards(RefreshTokenGuard)
   @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiAuth.refresh()
   refresh(@Req() req: RefreshAuthRequest) {
     return this.authService.refreshAccessOnly(req.user);
   }
 
   @UseGuards(AccessTokenGuard)
   @Post('logout')
+  @HttpCode(204)
+  @ApiBearerAuth()
+  @ApiAuth.logout()
   async logout(@Req() req: RefreshAuthRequest, @Res({ passthrough: true }) res: ExpressResponse) {
     await this.authService.logout(req.user);
     this.clearCookie(res);
