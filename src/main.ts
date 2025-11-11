@@ -1,15 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, ValidationError } from '@nestjs/common';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { GlobalExceptionFilter } from './common/filters/global-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [
+    'http://localhost:3000',
+    'https://www.pollycasso.com',
+  ];
+
   app.enableCors({
-    origin: ['http://localhost:3000', 'https://api.pollycasso.com', 'https://www.pollycasso.com'],
+    origin: allowedOrigins,
     credentials: true,
     methods: 'GET,POST,PUT,PATCH,DELETE',
     allowedHeaders: 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
@@ -37,7 +42,7 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('폴리카소(pollycasso)')
@@ -50,8 +55,8 @@ async function bootstrap() {
     swaggerOptions: {
       persistAuthorization: true,
       operationsSorter: (
-        a: { get: (key: string) => string },
-        b: { get: (key: string) => string },
+        a: { get: (key: string) => string | undefined },
+        b: { get: (key: string) => string | undefined },
       ) => {
         const order: Record<string, string> = {
           get: '0',
@@ -60,7 +65,9 @@ async function bootstrap() {
           patch: '3',
           delete: '4',
         };
-        return order[a.get('method')].localeCompare(order[b.get('method')]);
+        const methodA = a.get('method')?.toLowerCase() ?? '5';
+        const methodB = b.get('method')?.toLowerCase() ?? '5';
+        return (order[methodA] ?? '5').localeCompare(order[methodB] ?? '5');
       },
     },
   });
@@ -71,5 +78,4 @@ async function bootstrap() {
 
 bootstrap().catch((err) => {
   console.error('서버 시작 중 오류 발생:', err);
-  process.exit(1);
 });

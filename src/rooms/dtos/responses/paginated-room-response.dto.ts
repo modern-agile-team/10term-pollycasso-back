@@ -3,7 +3,7 @@ import { ResRoomDto } from './room-response.dto';
 
 export class PaginatedRoomResponseDto {
   @ApiProperty({ type: [ResRoomDto] })
-  data: ResRoomDto[];
+  rooms: ResRoomDto[];
 
   @ApiProperty({ type: Boolean, example: false })
   hasNextPage: boolean;
@@ -12,7 +12,7 @@ export class PaginatedRoomResponseDto {
   nextCursor: number | null;
 
   constructor(params: { data: ResRoomDto[]; hasNextPage: boolean; nextCursor: number | null }) {
-    this.data = params.data;
+    this.rooms = params.data;
     this.hasNextPage = params.hasNextPage;
     this.nextCursor = params.nextCursor;
   }

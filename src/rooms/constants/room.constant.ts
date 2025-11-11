@@ -5,6 +5,21 @@ export const ERROR_CODES = {
   PRIVATE_ROOM_NEEDS_PASSWORD: 'PRIVATE_ROOM_NEEDS_PASSWORD',
 } as const;
 
+export const DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
+  SOLO_MODE_PLAYERS: {
+    field: 'maxPlayers',
+    reason: 'Solo mode allows 3-6 players only',
+  },
+  TEAM_MODE_PLAYERS: {
+    field: 'maxPlayers',
+    reason: 'Team mode allows 4 or 6 players only',
+  },
+  PRIVATE_ROOM_NEEDS_PASSWORD: {
+    field: 'password',
+    reason: 'Private room requires a password',
+  },
+};
+
 export const ROOM_CONSTANTS = {
   ROOMS_PER_PAGE: 6,
   SOLO_MIN_PLAYERS: 3,

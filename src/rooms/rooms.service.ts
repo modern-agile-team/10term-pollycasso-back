@@ -48,7 +48,7 @@ export class RoomsService {
 
   async getOneRoom(id: number): Promise<Room> {
     const room = await this.roomsRepository.findOneRoom(id);
-    if (!room) throw new NotFoundException(ERROR_CODES.ROOM_NOT_FOUND);
+    if (!room) throw new NotFoundException({ code: ERROR_CODES.ROOM_NOT_FOUND });
     return room;
   }
 
