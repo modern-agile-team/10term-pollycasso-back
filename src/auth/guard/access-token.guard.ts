@@ -1,10 +1,10 @@
 import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { REFRESH_TOKEN_ERROR_CODES } from '../constants/auth.constants';
+import { ACCESS_TOKEN_ERROR_CODES } from '../constants/auth.constants';
 import { TokenExpiredError } from '@nestjs/jwt';
 
 @Injectable()
-export class RefreshTokenGuard extends AuthGuard('refresh-token') {
+export class AccessTokenGuard extends AuthGuard('access-token') {
   handleRequest<TUser = any>(
     err: Error | null,
     user: TUser,
@@ -18,23 +18,20 @@ export class RefreshTokenGuard extends AuthGuard('refresh-token') {
 
       if (typeof messageValue === 'string') {
         if (messageValue === 'No auth token' || messageValue === 'jwt must be provided') {
-          throw new UnauthorizedException({
-            code: REFRESH_TOKEN_ERROR_CODES.REFRESH_TOKEN_MISSING,
-          });
+          throw new UnauthorizedException({ code: ACCESS_TOKEN_ERROR_CODES.ACCESS_TOKEN_MISSING });
         }
         if (messageValue === 'jwt expired') {
-          throw new UnauthorizedException({
-            code: REFRESH_TOKEN_ERROR_CODES.EXPIRED_REFRESH_TOKEN,
-          });
+          throw new UnauthorizedException({ code: ACCESS_TOKEN_ERROR_CODES.EXPIRED_ACCESS_TOKEN });
         }
       }
     }
+
     if (info instanceof TokenExpiredError) {
-      throw new UnauthorizedException({ code: REFRESH_TOKEN_ERROR_CODES.EXPIRED_REFRESH_TOKEN });
+      throw new UnauthorizedException({ code: ACCESS_TOKEN_ERROR_CODES.EXPIRED_ACCESS_TOKEN });
     }
     if (err || !user) {
       throw (
-        err || new UnauthorizedException({ code: REFRESH_TOKEN_ERROR_CODES.INVALID_REFRESH_TOKEN })
+        err || new UnauthorizedException({ code: ACCESS_TOKEN_ERROR_CODES.INVALID_ACCESS_TOKEN })
       );
     }
 

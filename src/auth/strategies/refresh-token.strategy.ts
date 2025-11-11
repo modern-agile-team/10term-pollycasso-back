@@ -5,6 +5,7 @@ import { Request } from 'express';
 import { Strategy } from 'passport-jwt';
 import { RedisService } from '../../redis/redis.service';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
+import { REFRESH_TOKEN_ERROR_CODES } from '../constants/auth.constants';
 
 @Injectable()
 export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'refresh-token') {
@@ -27,8 +28,12 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'refresh-to
     const key: string = `refresh:${String(payload.sub)}`;
 
     const cachedRefreshToken: string | null = await this.redisService.get(key);
-    if (!cachedRefreshToken || refreshToken !== cachedRefreshToken) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+
+    if (!cachedRefreshToken) {
+      throw new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.REFRESH_TOKEN_NOT_FOUND);
+    }
+    if (refreshToken !== cachedRefreshToken) {
+      throw new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.INVALID_REFRESH_TOKEN);
     }
 
     return { ...payload, refreshToken };
