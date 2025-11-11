@@ -1,19 +1,8 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { StandardErrorResponseDto } from 'src/common/dtos/responses/standard-error-response.dto';
 import { ResRoomDto } from './dtos/responses/room-response.dto';
 import { PaginatedRoomResponseDto } from './dtos/responses/paginated-room-response.dto';
-import { createStandardResponse } from 'src/common/dtos/responses/standard-response.dto';
-import { StandardErrorResponseDto } from 'src/common/dtos/responses/error-response.dto';
-
-const CreateRoomResponse = createStandardResponse(ResRoomDto, 'ROOM_CREATED', 'CreateRoomResponse');
-const GetAllRoomsResponse = createStandardResponse(
-  PaginatedRoomResponseDto,
-  'SUCCESS',
-  'GetAllRoomsResponse',
-);
-const GetOneRoomResponse = createStandardResponse(ResRoomDto, 'SUCCESS', 'GetOneRoomResponse');
-const UpdateRoomResponse = createStandardResponse(ResRoomDto, 'ROOM_UPDATED', 'UpdateRoomResponse');
-const RemoveRoomResponse = createStandardResponse(Object, 'ROOM_DELETED', 'RemoveRoomResponse');
 
 const badRequestErrors = () =>
   ApiResponse({
@@ -26,8 +15,8 @@ const badRequestErrors = () =>
         value: {
           status: 400,
           code: 'INVALID_INPUT',
-          errors: [{field: 'isPrivate', reason: ["isPrivate must be a boolean value"]}],
-        }
+          errors: [{ field: 'isPrivate', reason: ['isPrivate must be a boolean value'] }],
+        },
       },
       soloModePlayers: {
         summary: '솔로 모드 플레이어 수 오류',
@@ -87,7 +76,7 @@ export const ApiRoom = {
     applyDecorators(
       ApiCookieAuth('accessToken'),
       ApiOperation({ summary: '새로운 방 생성' }),
-      ApiResponse({ status: 201, description: '방 생성 성공', type: CreateRoomResponse }),
+      ApiResponse({ status: 201, description: '방 생성 성공', type: ResRoomDto }),
       badRequestErrors(),
     ),
 
@@ -95,7 +84,11 @@ export const ApiRoom = {
     applyDecorators(
       ApiCookieAuth('accessToken'),
       ApiOperation({ summary: '모든 방 조회' }),
-      ApiResponse({ status: 200, description: '방 목록 조회 성공', type: GetAllRoomsResponse }),
+      ApiResponse({
+        status: 200,
+        description: '방 목록 조회 성공',
+        type: PaginatedRoomResponseDto,
+      }),
       unauthorizedError(),
       roomNotFoundError(),
     ),
@@ -104,7 +97,7 @@ export const ApiRoom = {
     applyDecorators(
       ApiCookieAuth('accessToken'),
       ApiOperation({ summary: '단일 방 조회' }),
-      ApiResponse({ status: 200, description: '방 조회 성공', type: GetOneRoomResponse }),
+      ApiResponse({ status: 200, description: '방 조회 성공', type: ResRoomDto }),
       roomNotFoundError(),
       unauthorizedError(),
     ),
@@ -113,7 +106,7 @@ export const ApiRoom = {
     applyDecorators(
       ApiCookieAuth('accessToken'),
       ApiOperation({ summary: '방 정보 수정' }),
-      ApiResponse({ status: 200, description: '방 수정 성공', type: UpdateRoomResponse }),
+      ApiResponse({ status: 200, description: '방 수정 성공', type: ResRoomDto }),
       badRequestErrors(),
       roomNotFoundError(),
       unauthorizedError(),
@@ -123,7 +116,7 @@ export const ApiRoom = {
     applyDecorators(
       ApiCookieAuth('accessToken'),
       ApiOperation({ summary: '방 삭제' }),
-      ApiResponse({ status: 200, description: '방 삭제 성공', type: RemoveRoomResponse }),
+      ApiResponse({ status: 204, description: '방 삭제 성공' }),
       roomNotFoundError(),
       unauthorizedError(),
     ),
