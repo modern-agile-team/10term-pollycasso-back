@@ -7,7 +7,7 @@ import { userData } from './interfaces/user-data.interface';
 import { TokenDto } from './dto/responses/token.dto';
 import { AccessTokenDto } from './dto/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
-import { ERROR_CODES } from './constants/auth.constants';
+import { USER_ERROR_CODES } from './constants/auth.constants';
 
 @Injectable()
 export class AuthService {
@@ -25,10 +25,10 @@ export class AuthService {
 
     if (existingUser) {
       if (existingUser.username === signupRequestDto.username) {
-        throw new ConflictException(ERROR_CODES.USERNAME_ALREADY_EXISTS);
+        throw new ConflictException({ code: USER_ERROR_CODES.USERNAME_ALREADY_EXISTS });
       }
       if (existingUser.nickname === signupRequestDto.nickname) {
-        throw new ConflictException(ERROR_CODES.NICKNAME_ALREADY_EXISTS);
+        throw new ConflictException({ code: USER_ERROR_CODES.NICKNAME_ALREADY_EXISTS });
       }
     }
 

@@ -75,7 +75,7 @@ const badRequestErrors = (keys: (keyof typeof badRequestExamples)[]) =>
     },
   });
 
-const conflictException = () =>
+const conflictErrors = () =>
   ApiResponse({
     status: 409,
     description: '이미 사용 중인 아이디 또는 닉네임입니다.',
@@ -181,7 +181,7 @@ export const ApiAuth = {
         description: '회원가입 성공',
       }),
       badRequestErrors(['UsernameInvalidInput', 'PasswordInvalidInput', 'NicknameInvalidInput']),
-      conflictException(),
+      conflictErrors(),
     ),
 
   login: () =>
@@ -193,11 +193,7 @@ export const ApiAuth = {
         content: {
           'application/json': {
             example: {
-              status: 200,
-              code: 'LOGIN',
-              data: {
-                accessToken: 'eyJhbGciOi...',
-              },
+              accessToken: 'eyJhbGciOi...',
             },
           },
         },
@@ -223,11 +219,7 @@ export const ApiAuth = {
         content: {
           'application/json': {
             example: {
-              status: 200,
-              code: 'REFRESH_ACCESS_TOKEN',
-              data: {
-                accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-              },
+              accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
             },
           },
         },

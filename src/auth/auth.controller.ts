@@ -17,7 +17,7 @@ import { RefreshTokenGuard } from './guard/refresh-token.guard';
 import { ConfigService } from '@nestjs/config';
 import type { RefreshAuthRequest } from './interfaces/refresh-auth-request.interface';
 import { LoginRequestDto } from './dto/requests/login-request.dto';
-import { LOCAL_ERROR_CODES } from './constants/auth.constants';
+import { AUTH_ERROR_CODES } from './constants/auth.constants';
 import { ApiAuth } from 'src/auth/auth.swagger';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
@@ -45,7 +45,7 @@ export class AuthController {
   async login(@Body() body: LoginRequestDto, @Res({ passthrough: true }) res: ExpressResponse) {
     const user = await this.authService.validateUser(body.username, body.password);
     if (!user) {
-      throw new UnauthorizedException(LOCAL_ERROR_CODES.INVALID_CREDENTIALS);
+      throw new UnauthorizedException({ code: AUTH_ERROR_CODES.INVALID_CREDENTIALS });
     }
     const { accessToken, refreshToken } = await this.authService.login(user);
 

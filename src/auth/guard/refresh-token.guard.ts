@@ -18,18 +18,24 @@ export class RefreshTokenGuard extends AuthGuard('refresh-token') {
 
       if (typeof messageValue === 'string') {
         if (messageValue === 'No auth token' || messageValue === 'jwt must be provided') {
-          throw new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.REFRESH_TOKEN_MISSING);
+          throw new UnauthorizedException({
+            code: REFRESH_TOKEN_ERROR_CODES.REFRESH_TOKEN_MISSING,
+          });
         }
         if (messageValue === 'jwt expired') {
-          throw new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.EXPIRED_REFRESH_TOKEN);
+          throw new UnauthorizedException({
+            code: REFRESH_TOKEN_ERROR_CODES.EXPIRED_REFRESH_TOKEN,
+          });
         }
       }
     }
     if (info instanceof TokenExpiredError) {
-      throw new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.EXPIRED_REFRESH_TOKEN);
+      throw new UnauthorizedException({ code: REFRESH_TOKEN_ERROR_CODES.EXPIRED_REFRESH_TOKEN });
     }
     if (err || !user) {
-      throw err || new UnauthorizedException(REFRESH_TOKEN_ERROR_CODES.INVALID_REFRESH_TOKEN);
+      throw (
+        err || new UnauthorizedException({ code: REFRESH_TOKEN_ERROR_CODES.INVALID_REFRESH_TOKEN })
+      );
     }
 
     return user;

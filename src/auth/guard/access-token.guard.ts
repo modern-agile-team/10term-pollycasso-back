@@ -18,19 +18,21 @@ export class AccessTokenGuard extends AuthGuard('access-token') {
 
       if (typeof messageValue === 'string') {
         if (messageValue === 'No auth token' || messageValue === 'jwt must be provided') {
-          throw new UnauthorizedException(ACCESS_TOKEN_ERROR_CODES.ACCESS_TOKEN_MISSING);
+          throw new UnauthorizedException({ code: ACCESS_TOKEN_ERROR_CODES.ACCESS_TOKEN_MISSING });
         }
         if (messageValue === 'jwt expired') {
-          throw new UnauthorizedException(ACCESS_TOKEN_ERROR_CODES.EXPIRED_ACCESS_TOKEN);
+          throw new UnauthorizedException({ code: ACCESS_TOKEN_ERROR_CODES.EXPIRED_ACCESS_TOKEN });
         }
       }
     }
 
     if (info instanceof TokenExpiredError) {
-      throw new UnauthorizedException(ACCESS_TOKEN_ERROR_CODES.EXPIRED_ACCESS_TOKEN);
+      throw new UnauthorizedException({ code: ACCESS_TOKEN_ERROR_CODES.EXPIRED_ACCESS_TOKEN });
     }
     if (err || !user) {
-      throw err || new UnauthorizedException(ACCESS_TOKEN_ERROR_CODES.INVALID_ACCESS_TOKEN);
+      throw (
+        err || new UnauthorizedException({ code: ACCESS_TOKEN_ERROR_CODES.INVALID_ACCESS_TOKEN })
+      );
     }
 
     return user;
