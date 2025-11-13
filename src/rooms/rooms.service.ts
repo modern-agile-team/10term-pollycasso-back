@@ -3,7 +3,7 @@ import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
-import { ERROR_CODES, ROOM_CONSTANTS } from './constants/room.constant';
+import { ROOM_CONSTANTS, ROOM_ERROR_CODES } from './constants/room.constant';
 import type { IRoomsRepository } from './interfaces/rooms.repository.interface';
 import { Room } from './entities/rooms.entity';
 
@@ -48,7 +48,7 @@ export class RoomsService {
 
   async getOneRoom(id: number): Promise<Room> {
     const room = await this.roomsRepository.findOneRoom(id);
-    if (!room) throw new NotFoundException({ code: ERROR_CODES.ROOM_NOT_FOUND });
+    if (!room) throw new NotFoundException({ code: ROOM_ERROR_CODES.ROOM_NOT_FOUND });
     return room;
   }
 

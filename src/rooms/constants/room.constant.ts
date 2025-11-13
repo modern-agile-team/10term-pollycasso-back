@@ -1,11 +1,11 @@
-export const ERROR_CODES = {
+export const ROOM_ERROR_CODES = {
   ROOM_NOT_FOUND: 'ROOM_NOT_FOUND',
   SOLO_MODE_PLAYERS: 'SOLO_MODE_PLAYERS',
   TEAM_MODE_PLAYERS: 'TEAM_MODE_PLAYERS',
   PRIVATE_ROOM_NEEDS_PASSWORD: 'PRIVATE_ROOM_NEEDS_PASSWORD',
 } as const;
 
-export const DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
+export const ROOM_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
   SOLO_MODE_PLAYERS: {
     field: 'maxPlayers',
     reason: 'Solo mode allows 3-6 players only',
