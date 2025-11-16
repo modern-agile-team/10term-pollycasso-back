@@ -58,10 +58,21 @@ export class RoomsRepository implements IRoomsRepository {
 
   private createRoomFilter(query: QueryRoomDto): Prisma.RoomWhereInput {
     const where: Prisma.RoomWhereInput = {};
-    if (query.name?.trim()) where.name = { contains: query.name.trim() };
+
+    const keyword = query.keyword?.trim();
+    if (keyword) {
+      const isIdSearch = /^\d+$/.test(keyword);
+
+      if (isIdSearch) {
+        where.id = Number(keyword);
+      } else {
+        where.name = { contains: keyword };
+      }
+    }
+
     if (query.mode) where.mode = query.mode;
-    if (query.isPrivate !== undefined) where.isPrivate = query.isPrivate;
     if (query.status) where.status = query.status;
+
     return where;
   }
 }
