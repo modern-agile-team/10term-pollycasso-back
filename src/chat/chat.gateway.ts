@@ -6,11 +6,13 @@ import {
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
+  WsException,
 } from '@nestjs/websockets';
 import { Socket, Server } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
 import { SendMessageDto } from './dtos/requests/send-message.dto';
+import { UsePipes, ValidationPipe } from '@nestjs/common';
 
 interface JwtPayload {
   sub: string;
@@ -22,6 +24,7 @@ interface ClientData {
   nickname: string;
 }
 
+@UsePipes(new ValidationPipe({ exceptionFactory: (errors) => new WsException(errors) }))
 @WebSocketGateway({
   cors: {
     origin: process.env.ALLOWED_ORIGINS?.split(','),
@@ -48,8 +51,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const token = client.handshake.auth.token as string | undefined;
 
     if (!token) {
-      void client.disconnect();
-      return;
+      client.emit('error', { message: 'No token provided' });
+      return client.disconnect();
     }
 
     try {
@@ -60,7 +63,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       void client.join('lobby');
     } catch (_err: unknown) {
-      void client.disconnect();
+      client.emit('error', { message: 'Invalid token' });
+      return client.disconnect();
     }
   }
 
