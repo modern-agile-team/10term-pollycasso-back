@@ -19,3 +19,14 @@ export const REFRESH_TOKEN_ERROR_CODES = {
   REFRESH_TOKEN_NOT_FOUND: 'REFRESH_TOKEN_NOT_FOUND',
   INVALID_REFRESH_TOKEN: 'INVALID_REFRESH_TOKEN',
 } as const;
+
+export const AUTH_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
+  USERNAME_ALREADY_EXISTS: {
+    field: 'username',
+    reason: 'This username is already in use',
+  },
+  NICKNAME_ALREADY_EXISTS: {
+    field: 'nickname',
+    reason: 'This nickname is already in use',
+  },
+};
