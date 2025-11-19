@@ -6,12 +6,14 @@ import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
 import { ROOM_CONSTANTS, ROOM_ERROR_CODES } from './constants/room.constant';
 import type { IRoomsRepository } from './interfaces/rooms.repository.interface';
 import { Room } from './entities/rooms.entity';
+import { RoomsGateway } from './rooms.gateway';
 
 @Injectable()
 export class RoomsService {
   constructor(
     @Inject('IRoomsRepository')
     private readonly roomsRepository: IRoomsRepository,
+    private readonly roomsGateway: RoomsGateway,
   ) {}
 
   async createRoom(dto: CreateRoomDto): Promise<Room> {
@@ -26,7 +28,10 @@ export class RoomsService {
       hashedPassword,
     });
 
-    return this.roomsRepository.createRoom(room);
+    const createdRoom = await this.roomsRepository.createRoom(room);
+    this.roomsGateway.roomCreated(createdRoom);
+
+    return createdRoom;
   }
 
   async updateRoom(id: number, dto: UpdateRoomDto): Promise<Room> {
@@ -43,7 +48,10 @@ export class RoomsService {
       hashedPassword,
     });
 
-    return this.roomsRepository.updateRoom(id, room);
+    const updatedRoom = await this.roomsRepository.updateRoom(id, room);
+    this.roomsGateway.roomUpdated(updatedRoom);
+
+    return updatedRoom;
   }
 
   async getOneRoom(id: number): Promise<Room> {
@@ -59,5 +67,6 @@ export class RoomsService {
   async removeRoom(id: number): Promise<void> {
     await this.getOneRoom(id);
     await this.roomsRepository.deleteRoom(id);
+    this.roomsGateway.roomDeleted(id);
   }
 }
