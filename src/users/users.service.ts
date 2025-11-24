@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { User } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
+import { CreateKakaoUserDto } from './dto/create-kakao-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -19,6 +20,16 @@ export class UsersService {
 
   // 유저 생성
   async createUser(userData: CreateUserDto): Promise<User> {
+    return this.usersRepository.createUser(userData);
+  }
+
+  // 카카오 아이디로 유저 조회
+  async findUserByKakaoId(kakaoId: string): Promise<User | null> {
+    return this.usersRepository.findOneByKakaoId(kakaoId);
+  }
+
+  // 카카오 유저 생성
+  async createKakaoUser(userData: CreateKakaoUserDto): Promise<User> {
     return this.usersRepository.createUser(userData);
   }
 }

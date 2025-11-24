@@ -90,4 +90,29 @@ export class AuthService {
     await this.tokenService.revokeToken(userData.sub);
     return;
   }
+
+  // kakao 로그인
+  async kakaoLogin(kakaoPayload: any): Promise<TokenDto> {
+    let user = await this.userService.findUserByKakaoId(kakaoPayload.kakaoId);
+
+    if (!user) {
+      user = await this.userService.createKakaoUser({
+        nickname: kakaoPayload.nickname,
+        provider: 'KAKAO',
+        providerId: kakaoPayload.kakaoId,
+      });
+    }
+    const payload: JwtPayload = {
+      sub: user.id,
+      nickname: user.nickname,
+    };
+
+    const accessToken = this.tokenService.createAccessToken(payload);
+    const refreshToken = await this.tokenService.createRefreshToken(payload);
+
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
 }

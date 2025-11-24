@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -20,6 +21,7 @@ import { LoginRequestDto } from './dto/requests/login-request.dto';
 import { AUTH_ERROR_CODES } from './constants/auth.constants';
 import { ApiAuth } from 'src/auth/auth.swagger';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { KakaoGuard } from './guard/kakao.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -70,6 +72,23 @@ export class AuthController {
   async logout(@Req() req: RefreshAuthRequest, @Res({ passthrough: true }) res: ExpressResponse) {
     await this.authService.logout(req.user);
     this.clearCookie(res);
+  }
+
+  @Get('kakao')
+  @UseGuards(KakaoGuard)
+  kakaoLogin() {
+    return;
+  }
+
+  @Get('kakao/callback')
+  @UseGuards(KakaoGuard)
+  @HttpCode(HttpStatus.OK)
+  async kakaoLoginCallback(@Req() req: any, @Res({ passthrough: true }) res: ExpressResponse) {
+    const { accessToken, refreshToken } = await this.authService.kakaoLogin(req.user);
+
+    this.setRefreshToken(res, refreshToken);
+
+    return { accessToken };
   }
 
   private setRefreshToken(res: ExpressResponse, refreshToken: string) {

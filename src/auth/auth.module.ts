@@ -6,10 +6,11 @@ import { AccessTokenStrategy } from './strategies/access-token.strategy';
 import { RedisModule } from '../redis/redis.module';
 import { TokenModule } from './token/token.module';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
+import { KakaoStrategy } from './strategies/kakao.strategy';
 
 @Module({
   imports: [UsersModule, RedisModule, TokenModule],
   controllers: [AuthController],
-  providers: [AuthService, AccessTokenStrategy, RefreshTokenStrategy],
+  providers: [AuthService, AccessTokenStrategy, RefreshTokenStrategy, KakaoStrategy],
 })
 export class AuthModule {}

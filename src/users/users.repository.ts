@@ -23,4 +23,15 @@ export class UsersRepository {
       data,
     });
   }
+
+  async findOneByKakaoId(kakaoId: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: {
+        provider_providerId: {
+          provider: 'KAKAO',
+          providerId: kakaoId,
+        },
+      },
+    });
+  }
 }
