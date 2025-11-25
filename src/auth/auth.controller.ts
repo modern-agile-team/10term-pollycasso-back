@@ -22,6 +22,7 @@ import { AUTH_ERROR_CODES } from './constants/auth.constants';
 import { ApiAuth } from 'src/auth/auth.swagger';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { KakaoGuard } from './guard/kakao.guard';
+import { GoogleGuard } from './guard/google.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -85,6 +86,23 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async kakaoLoginCallback(@Req() req: any, @Res({ passthrough: true }) res: ExpressResponse) {
     const { accessToken, refreshToken } = await this.authService.kakaoLogin(req.user);
+
+    this.setRefreshToken(res, refreshToken);
+
+    return { accessToken };
+  }
+
+  @Get('google')
+  @UseGuards(GoogleGuard)
+  googleLogin() {
+    return;
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleGuard)
+  @HttpCode(HttpStatus.OK)
+  async googleLoginCallback(@Req() req: any, @Res({ passthrough: true }) res: ExpressResponse) {
+    const { accessToken, refreshToken } = await this.authService.googleLogin(req.user);
 
     this.setRefreshToken(res, refreshToken);
 

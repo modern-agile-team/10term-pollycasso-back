@@ -34,4 +34,15 @@ export class UsersRepository {
       },
     });
   }
+
+  async findOneByGoogleId(googleId: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: {
+        provider_providerId: {
+          provider: 'GOOGLE',
+          providerId: googleId,
+        },
+      },
+    });
+  }
 }

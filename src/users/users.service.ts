@@ -3,6 +3,7 @@ import { UsersRepository } from './users.repository';
 import { User } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateKakaoUserDto } from './dto/create-kakao-user.dto';
+import { CreateGoogleUserDto } from './dto/create-google-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -30,6 +31,16 @@ export class UsersService {
 
   // 카카오 유저 생성
   async createKakaoUser(userData: CreateKakaoUserDto): Promise<User> {
+    return this.usersRepository.createUser(userData);
+  }
+
+  // 구글 아이디로 유저 조회
+  async findUserByGoogleId(googleId: string): Promise<User | null> {
+    return this.usersRepository.findOneByGoogleId(googleId);
+  }
+
+  // 구글 유저 생성
+  async createGoogleUser(userData: CreateGoogleUserDto): Promise<User> {
     return this.usersRepository.createUser(userData);
   }
 }

@@ -115,4 +115,29 @@ export class AuthService {
       refreshToken,
     };
   }
+
+  // google 로그인
+  async googleLogin(googlePayload: any): Promise<TokenDto> {
+    let user = await this.userService.findUserByGoogleId(googlePayload.googleId);
+
+    if (!user) {
+      user = await this.userService.createGoogleUser({
+        nickname: googlePayload.nickname,
+        provider: 'GOOGLE',
+        providerId: googlePayload.googleId,
+      });
+    }
+    const payload: JwtPayload = {
+      sub: user.id,
+      nickname: user.nickname,
+    };
+
+    const accessToken = this.tokenService.createAccessToken(payload);
+    const refreshToken = await this.tokenService.createRefreshToken(payload);
+
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
 }
