@@ -8,10 +8,9 @@ import { GlobalExceptionFilter } from './common/filters/global-exceptions.filter
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [
-    'http://localhost:3000',
-    'https://www.pollycasso.com',
-  ];
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+    : ['http://localhost:3000', 'https://www.pollycasso.com'];
 
   app.enableCors({
     origin: allowedOrigins,

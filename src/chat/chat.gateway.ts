@@ -27,9 +27,12 @@ interface ClientData {
 @UsePipes(new ValidationPipe({ exceptionFactory: (errors) => new WsException(errors) }))
 @WebSocketGateway({
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(','),
+    origin: process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(',')
+      : ['http://localhost:3000', 'https://www.pollycasso.com'],
     credentials: true,
   },
+  namespace: '/chat',
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
@@ -42,7 +45,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private getClientData(client: Socket): ClientData {
     if (!client.data) {
-      client.data = { userId: '', nickname: '' };
+      throw new WsException('Client not authenticated');
     }
     return client.data as ClientData;
   }
@@ -57,9 +60,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
-      const clientData = this.getClientData(client);
-      clientData.userId = payload.sub;
-      clientData.nickname = payload.nickname;
+
+      client.data = {
+        userId: payload.sub,
+        nickname: payload.nickname,
+      };
 
       void client.join('lobby');
     } catch (_err: unknown) {
@@ -72,7 +77,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.getClientData(client);
   }
 
-  @SubscribeMessage('lobby:public:send')
+  @SubscribeMessage('lobby:send')
   handleLobbyMessage(@MessageBody() data: SendMessageDto, @ConnectedSocket() client: Socket) {
     const clientData = this.getClientData(client);
 
@@ -82,6 +87,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       message: data.message,
     });
 
-    void this.server.to('lobby').emit('lobby:public:message', message);
+    void this.server.to('lobby').emit('lobby:message', message);
   }
 }
