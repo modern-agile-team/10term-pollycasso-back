@@ -10,6 +10,7 @@ import { RoomsGateway } from './rooms.gateway';
     RoomsService,
     RoomsGateway,
     { provide: 'IRoomsRepository', useClass: RoomsRepository },
+    { provide: 'IRoomsEventPublisher', useExisting: RoomsGateway },
   ],
 })
 export class RoomsModule {}

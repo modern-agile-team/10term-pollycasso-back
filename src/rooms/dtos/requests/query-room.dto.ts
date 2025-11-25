@@ -10,7 +10,7 @@ export class QueryRoomDto {
     description: '검색 키워드 (숫자면 ID)',
     required: false,
   })
-  keyword?: string;
+  q?: string;
 
   @IsOptional()
   @IsEnum(RoomMode)
