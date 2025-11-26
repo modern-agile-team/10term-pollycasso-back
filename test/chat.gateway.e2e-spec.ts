@@ -34,7 +34,7 @@ describe('ChatGateway (e2e)', () => {
 
   function createValidToken(): string {
     return jwtService.sign({
-      sub: '1',
+      sub: 'test1',
       nickname: 'test1',
     });
   }
@@ -73,7 +73,7 @@ describe('ChatGateway (e2e)', () => {
 
     clientSocket.on('lobby:message', (msg: MessageResponseDto) => {
       try {
-        expect(msg.senderId).toBe('1');
+        expect(msg.senderId).toBe('test1');
         expect(msg.nickname).toBe('test1');
         expect(msg.message).toBe('hello');
         expect(msg.createdAt).toBeDefined();
