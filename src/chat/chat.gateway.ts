@@ -43,11 +43,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly jwtService: JwtService,
   ) {}
 
-  private getClientData(client: Socket): ClientData {
-    if (!client.data) {
-      throw new WsException('Client not authenticated');
-    }
-    return client.data as ClientData;
+  private getClientData(client: Socket): ClientData | null {
+    return (client.data as ClientData) ?? null;
   }
 
   handleConnection(client: Socket) {
@@ -73,13 +70,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  handleDisconnect(client: Socket) {
-    this.getClientData(client);
-  }
+  handleDisconnect(_client: Socket) {}
 
   @SubscribeMessage('lobby:send')
   handleLobbyMessage(@MessageBody() data: SendMessageDto, @ConnectedSocket() client: Socket) {
     const clientData = this.getClientData(client);
+    if (!clientData) {
+      throw new WsException('Client state invalid');
+    }
 
     const message = this.chatService.createLobbyMessage({
       senderId: clientData.userId,
