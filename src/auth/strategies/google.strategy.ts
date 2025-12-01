@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { Profile, Strategy } from 'passport-google-oauth20';
-import { googlePayload } from '../interfaces/google.interface';
+import { SocialLoginPayload } from '../interfaces/social-login.interface';
+import { Provider } from '@prisma/client';
+import { OAUTH_ERRORS_CODES } from '../constants/auth.constants';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -18,8 +20,13 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   async validate(accessToken: string, refreshToken: string, profile: Profile): Promise<any> {
     const { id, displayName } = profile;
 
-    const payload: googlePayload = {
-      googleId: id.toString(),
+    if (!id || !displayName) {
+      throw new BadRequestException(OAUTH_ERRORS_CODES.INVALID_OAUTH_PROFILE);
+    }
+
+    const payload: SocialLoginPayload = {
+      provider: Provider.GOOGLE,
+      providerId: id.toString(),
       nickname: displayName,
     };
 

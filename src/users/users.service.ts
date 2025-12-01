@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { User } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
-import { CreateKakaoUserDto } from './dto/create-kakao-user.dto';
-import { CreateGoogleUserDto } from './dto/create-google-user.dto';
+import { CreateSocialUserDto } from './dto/create-social-user.dto';
+import { Provider } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -24,23 +24,18 @@ export class UsersService {
     return this.usersRepository.createUser(userData);
   }
 
-  // 카카오 아이디로 유저 조회
-  async findUserByKakaoId(kakaoId: string): Promise<User | null> {
-    return this.usersRepository.findOneByKakaoId(kakaoId);
+  // 소셜 로그인 유저ID 조회
+  async findUserByProvider(provider: Provider, providerId: string): Promise<User | null> {
+    return this.usersRepository.findUserByProvider(provider, providerId);
   }
 
-  // 카카오 유저 생성
-  async createKakaoUser(userData: CreateKakaoUserDto): Promise<User> {
-    return this.usersRepository.createUser(userData);
+  // 소셜 로그인 유저 조회
+  async findSocialUser(nickname: string): Promise<User | null> {
+    return this.usersRepository.findByNickname(nickname);
   }
 
-  // 구글 아이디로 유저 조회
-  async findUserByGoogleId(googleId: string): Promise<User | null> {
-    return this.usersRepository.findOneByGoogleId(googleId);
-  }
-
-  // 구글 유저 생성
-  async createGoogleUser(userData: CreateGoogleUserDto): Promise<User> {
+  // 소셜 로그인 유저 생성
+  async createSocialUser(userData: CreateSocialUserDto): Promise<User> {
     return this.usersRepository.createUser(userData);
   }
 }

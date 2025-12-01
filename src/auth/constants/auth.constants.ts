@@ -20,6 +20,12 @@ export const REFRESH_TOKEN_ERROR_CODES = {
   INVALID_REFRESH_TOKEN: 'INVALID_REFRESH_TOKEN',
 } as const;
 
+export const OAUTH_ERRORS_CODES = {
+  INVALID_OAUTH_PROFILE: 'INVALID_OAUTH_PROFILE',
+  OAUTH_PROVIDER_ERROR: 'OAUTH_PROVIDER_ERROR',
+  INVALID_OAUTH_CODE: 'INVALID_OAUTH_CODE',
+} as const;
+
 export const AUTH_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
   USERNAME_ALREADY_EXISTS: {
     field: 'username',

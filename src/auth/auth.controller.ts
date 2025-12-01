@@ -85,7 +85,7 @@ export class AuthController {
   @UseGuards(KakaoGuard)
   @HttpCode(HttpStatus.OK)
   async kakaoLoginCallback(@Req() req: any, @Res({ passthrough: true }) res: ExpressResponse) {
-    const { accessToken, refreshToken } = await this.authService.kakaoLogin(req.user);
+    const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
 
     this.setRefreshToken(res, refreshToken);
 
@@ -102,7 +102,7 @@ export class AuthController {
   @UseGuards(GoogleGuard)
   @HttpCode(HttpStatus.OK)
   async googleLoginCallback(@Req() req: any, @Res({ passthrough: true }) res: ExpressResponse) {
-    const { accessToken, refreshToken } = await this.authService.googleLogin(req.user);
+    const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
 
     this.setRefreshToken(res, refreshToken);
 

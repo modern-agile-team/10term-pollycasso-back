@@ -8,6 +8,7 @@ import { TokenDto } from './dto/responses/token.dto';
 import { AccessTokenDto } from './dto/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
 import { AUTH_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/auth.constants';
+import { SocialLoginPayload } from './interfaces/social-login.interface';
 
 @Injectable()
 export class AuthService {
@@ -91,42 +92,25 @@ export class AuthService {
     return;
   }
 
-  // kakao 로그인
-  async kakaoLogin(kakaoPayload: any): Promise<TokenDto> {
-    let user = await this.userService.findUserByKakaoId(kakaoPayload.kakaoId);
-
-    if (!user) {
-      user = await this.userService.createKakaoUser({
-        nickname: kakaoPayload.nickname,
-        provider: 'KAKAO',
-        providerId: kakaoPayload.kakaoId,
+  // 소셜 로그인
+  async socialLogin(socialUser: SocialLoginPayload): Promise<TokenDto> {
+    const userNickname = await this.userService.findSocialUser(socialUser.nickname);
+    if (userNickname && userNickname.nickname !== socialUser.nickname) {
+      throw new ConflictException({
+        code: USER_ERROR_CODES.NICKNAME_ALREADY_EXISTS,
+        errors: [AUTH_DOMAIN_ERRORS.NICKNAME_ALREADY_EXISTS],
       });
     }
-    const payload: JwtPayload = {
-      sub: user.id,
-      nickname: user.nickname,
-    };
 
-    const accessToken = this.tokenService.createAccessToken(payload);
-    const refreshToken = await this.tokenService.createRefreshToken(payload);
-
-    return {
-      accessToken,
-      refreshToken,
-    };
-  }
-
-  // google 로그인
-  async googleLogin(googlePayload: any): Promise<TokenDto> {
-    let user = await this.userService.findUserByGoogleId(googlePayload.googleId);
+    let user = await this.userService.findUserByProvider(
+      socialUser.provider,
+      socialUser.providerId,
+    );
 
     if (!user) {
-      user = await this.userService.createGoogleUser({
-        nickname: googlePayload.nickname,
-        provider: 'GOOGLE',
-        providerId: googlePayload.googleId,
-      });
+      user = await this.userService.createSocialUser(socialUser);
     }
+
     const payload: JwtPayload = {
       sub: user.id,
       nickname: user.nickname,

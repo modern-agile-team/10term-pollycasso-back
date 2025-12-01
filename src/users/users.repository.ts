@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma, User } from '@prisma/client';
+import { Prisma, Provider, User } from '@prisma/client';
 
 @Injectable()
 export class UsersRepository {
@@ -24,25 +24,20 @@ export class UsersRepository {
     });
   }
 
-  async findOneByKakaoId(kakaoId: string): Promise<User | null> {
+  async findUserByProvider(provider: Provider, providerId: string): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: {
         provider_providerId: {
-          provider: 'KAKAO',
-          providerId: kakaoId,
+          provider,
+          providerId,
         },
       },
     });
   }
 
-  async findOneByGoogleId(googleId: string): Promise<User | null> {
+  async findByNickname(nickname: string): Promise<User | null> {
     return this.prisma.user.findUnique({
-      where: {
-        provider_providerId: {
-          provider: 'GOOGLE',
-          providerId: googleId,
-        },
-      },
+      where: { nickname },
     });
   }
 }

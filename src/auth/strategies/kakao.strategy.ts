@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, Profile } from 'passport-kakao';
 import { ConfigService } from '@nestjs/config';
-import { kakaoPayload } from '../interfaces/kakao.interface';
+import { SocialLoginPayload } from '../interfaces/social-login.interface';
+import { Provider } from '@prisma/client';
+import { OAUTH_ERRORS_CODES } from '../constants/auth.constants';
 
 @Injectable()
 export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
@@ -17,9 +19,14 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
   async validate(accessToken: string, refreshToken: string, profile: Profile): Promise<any> {
     const { id, username } = profile;
 
-    const payload: kakaoPayload = {
-      kakaoId: id.toString(),
-      nickname: username!,
+    if (!id || !username) {
+      throw new BadRequestException(OAUTH_ERRORS_CODES.INVALID_OAUTH_PROFILE);
+    }
+
+    const payload: SocialLoginPayload = {
+      provider: Provider.KAKAO,
+      providerId: id.toString(),
+      nickname: username,
     };
 
     return payload;
