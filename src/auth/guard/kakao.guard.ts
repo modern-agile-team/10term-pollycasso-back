@@ -4,9 +4,9 @@ import { OAUTH_ERRORS_CODES } from '../constants/auth.constants';
 
 @Injectable()
 export class KakaoGuard extends AuthGuard('kakao') {
-  handleRequest(err, user, info) {
+  handleRequest<TUser = any>(err: (Error & { status?: number }) | null, user: TUser, _info) {
     if (err || !user) {
-      if (err?.status >= 500) {
+      if (err?.status && err.status >= 500) {
         throw new BadGatewayException(OAUTH_ERRORS_CODES.OAUTH_PROVIDER_ERROR);
       }
 

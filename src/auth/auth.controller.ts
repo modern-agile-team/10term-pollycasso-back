@@ -23,6 +23,7 @@ import { ApiAuth } from 'src/auth/auth.swagger';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { KakaoGuard } from './guard/kakao.guard';
 import { GoogleGuard } from './guard/google.guard';
+import type { SocialLoginRequest } from './interfaces/social-login-request.interface';
 
 @Controller('auth')
 export class AuthController {
@@ -84,7 +85,10 @@ export class AuthController {
   @Get('kakao/callback')
   @UseGuards(KakaoGuard)
   @HttpCode(HttpStatus.OK)
-  async kakaoLoginCallback(@Req() req: any, @Res({ passthrough: true }) res: ExpressResponse) {
+  async kakaoLoginCallback(
+    @Req() req: SocialLoginRequest,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ) {
     const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
 
     this.setRefreshToken(res, refreshToken);
@@ -101,7 +105,10 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(GoogleGuard)
   @HttpCode(HttpStatus.OK)
-  async googleLoginCallback(@Req() req: any, @Res({ passthrough: true }) res: ExpressResponse) {
+  async googleLoginCallback(
+    @Req() req: SocialLoginRequest,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ) {
     const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
 
     this.setRefreshToken(res, refreshToken);
