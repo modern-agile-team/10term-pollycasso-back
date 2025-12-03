@@ -12,7 +12,7 @@ import { Socket, Server } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
 import { SendMessageDto } from './dtos/requests/send-message.dto';
-import { UsePipes, ValidationPipe } from '@nestjs/common';
+import { UsePipes, ValidationPipe, Logger } from '@nestjs/common';
 
 interface JwtPayload {
   sub: string;
@@ -27,9 +27,7 @@ interface ClientData {
 @UsePipes(new ValidationPipe({ exceptionFactory: (errors) => new WsException(errors) }))
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',')
-      : ['http://localhost:3000', 'https://www.pollycasso.com'],
+    origin: process.env.CORS_ORIGINS?.split(',') || '*',
     credentials: true,
   },
   namespace: '/chat',
@@ -37,6 +35,7 @@ interface ClientData {
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
+  private readonly logger = new Logger(ChatGateway.name);
 
   constructor(
     private readonly chatService: ChatService,
@@ -48,9 +47,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   handleConnection(client: Socket) {
-    const token = client.handshake.auth.token as string | undefined;
+    const auth = client.handshake.auth as Record<string, unknown>;
+    const headers = client.handshake.headers as Record<string, unknown>;
+
+    const token =
+      (typeof auth.token === 'string' ? auth.token : null) ||
+      (typeof headers.authorization === 'string' ? headers.authorization.split(' ')[1] : null);
 
     if (!token) {
+      this.logger.warn(`Connection rejected: No token provided (client: ${client.id})`);
       client.emit('error', { message: 'No token provided' });
       return client.disconnect();
     }
@@ -64,27 +69,42 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
 
       void client.join('lobby');
+      this.logger.log(`User connected: ${payload.nickname} (client: ${client.id})`);
     } catch (_err: unknown) {
+      this.logger.warn(`Connection rejected: Invalid token (client: ${client.id})`);
       client.emit('error', { message: 'Invalid token' });
       return client.disconnect();
     }
   }
 
-  handleDisconnect(_client: Socket) {}
+  handleDisconnect(client: Socket) {
+    const clientData = this.getClientData(client);
+    const nickname = clientData?.nickname;
+    this.logger.log(`User disconnected: ${nickname} (client: ${client.id})`);
+  }
 
   @SubscribeMessage('lobby:send')
   handleLobbyMessage(@MessageBody() data: SendMessageDto, @ConnectedSocket() client: Socket) {
     const clientData = this.getClientData(client);
+
     if (!clientData) {
-      throw new WsException('Client state invalid');
+      this.logger.error(`Invalid client state (client: ${client.id})`);
+      client.emit('error', { message: 'Client state invalid' });
+      return;
     }
 
-    const message = this.chatService.createLobbyMessage({
-      senderId: clientData.userId,
-      nickname: clientData.nickname,
-      message: data.message,
-    });
+    try {
+      const message = this.chatService.createLobbyMessage({
+        senderId: clientData.userId,
+        nickname: clientData.nickname,
+        message: data.message,
+      });
 
-    void this.server.to('lobby').emit('lobby:message', message);
+      void this.server.to('lobby').emit('lobby:message', message);
+      this.logger.debug(`Message sent to lobby by ${clientData.nickname}: ${data.message}`);
+    } catch (error: unknown) {
+      this.logger.error(`Failed to send message (client: ${client.id})`, error);
+      client.emit('error', { message: 'Failed to send message' });
+    }
   }
 }
