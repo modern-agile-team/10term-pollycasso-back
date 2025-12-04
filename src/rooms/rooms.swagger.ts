@@ -66,7 +66,7 @@ const unauthorizedError = () =>
     examples: {
       unauthorized: {
         summary: '로그인 필요',
-        value: { status: 401, code: 'UNAUTHORIZED', errors: [] },
+        value: { status: 401, code: 'EXPIRED_ACCESS_TOKEN', errors: [] },
       },
     },
   });
