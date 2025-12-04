@@ -4,13 +4,21 @@ import { ValidationPipe, BadRequestException, ValidationError } from '@nestjs/co
 import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { GlobalExceptionFilter } from './common/filters/global-exceptions.filter';
+import { AsyncApiDocumentBuilder, AsyncApiModule } from 'nestjs-asyncapi';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+<<<<<<< HEAD
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
     : ['http://localhost:3000', 'https://www.pollycasso.com'];
+=======
+  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
+    'http://localhost:3000',
+    'https://www.pollycasso.com',
+  ];
+>>>>>>> 121fbb6b2508a3a83783c484486c0b1ade1edcae
 
   app.enableCors({
     origin: allowedOrigins,
@@ -70,6 +78,21 @@ async function bootstrap() {
       },
     },
   });
+
+  const asyncApiOptions = new AsyncApiDocumentBuilder()
+    .setTitle('폴리카소(pollycasso)')
+    .setDescription('폴리카소(pollycasso) 웹소켓 API 명세서')
+    .setVersion('1.0')
+    .setDefaultContentType('application/json')
+    .addSecurity('user-password', { type: 'userPassword' })
+    .addServer('pollycasso', {
+      url: process.env.WS_SERVER_URL || 'wss://api.pollycasso.com',
+      protocol: 'socket.io',
+    })
+    .build();
+
+  const asyncapiDocument = AsyncApiModule.createDocument(app, asyncApiOptions);
+  await AsyncApiModule.setup('asyncapi', app, asyncapiDocument);
 
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   await app.listen(port);

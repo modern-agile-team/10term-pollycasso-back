@@ -1,16 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { RoomMode, RoomStatus } from '@prisma/client';
-import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryRoomDto {
   @IsOptional()
   @IsString()
   @ApiProperty({
-    description: '방 이름',
+    description: '검색 키워드 (숫자면 ID)',
     required: false,
   })
-  name?: string;
+  q?: string;
 
   @IsOptional()
   @IsEnum(RoomMode)
@@ -20,19 +20,6 @@ export class QueryRoomDto {
     required: false,
   })
   mode?: RoomMode;
-
-  @IsOptional()
-  @Transform(({ value }): boolean => {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return value;
-  })
-  @IsBoolean()
-  @ApiProperty({
-    description: '방 비공개 여부',
-    required: false,
-  })
-  isPrivate?: boolean;
 
   @IsOptional()
   @IsEnum(RoomStatus)

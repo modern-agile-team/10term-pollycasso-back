@@ -3,15 +3,18 @@ import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
-import { ERROR_CODES, ROOM_CONSTANTS } from './constants/room.constant';
+import { ROOM_CONSTANTS, ROOM_ERROR_CODES } from './constants/room.constant';
 import type { IRoomsRepository } from './interfaces/rooms.repository.interface';
 import { Room } from './entities/rooms.entity';
+import type { IRoomsEventPublisher } from './events/rooms-event.publisher';
 
 @Injectable()
 export class RoomsService {
   constructor(
     @Inject('IRoomsRepository')
     private readonly roomsRepository: IRoomsRepository,
+    @Inject('IRoomsEventPublisher')
+    private readonly roomsEventPublisher: IRoomsEventPublisher,
   ) {}
 
   async createRoom(dto: CreateRoomDto): Promise<Room> {
@@ -26,7 +29,10 @@ export class RoomsService {
       hashedPassword,
     });
 
-    return this.roomsRepository.createRoom(room);
+    const createdRoom = await this.roomsRepository.createRoom(room);
+    this.roomsEventPublisher.roomCreated(createdRoom);
+
+    return createdRoom;
   }
 
   async updateRoom(id: number, dto: UpdateRoomDto): Promise<Room> {
@@ -43,12 +49,15 @@ export class RoomsService {
       hashedPassword,
     });
 
-    return this.roomsRepository.updateRoom(id, room);
+    const updatedRoom = await this.roomsRepository.updateRoom(id, room);
+    this.roomsEventPublisher.roomUpdated(updatedRoom);
+
+    return updatedRoom;
   }
 
   async getOneRoom(id: number): Promise<Room> {
     const room = await this.roomsRepository.findOneRoom(id);
-    if (!room) throw new NotFoundException({ code: ERROR_CODES.ROOM_NOT_FOUND });
+    if (!room) throw new NotFoundException({ code: ROOM_ERROR_CODES.ROOM_NOT_FOUND });
     return room;
   }
 
@@ -59,5 +68,6 @@ export class RoomsService {
   async removeRoom(id: number): Promise<void> {
     await this.getOneRoom(id);
     await this.roomsRepository.deleteRoom(id);
+    this.roomsEventPublisher.roomDeleted(id);
   }
 }
