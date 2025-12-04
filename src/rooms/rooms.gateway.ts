@@ -9,9 +9,7 @@ import { AsyncApiPub } from 'nestjs-asyncapi';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',')
-      : ['http://localhost:3000', 'https://www.pollycasso.com'],
+    origin: process.env.CORS_ORIGINS?.split(',') || '*',
     credentials: true,
   },
   namespace: '/rooms',
