@@ -9,16 +9,9 @@ import { AsyncApiDocumentBuilder, AsyncApiModule } from 'nestjs-asyncapi';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-<<<<<<< HEAD
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
     : ['http://localhost:3000', 'https://www.pollycasso.com'];
-=======
-  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
-    'http://localhost:3000',
-    'https://www.pollycasso.com',
-  ];
->>>>>>> 121fbb6b2508a3a83783c484486c0b1ade1edcae
 
   app.enableCors({
     origin: allowedOrigins,
