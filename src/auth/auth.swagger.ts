@@ -153,6 +153,14 @@ const unauthorizedExamples = {
       errors: [],
     },
   },
+  InvalidOAuthCode: {
+    summary: 'InvalidOAuthCode',
+    value: {
+      status: 401,
+      code: 'INVALID_OAUTH_CODE',
+      errors: [],
+    },
+  },
 };
 
 const unauthorizedErrors = (keys: (keyof typeof unauthorizedExamples)[]) =>
@@ -168,6 +176,46 @@ const unauthorizedErrors = (keys: (keyof typeof unauthorizedExamples)[]) =>
           },
           {} as Record<string, object>,
         ),
+      },
+    },
+  });
+
+const InternalServerErrores = () =>
+  ApiResponse({
+    status: 500,
+    description: 'OAuth 서버에서 ID와 username을 가져오는 데 실패했습니다.',
+    content: {
+      'application/json': {
+        examples: {
+          InvalidOAuthCode: {
+            summary: 'InvalidOAuthProfile',
+            value: {
+              status: 500,
+              code: 'INVALID_OAUTH_PROFILE',
+              errors: [],
+            },
+          },
+        },
+      },
+    },
+  });
+
+const BadGatewayErrores = () =>
+  ApiResponse({
+    status: 502,
+    description: 'OAuth 서버와의 통신에 실패했습니다.',
+    content: {
+      'application/json': {
+        examples: {
+          ThirdPartyApiError: {
+            summary: 'OAuthProviderError',
+            value: {
+              status: 502,
+              code: 'OAUTH_PROVIDER_ERROR',
+              errors: [],
+            },
+          },
+        },
       },
     },
   });
@@ -234,5 +282,74 @@ export const ApiAuth = {
         description: '로그아웃 성공',
       }),
       unauthorizedErrors(['AccessTokenMissing']),
+    ),
+  kakao: () =>
+    applyDecorators(
+      ApiOperation({ summary: 'kakao' }),
+      ApiResponse({
+        description: 'kakao 로그인 화면으로 이동합니다. 그 후 kakao callback으로 리다이렉트됩니다.',
+      }),
+    ),
+  google: () =>
+    applyDecorators(
+      ApiOperation({ summary: 'google' }),
+      ApiResponse({
+        description:
+          'google 로그인 화면으로 이동합니다. 그 후 google callback으로 리다이렉트됩니다.',
+      }),
+    ),
+  kakaocallback: () =>
+    applyDecorators(
+      ApiOperation({ summary: 'kakao callback' }),
+      ApiResponse({
+        status: 200,
+        description: 'kakao 로그인 성공 (Refresh Token은 HttpOnly 쿠키로 전달됩니다.)',
+        content: {
+          'application/json': {
+            example: {
+              accessToken: 'eyJhbGciOi...',
+            },
+          },
+        },
+        headers: {
+          'Set-Cookie': {
+            description: 'refresh_token=xxx; Path=/; HttpOnly; Secure;',
+            schema: {
+              type: 'string',
+              example: 'refresh_token=eyJhbGciOiJI...; Path=/; HttpOnly; Secure',
+            },
+          },
+        },
+      }),
+      unauthorizedErrors(['InvalidOAuthCode']),
+      InternalServerErrores(),
+      BadGatewayErrores(),
+    ),
+  googlecallback: () =>
+    applyDecorators(
+      ApiOperation({ summary: 'google callback' }),
+      ApiResponse({
+        status: 200,
+        description: 'google 로그인 성공 (Refresh Token은 HttpOnly 쿠키로 전달됩니다.)',
+        content: {
+          'application/json': {
+            example: {
+              accessToken: 'eyJhbGciOi...',
+            },
+          },
+        },
+        headers: {
+          'Set-Cookie': {
+            description: 'refresh_token=xxx; Path=/; HttpOnly; Secure;',
+            schema: {
+              type: 'string',
+              example: 'refresh_token=eyJhbGciOiJI...; Path=/; HttpOnly; Secure',
+            },
+          },
+        },
+      }),
+      unauthorizedErrors(['InvalidOAuthCode']),
+      InternalServerErrores(),
+      BadGatewayErrores(),
     ),
 };
