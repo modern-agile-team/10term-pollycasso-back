@@ -5,7 +5,6 @@ import { ResRoomDto } from './dtos/responses/room-response.dto';
 import { ResDeletedRoomDto } from './dtos/responses/deleted-room-response.dto';
 import { Room } from './entities/rooms.entity';
 import { IRoomsEventPublisher } from './events/rooms-event.publisher';
-import { AsyncApiPub } from 'nestjs-asyncapi';
 
 @WebSocketGateway({
   cors: {
@@ -20,10 +19,6 @@ export class RoomsGateway implements IRoomsEventPublisher {
   @WebSocketServer()
   server: Server;
 
-  @AsyncApiPub({
-    channel: 'room:created',
-    message: { payload: ResRoomDto },
-  })
   roomCreated(room: Room) {
     try {
       const payload = new ResRoomDto(room);
@@ -33,10 +28,6 @@ export class RoomsGateway implements IRoomsEventPublisher {
     }
   }
 
-  @AsyncApiPub({
-    channel: 'room:updated',
-    message: { payload: ResRoomDto },
-  })
   roomUpdated(room: Room) {
     try {
       const payload = new ResRoomDto(room);
@@ -46,10 +37,6 @@ export class RoomsGateway implements IRoomsEventPublisher {
     }
   }
 
-  @AsyncApiPub({
-    channel: 'room:deleted',
-    message: { payload: ResDeletedRoomDto },
-  })
   roomDeleted(id: number) {
     try {
       const payload = new ResDeletedRoomDto(id);
