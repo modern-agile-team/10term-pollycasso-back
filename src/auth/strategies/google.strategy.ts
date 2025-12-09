@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { Profile, Strategy } from 'passport-google-oauth20';
@@ -21,7 +21,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const { id, displayName } = profile;
 
     if (!id || !displayName) {
-      throw new BadRequestException(OAUTH_ERRORS_CODES.INVALID_OAUTH_PROFILE);
+      throw new InternalServerErrorException(OAUTH_ERRORS_CODES.INVALID_OAUTH_PROFILE);
     }
 
     const payload: SocialLoginPayload = {

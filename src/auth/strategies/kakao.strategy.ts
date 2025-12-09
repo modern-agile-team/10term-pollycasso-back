@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, Profile } from 'passport-kakao';
 import { ConfigService } from '@nestjs/config';
@@ -20,7 +20,7 @@ export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
     const { id, username } = profile;
 
     if (!id || !username) {
-      throw new BadRequestException(OAUTH_ERRORS_CODES.INVALID_OAUTH_PROFILE);
+      throw new InternalServerErrorException(OAUTH_ERRORS_CODES.INVALID_OAUTH_PROFILE);
     }
 
     const payload: SocialLoginPayload = {

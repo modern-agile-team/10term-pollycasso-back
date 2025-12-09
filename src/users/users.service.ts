@@ -30,7 +30,7 @@ export class UsersService {
   }
 
   // 소셜 로그인 유저 조회
-  async findSocialUser(nickname: string): Promise<User | null> {
+  async findByNickname(nickname: string): Promise<User | null> {
     return this.usersRepository.findByNickname(nickname);
   }
 
