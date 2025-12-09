@@ -34,10 +34,4 @@ export class UsersRepository {
       },
     });
   }
-
-  async findByNickname(nickname: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { nickname },
-    });
-  }
 }

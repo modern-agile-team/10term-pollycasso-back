@@ -9,12 +9,7 @@ import { Provider } from '@prisma/client';
 export class UsersService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  // 아이디 또는 닉네임으로 유저 조회
-  async findUserByUsernameOrNickname(username: string, nickname: string): Promise<User | null> {
-    return this.usersRepository.findByUsernameOrNickname(username, nickname);
-  }
-
-  // 비밀번호 확인용 유저 조회
+  // 로그인 아이디(Username)로 조회
   async findUserByUsername(username: string): Promise<User | null> {
     return this.usersRepository.findOneByUsername(username);
   }
@@ -24,14 +19,9 @@ export class UsersService {
     return this.usersRepository.createUser(userData);
   }
 
-  // 소셜 로그인 유저ID 조회
+  // Provider로 소셜 사용자 조회
   async findUserByProvider(provider: Provider, providerId: string): Promise<User | null> {
     return this.usersRepository.findUserByProvider(provider, providerId);
-  }
-
-  // 소셜 로그인 유저 조회
-  async findSocialUser(nickname: string): Promise<User | null> {
-    return this.usersRepository.findByNickname(nickname);
   }
 
   // 소셜 로그인 유저 생성

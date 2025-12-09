@@ -3,7 +3,7 @@ import { UsersService } from 'src/users/users.service';
 import { SignupRequestDto } from './dto/requests/signup-request.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { TokenService } from './token/token.service';
-import { userData } from './interfaces/user-data.interface';
+import { UserData } from './interfaces/user-data.interface';
 import { TokenDto } from './dto/responses/token.dto';
 import { AccessTokenDto } from './dto/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
@@ -19,24 +19,13 @@ export class AuthService {
 
   // 회원가입
   async signup(signupRequestDto: SignupRequestDto): Promise<void> {
-    const existingUser = await this.userService.findUserByUsernameOrNickname(
-      signupRequestDto.username,
-      signupRequestDto.nickname,
-    );
+    const existingUser = await this.userService.findUserByUsername(signupRequestDto.username);
 
     if (existingUser) {
-      if (existingUser.username === signupRequestDto.username) {
-        throw new ConflictException({
-          code: USER_ERROR_CODES.USERNAME_ALREADY_EXISTS,
-          errors: [AUTH_DOMAIN_ERRORS.USERNAME_ALREADY_EXISTS],
-        });
-      }
-      if (existingUser.nickname === signupRequestDto.nickname) {
-        throw new ConflictException({
-          code: USER_ERROR_CODES.NICKNAME_ALREADY_EXISTS,
-          errors: [AUTH_DOMAIN_ERRORS.NICKNAME_ALREADY_EXISTS],
-        });
-      }
+      throw new ConflictException({
+        code: USER_ERROR_CODES.USERNAME_ALREADY_EXISTS,
+        errors: [AUTH_DOMAIN_ERRORS.USERNAME_ALREADY_EXISTS],
+      });
     }
 
     const hashedPassword = await PasswordEncoderUtil.hash(signupRequestDto.password);
@@ -51,7 +40,7 @@ export class AuthService {
   }
 
   // 유저 검증
-  async validateUser(username: string, password: string): Promise<userData | null> {
+  async validateUser(username: string, password: string): Promise<UserData | null> {
     const user = await this.userService.findUserByUsername(username);
     if (!user || !user.hashedPassword) return null;
 
@@ -63,7 +52,7 @@ export class AuthService {
   }
 
   // 로그인
-  async login(userData: userData): Promise<TokenDto> {
+  async login(userData: UserData): Promise<TokenDto> {
     const payload: JwtPayload = {
       sub: userData.id,
       nickname: userData.nickname,
@@ -94,14 +83,6 @@ export class AuthService {
 
   // 소셜 로그인
   async socialLogin(socialUser: SocialLoginPayload): Promise<TokenDto> {
-    const userNickname = await this.userService.findSocialUser(socialUser.nickname);
-    if (userNickname && userNickname.nickname !== socialUser.nickname) {
-      throw new ConflictException({
-        code: USER_ERROR_CODES.NICKNAME_ALREADY_EXISTS,
-        errors: [AUTH_DOMAIN_ERRORS.NICKNAME_ALREADY_EXISTS],
-      });
-    }
-
     let user = await this.userService.findUserByProvider(
       socialUser.provider,
       socialUser.providerId,
