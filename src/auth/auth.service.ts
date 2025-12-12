@@ -6,7 +6,7 @@ import { TokenService } from './token/token.service';
 import { userData } from './interfaces/user-data.interface';
 import { TokenDto } from './dto/responses/token.dto';
 import { AccessTokenDto } from './dto/responses/access-token.dto';
-import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
+import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { AUTH_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/auth.constants';
 
 @Injectable()

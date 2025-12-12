@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
-import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
+import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { ROOM_CONSTANTS, ROOM_ERROR_CODES } from './constants/room.constant';
 import type { IRoomsRepository } from './interfaces/rooms.repository.interface';
 import { Room } from './entities/rooms.entity';
