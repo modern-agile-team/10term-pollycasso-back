@@ -1,11 +1,13 @@
-import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server } from 'socket.io';
-import { Logger } from '@nestjs/common';
 import { ResRoomDto } from './dtos/responses/room-response.dto';
 import { ResDeletedRoomDto } from './dtos/responses/deleted-room-response.dto';
 import { Room } from './entities/rooms.entity';
 import { IRoomsEventPublisher } from './events/rooms-event.publisher';
+import { WebSocketGateway, WebSocketServer, WsException } from '@nestjs/websockets';
+import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
+import { Logger, UseFilters } from '@nestjs/common';
 
+@UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
   cors: {
     origin: process.env.CORS_ORIGINS?.split(',') || '*',
@@ -19,30 +21,32 @@ export class RoomsGateway implements IRoomsEventPublisher {
   @WebSocketServer()
   server: Server;
 
-  roomCreated(room: Room) {
+  private broadcastEvent<T>(event: string, payload: T) {
     try {
-      const payload = new ResRoomDto(room);
-      void this.server.emit('room:created', payload);
+      void this.server.emit(event, payload);
+
+      const id = (payload as ResRoomDto | ResDeletedRoomDto).id;
+      this.logger.debug(`Event emitted successfully: ${event} - id: ${id}`);
     } catch (err) {
-      this.logger.error(`Failed to emit room created: ${room.id}`, err);
+      this.logger.error(`Failed to emit event: ${event}`, err as Error);
+
+      throw new WsException({
+        status: 500,
+        code: 'ROOM_EVENT_FAILED',
+        errors: [{ reason: (err as Error)?.message ?? 'Unknown error' }],
+      });
     }
+  }
+
+  roomCreated(room: Room) {
+    this.broadcastEvent('room:created', new ResRoomDto(room));
   }
 
   roomUpdated(room: Room) {
-    try {
-      const payload = new ResRoomDto(room);
-      void this.server.emit('room:updated', payload);
-    } catch (err) {
-      this.logger.error(`Failed to emit room updated: ${room.id}`, err);
-    }
+    this.broadcastEvent('room:updated', new ResRoomDto(room));
   }
 
   roomDeleted(id: number) {
-    try {
-      const payload = new ResDeletedRoomDto(id);
-      void this.server.emit('room:deleted', payload);
-    } catch (err) {
-      this.logger.error(`Failed to emit room deleted: ${id}`, err);
-    }
+    this.broadcastEvent('room:deleted', new ResDeletedRoomDto(id));
   }
 }
