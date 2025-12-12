@@ -48,7 +48,7 @@ export class SocketExceptionFilter extends BaseWsExceptionFilter {
       return {
         status: 500,
         code: 'UNKNOWN_ERROR',
-        errors: [{ reason: ['Unexpected server error'] }],
+        errors: [],
       };
     }
 

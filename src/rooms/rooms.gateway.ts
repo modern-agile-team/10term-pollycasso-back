@@ -33,7 +33,7 @@ export class RoomsGateway implements IRoomsEventPublisher {
       throw new WsException({
         status: 500,
         code: 'ROOM_EVENT_FAILED',
-        errors: [{ reason: (err as Error)?.message ?? 'Unknown error' }],
+        errors: [],
       });
     }
   }
