@@ -64,8 +64,16 @@ const unauthorizedError = () =>
     description: '권한 없음',
     type: StandardErrorResponseDto,
     examples: {
-      unauthorized: {
-        summary: '로그인 필요',
+      accessTokenMissing: {
+        summary: 'Access token 없음',
+        value: { status: 401, code: 'ACCESS_TOKEN_MISSING', errors: [] },
+      },
+      invalidAccessToken: {
+        summary: '유효하지 않은 Access token',
+        value: { status: 401, code: 'INVALID_ACCESS_TOKEN', errors: [] },
+      },
+      expiredAccessToken: {
+        summary: '만료된 Access token',
         value: { status: 401, code: 'EXPIRED_ACCESS_TOKEN', errors: [] },
       },
     },
@@ -78,6 +86,7 @@ export const ApiRoom = {
       ApiOperation({ summary: '새로운 방 생성' }),
       ApiResponse({ status: 201, description: '방 생성 성공', type: ResRoomDto }),
       badRequestErrors(),
+      unauthorizedError(),
     ),
 
   getAllRooms: () =>
