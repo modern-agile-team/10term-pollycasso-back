@@ -6,7 +6,6 @@ import {
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
-  WsException,
 } from '@nestjs/websockets';
 import { UsePipes, ValidationPipe, UseFilters, Logger } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
@@ -15,6 +14,7 @@ import { JwtService } from '@nestjs/jwt';
 import { SendMessageDto } from './dtos/requests/send-message.dto';
 import { CHAT_ERROR_CODES } from './constants/chat.constant';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
+import { WsError } from 'src/common/utils/ws-error.util';
 
 interface JwtPayload {
   sub: string;
@@ -33,14 +33,13 @@ interface ClientData {
     whitelist: true,
     forbidNonWhitelisted: true,
     exceptionFactory: (errors) => {
-      throw new WsException({
-        status: 400,
-        code: CHAT_ERROR_CODES.INVALID_INPUT,
-        errors: errors.map((e) => ({
+      throw WsError.badRequest(
+        CHAT_ERROR_CODES.INVALID_INPUT,
+        errors.map((e) => ({
           field: e.property,
           reason: Object.values(e.constraints ?? {}),
         })),
-      });
+      );
     },
   }),
 )
@@ -83,11 +82,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       (typeof headers.authorization === 'string' ? headers.authorization.split(' ')[1] : null);
 
     if (!token) {
-      client.emit('exception', {
-        status: 401,
-        code: CHAT_ERROR_CODES.ACCESS_TOKEN_MISSING,
-        errors: [],
-      });
+      const error = WsError.unauthorized(CHAT_ERROR_CODES.ACCESS_TOKEN_MISSING);
+      client.emit('exception', error.getError());
       client.disconnect();
       return;
     }
@@ -105,14 +101,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
 
-      client.emit('exception', {
-        status: 401,
-        code: isTokenExpired
+      const error = WsError.unauthorized(
+        isTokenExpired
           ? CHAT_ERROR_CODES.EXPIRED_ACCESS_TOKEN
           : CHAT_ERROR_CODES.INVALID_ACCESS_TOKEN,
-        errors: [],
-      });
+      );
 
+      client.emit('exception', error.getError());
       client.disconnect();
     }
   }
@@ -127,11 +122,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const clientData = this.getClientData(client);
 
     if (!clientData) {
-      throw new WsException({
-        status: 400,
-        code: CHAT_ERROR_CODES.CLIENT_STATE_INVALID,
-        errors: [],
-      });
+      throw WsError.badRequest(CHAT_ERROR_CODES.CLIENT_STATE_INVALID);
     }
 
     try {
@@ -145,11 +136,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.debug(`Message sent by ${clientData.nickname}: ${data.message}`);
     } catch (error) {
       this.logger.error(error);
-      throw new WsException({
-        status: 500,
-        code: CHAT_ERROR_CODES.MESSAGE_SEND_FAILED,
-        errors: [],
-      });
+      throw WsError.internalServerError(CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
     }
   }
 }

@@ -3,9 +3,10 @@ import { ResRoomDto } from './dtos/responses/room-response.dto';
 import { ResDeletedRoomDto } from './dtos/responses/deleted-room-response.dto';
 import { Room } from './entities/rooms.entity';
 import { IRoomsEventPublisher } from './events/rooms-event.publisher';
-import { WebSocketGateway, WebSocketServer, WsException } from '@nestjs/websockets';
+import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { Logger, UseFilters } from '@nestjs/common';
+import { WsError } from 'src/common/utils/ws-error.util';
 
 @UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
@@ -30,11 +31,7 @@ export class RoomsGateway implements IRoomsEventPublisher {
     } catch (err) {
       this.logger.error(`Failed to emit event: ${event}`, err as Error);
 
-      throw new WsException({
-        status: 500,
-        code: 'ROOM_EVENT_FAILED',
-        errors: [],
-      });
+      throw WsError.internalServerError('ROOM_EVENT_FAILED');
     }
   }
 
