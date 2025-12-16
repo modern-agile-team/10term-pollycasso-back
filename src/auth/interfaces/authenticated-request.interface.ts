@@ -1,6 +1,6 @@
 import { Request } from 'express';
-import { userData } from './user-data.interface';
+import { UserData } from './user-data.interface';
 
 export interface AuthenticatedRequest extends Request {
-  user: userData;
+  user: UserData;
 }

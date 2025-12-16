@@ -78,7 +78,7 @@ const badRequestErrors = (keys: (keyof typeof badRequestExamples)[]) =>
 const conflictErrors = () =>
   ApiResponse({
     status: 409,
-    description: '이미 사용 중인 아이디 또는 닉네임입니다.',
+    description: '이미 사용 중인 아이디입니다.',
     content: {
       'application/json': {
         examples: {
@@ -91,19 +91,6 @@ const conflictErrors = () =>
                 {
                   field: 'username',
                   reason: ['This username already exists.'],
-                },
-              ],
-            },
-          },
-          NicknameAlreadyExists: {
-            summary: 'NicknameAlreadyExists',
-            value: {
-              status: 409,
-              code: 'NICKNAME_ALREADY_EXISTS',
-              errors: [
-                {
-                  field: 'nickname',
-                  reason: ['This nickname already exists.'],
                 },
               ],
             },

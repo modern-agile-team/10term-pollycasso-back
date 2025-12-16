@@ -1,6 +1,5 @@
 export const USER_ERROR_CODES = {
   USERNAME_ALREADY_EXISTS: 'USERNAME_ALREADY_EXISTS',
-  NICKNAME_ALREADY_EXISTS: 'NICKNAME_ALREADY_EXISTS',
 } as const;
 
 export const AUTH_ERROR_CODES = {
@@ -30,9 +29,5 @@ export const AUTH_DOMAIN_ERRORS: Record<string, { field: string; reason: string 
   USERNAME_ALREADY_EXISTS: {
     field: 'username',
     reason: 'This username is already in use',
-  },
-  NICKNAME_ALREADY_EXISTS: {
-    field: 'nickname',
-    reason: 'This nickname is already in use',
   },
 };
