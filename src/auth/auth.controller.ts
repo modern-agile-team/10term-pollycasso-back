@@ -78,6 +78,7 @@ export class AuthController {
 
   @Get('kakao')
   @UseGuards(KakaoGuard)
+  @ApiAuth.kakao()
   kakaoLogin() {
     return;
   }
@@ -85,6 +86,7 @@ export class AuthController {
   @Get('kakao/callback')
   @UseGuards(KakaoGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiAuth.kakaocallback()
   async kakaoLoginCallback(
     @Req() req: SocialLoginRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
@@ -98,6 +100,7 @@ export class AuthController {
 
   @Get('google')
   @UseGuards(GoogleGuard)
+  @ApiAuth.google()
   googleLogin() {
     return;
   }
@@ -105,6 +108,7 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(GoogleGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiAuth.googlecallback()
   async googleLoginCallback(
     @Req() req: SocialLoginRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
