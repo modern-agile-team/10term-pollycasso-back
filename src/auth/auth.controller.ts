@@ -95,7 +95,9 @@ export class AuthController {
 
     this.setRefreshToken(res, refreshToken);
 
-    return { accessToken };
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+
+    return res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}`);
   }
 
   @Get('google')
@@ -117,7 +119,9 @@ export class AuthController {
 
     this.setRefreshToken(res, refreshToken);
 
-    return { accessToken };
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+
+    return res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}`);
   }
 
   private setRefreshToken(res: ExpressResponse, refreshToken: string) {
