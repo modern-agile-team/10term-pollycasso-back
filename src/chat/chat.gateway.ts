@@ -14,7 +14,7 @@ import { JwtService } from '@nestjs/jwt';
 import { SendMessageDto } from './dtos/requests/send-message.dto';
 import { CHAT_ERROR_CODES } from './constants/chat.constant';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
-import { WsError } from 'src/common/utils/ws-error.util';
+import { wsError } from 'src/common/utils/ws-error.util';
 
 interface JwtPayload {
   sub: string;
@@ -33,7 +33,8 @@ interface ClientData {
     whitelist: true,
     forbidNonWhitelisted: true,
     exceptionFactory: (errors) => {
-      throw WsError.badRequest(
+      throw wsError(
+        400,
         CHAT_ERROR_CODES.INVALID_INPUT,
         errors.map((e) => ({
           field: e.property,
@@ -82,7 +83,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       (typeof headers.authorization === 'string' ? headers.authorization.split(' ')[1] : null);
 
     if (!token) {
-      const error = WsError.unauthorized(CHAT_ERROR_CODES.ACCESS_TOKEN_MISSING);
+      const error = wsError(401, CHAT_ERROR_CODES.ACCESS_TOKEN_MISSING);
       client.emit('exception', error.getError());
       client.disconnect();
       return;
@@ -101,7 +102,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
 
-      const error = WsError.unauthorized(
+      const error = wsError(
+        401,
         isTokenExpired
           ? CHAT_ERROR_CODES.EXPIRED_ACCESS_TOKEN
           : CHAT_ERROR_CODES.INVALID_ACCESS_TOKEN,
@@ -122,7 +124,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const clientData = this.getClientData(client);
 
     if (!clientData) {
-      throw WsError.badRequest(CHAT_ERROR_CODES.CLIENT_STATE_INVALID);
+      throw wsError(400, CHAT_ERROR_CODES.CLIENT_STATE_INVALID);
     }
 
     try {
@@ -136,7 +138,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.debug(`Message sent by ${clientData.nickname}: ${data.message}`);
     } catch (error) {
       this.logger.error(error);
-      throw WsError.internalServerError(CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
+      throw wsError(500, CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
     }
   }
 }

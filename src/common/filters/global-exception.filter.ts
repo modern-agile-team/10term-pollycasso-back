@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { ErrorResponseBuilder } from '../builders/error-response.builder';
+import { buildErrorResponse } from '../utils/error-response.util';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -21,7 +21,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const raw = exception instanceof HttpException ? exception.getResponse() : exception;
 
-    const standardResponse = ErrorResponseBuilder.build(raw, status);
+    const standardResponse = buildErrorResponse(raw, status);
 
     if (status >= 500) {
       const logMessage =
