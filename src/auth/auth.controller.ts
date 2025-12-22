@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -20,6 +21,9 @@ import { LoginRequestDto } from './dto/requests/login-request.dto';
 import { AUTH_ERROR_CODES } from './constants/auth.constants';
 import { ApiAuth } from 'src/auth/auth.swagger';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { KakaoGuard } from './guard/kakao.guard';
+import { GoogleGuard } from './guard/google.guard';
+import type { SocialLoginRequest } from './interfaces/social-login-request.interface';
 
 @Controller('auth')
 export class AuthController {
@@ -70,6 +74,50 @@ export class AuthController {
   async logout(@Req() req: RefreshAuthRequest, @Res({ passthrough: true }) res: ExpressResponse) {
     await this.authService.logout(req.user);
     this.clearCookie(res);
+  }
+
+  @Get('kakao')
+  @UseGuards(KakaoGuard)
+  @ApiAuth.kakao()
+  kakaoLogin() {
+    return;
+  }
+
+  @Get('kakao/callback')
+  @UseGuards(KakaoGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiAuth.kakaocallback()
+  async kakaoLoginCallback(
+    @Req() req: SocialLoginRequest,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ) {
+    const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
+
+    this.setRefreshToken(res, refreshToken);
+
+    return { accessToken };
+  }
+
+  @Get('google')
+  @UseGuards(GoogleGuard)
+  @ApiAuth.google()
+  googleLogin() {
+    return;
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiAuth.googlecallback()
+  async googleLoginCallback(
+    @Req() req: SocialLoginRequest,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ) {
+    const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
+
+    this.setRefreshToken(res, refreshToken);
+
+    return { accessToken };
   }
 
   private setRefreshToken(res: ExpressResponse, refreshToken: string) {
