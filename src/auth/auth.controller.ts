@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -28,12 +29,14 @@ import type { SocialLoginRequest } from './interfaces/social-login-request.inter
 @Controller('auth')
 export class AuthController {
   private readonly refreshName: string;
+  private readonly accessName: string;
 
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
   ) {
     this.refreshName = this.configService.getOrThrow<string>('REFRESH_NAME');
+    this.accessName = this.configService.getOrThrow<string>('ACCESS_NAME');
   }
 
   @Post('signup')
@@ -90,14 +93,9 @@ export class AuthController {
   async kakaoLoginCallback(
     @Req() req: SocialLoginRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
+    @Query('state') returnUrl: string,
   ) {
-    const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
-
-    this.setRefreshToken(res, refreshToken);
-
-    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
-
-    return res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}`);
+    return this.handleOAuthCallback(req, res, returnUrl);
   }
 
   @Get('google')
@@ -114,20 +112,42 @@ export class AuthController {
   async googleLoginCallback(
     @Req() req: SocialLoginRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
+    @Query('state') returnUrl: string,
+  ) {
+    return this.handleOAuthCallback(req, res, returnUrl);
+  }
+
+  private async handleOAuthCallback(
+    req: SocialLoginRequest,
+    res: ExpressResponse,
+    returnUrl: string,
   ) {
     const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
 
     this.setRefreshToken(res, refreshToken);
+    this.setAccessToken(res, accessToken);
 
     const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    let targetUrl = `${frontendUrl}/auth/callback`;
 
-    return res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}`);
+    if (returnUrl && returnUrl.startsWith(frontendUrl)) {
+      targetUrl = returnUrl;
+    }
+
+    return res.redirect(targetUrl);
+  }
+
+  private setAccessToken(res: ExpressResponse, accessToken: string) {
+    res.cookie(this.accessName, accessToken, {
+      ...this.commonCookieOptions(),
+      maxAge: parseInt(this.configService.getOrThrow<string>('ACCESS_COOKIE_MAXAGE'), 10),
+    });
   }
 
   private setRefreshToken(res: ExpressResponse, refreshToken: string) {
     res.cookie(this.refreshName, refreshToken, {
       ...this.commonCookieOptions(),
-      maxAge: parseInt(this.configService.getOrThrow<string>('COOKIE_MAXAGE'), 10),
+      maxAge: parseInt(this.configService.getOrThrow<string>('REFRESH_COOKIE_MAXAGE'), 10),
     });
   }
 
