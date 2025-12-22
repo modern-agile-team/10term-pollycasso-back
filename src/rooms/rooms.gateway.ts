@@ -8,7 +8,7 @@ import { IRoomsEventPublisher } from './events/rooms-event.publisher';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(',') || '*',
+    origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [],
     credentials: true,
   },
   namespace: '/rooms',
