@@ -46,7 +46,7 @@ interface ClientData {
 )
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(',') || '*',
+    origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [],
     credentials: true,
   },
   namespace: '/chat',
