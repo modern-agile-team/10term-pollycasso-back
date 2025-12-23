@@ -93,9 +93,9 @@ export class AuthController {
   async kakaoLoginCallback(
     @Req() req: SocialLoginRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
-    @Query('state') returnUrl: string,
+    @Query('state') state: string,
   ) {
-    return this.handleOAuthCallback(req, res, returnUrl);
+    return this.handleOAuthCallback(req, res, state);
   }
 
   @Get('google')
@@ -112,29 +112,20 @@ export class AuthController {
   async googleLoginCallback(
     @Req() req: SocialLoginRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
-    @Query('state') returnUrl: string,
+    @Query('state') state: string,
   ) {
-    return this.handleOAuthCallback(req, res, returnUrl);
+    return this.handleOAuthCallback(req, res, state);
   }
 
-  private async handleOAuthCallback(
-    req: SocialLoginRequest,
-    res: ExpressResponse,
-    returnUrl: string,
-  ) {
+  private async handleOAuthCallback(req: SocialLoginRequest, res: ExpressResponse, state: string) {
     const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
 
     this.setRefreshToken(res, refreshToken);
     this.setAccessToken(res, accessToken);
 
-    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
-    let targetUrl = `${frontendUrl}/auth/callback`;
+    let redirectUrl = this.authService.validateRedirectUrl(state);
 
-    if (returnUrl && returnUrl.startsWith(frontendUrl)) {
-      targetUrl = returnUrl;
-    }
-
-    return res.redirect(targetUrl);
+    return res.redirect(redirectUrl);
   }
 
   private setAccessToken(res: ExpressResponse, accessToken: string) {
