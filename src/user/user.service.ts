@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { UsersRepository } from './users.repository';
+import { UsersRepository } from './user.repository';
 import { User } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateSocialUserDto } from './dto/create-social-user.dto';

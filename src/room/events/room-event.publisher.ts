@@ -1,4 +1,4 @@
-import { Room } from '../entities/rooms.entity';
+import { Room } from '../entities/room.entity';
 
 export interface IRoomsEventPublisher {
   roomCreated(room: Room): void;

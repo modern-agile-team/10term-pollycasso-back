@@ -1,8 +1,8 @@
 import { Server } from 'socket.io';
 import { ResRoomDto } from './dtos/responses/room-response.dto';
 import { ResDeletedRoomDto } from './dtos/responses/deleted-room-response.dto';
-import { Room } from './entities/rooms.entity';
-import { IRoomsEventPublisher } from './events/rooms-event.publisher';
+import { Room } from './entities/room.entity';
+import { IRoomsEventPublisher } from './events/room-event.publisher';
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { Logger, UseFilters } from '@nestjs/common';

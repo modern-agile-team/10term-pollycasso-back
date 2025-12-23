@@ -11,14 +11,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { RoomsService } from './rooms.service';
+import { RoomsService } from './room.service';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
 import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { PaginatedRoomResponseDto } from './dtos/responses/paginated-room-response.dto';
 import { ResRoomDto } from './dtos/responses/room-response.dto';
 import { AccessTokenGuard } from 'src/auth/guard/access-token.guard';
-import { ApiRoom } from './rooms.swagger';
+import { ApiRoom } from './room.swagger';
 
 @Controller('rooms')
 @UseGuards(AccessTokenGuard)

@@ -1,5 +1,5 @@
 import { Prisma, Room as PrismaRoom } from '@prisma/client';
-import { Room, RoomProps } from '../rooms.entity';
+import { Room, RoomProps } from '../room.entity';
 
 export class RoomMapper {
   static toEntity(prismaRoom: PrismaRoom): Room {

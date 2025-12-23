@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Room } from './entities/rooms.entity';
-import { RoomMapper } from './entities/mappers/rooms.mapper';
+import { Room } from './entities/room.entity';
+import { RoomMapper } from './entities/mappers/room.mapper';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { Prisma } from '@prisma/client';
-import { IRoomsRepository } from './interfaces/rooms.repository.interface';
 import { paginate } from 'src/common/utils/paginate.util';
+import { IRoomsRepository } from './interfaces/room.repository.interface';
 
 @Injectable()
 export class RoomsRepository implements IRoomsRepository {

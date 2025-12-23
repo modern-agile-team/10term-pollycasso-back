@@ -18,7 +18,7 @@ import { RefreshTokenGuard } from './guard/refresh-token.guard';
 import { ConfigService } from '@nestjs/config';
 import type { RefreshAuthRequest } from './interfaces/refresh-auth-request.interface';
 import { LoginRequestDto } from './dto/requests/login-request.dto';
-import { AUTH_ERROR_CODES } from './constants/auth.constants';
+import { AUTH_ERROR_CODES } from './constants/auth.constant';
 import { ApiAuth } from 'src/auth/auth.swagger';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { KakaoGuard } from './guard/kakao.guard';
