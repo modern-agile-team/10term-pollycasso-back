@@ -17,7 +17,7 @@ import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { PaginatedRoomResponseDto } from './dtos/responses/paginated-room-response.dto';
 import { ResRoomDto } from './dtos/responses/room-response.dto';
-import { AccessTokenGuard } from 'src/auth/guard/access-token.guard';
+import { AccessTokenGuard } from 'src/auth/guards/access-token.guard';
 import { ApiRoom } from './room.swagger';
 
 @Controller('rooms')
