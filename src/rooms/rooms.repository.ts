@@ -5,7 +5,7 @@ import { RoomMapper } from './entities/mappers/rooms.mapper';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { Prisma } from '@prisma/client';
 import { IRoomsRepository } from './interfaces/rooms.repository.interface';
-import { paginate } from 'src/common/pagination/paginate.util';
+import { paginate } from 'src/common/utils/paginate.util';
 
 @Injectable()
 export class RoomsRepository implements IRoomsRepository {
