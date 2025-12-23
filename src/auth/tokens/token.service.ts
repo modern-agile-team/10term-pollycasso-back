@@ -3,8 +3,8 @@ import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
-import { AccessTokenDto } from '../dto/responses/access-token.dto';
-import { ACCESS_TOKEN_ERROR_CODES } from '../constants/auth.constants';
+import { AccessTokenDto } from '../dtos/responses/access-token.dto';
+import { ACCESS_TOKEN_ERROR_CODES } from '../constants/auth.constant';
 
 @Injectable()
 export class TokenService {

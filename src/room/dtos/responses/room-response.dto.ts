@@ -1,5 +1,5 @@
 import { RoomMode, RoomStatus } from '@prisma/client';
-import { Room } from '../../entities/rooms.entity';
+import { Room } from '../../entities/room.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ResRoomDto {

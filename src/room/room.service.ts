@@ -4,9 +4,9 @@ import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { ROOM_CONSTANTS, ROOM_ERROR_CODES } from './constants/room.constant';
-import type { IRoomsRepository } from './interfaces/rooms.repository.interface';
-import { Room } from './entities/rooms.entity';
-import type { IRoomsEventPublisher } from './events/rooms-event.publisher';
+import { Room } from './entities/room.entity';
+import type { IRoomsEventPublisher } from './events/room-event.publisher';
+import type { IRoomsRepository } from './interfaces/room.repository.interface';
 
 @Injectable()
 export class RoomsService {

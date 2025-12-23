@@ -1,13 +1,13 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { UsersService } from 'src/users/users.service';
-import { SignupRequestDto } from './dto/requests/signup-request.dto';
+import { UsersService } from 'src/user/user.service';
+import { SignupRequestDto } from './dtos/requests/signup-request.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
-import { TokenService } from './token/token.service';
+import { TokenService } from './tokens/token.service';
 import { UserData } from './interfaces/user-data.interface';
-import { TokenDto } from './dto/responses/token.dto';
-import { AccessTokenDto } from './dto/responses/access-token.dto';
+import { TokenDto } from './dtos/responses/token.dto';
+import { AccessTokenDto } from './dtos/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
-import { AUTH_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/auth.constants';
+import { AUTH_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/auth.constant';
 import { SocialLoginPayload } from './interfaces/social-login.interface';
 
 @Injectable()
@@ -48,7 +48,7 @@ export class AuthService {
     if (!isMatch) return null;
 
     const { hashedPassword: _, ...result } = user;
-    return result;
+    return result as UserData;
   }
 
   // 로그인
