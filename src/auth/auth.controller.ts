@@ -13,17 +13,17 @@ import {
 } from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
-import { SignupRequestDto } from './dto/requests/signup-request.dto';
-import { AccessTokenGuard } from './guard/access-token.guard';
-import { RefreshTokenGuard } from './guard/refresh-token.guard';
+import { SignupRequestDto } from './dtos/requests/signup-request.dto';
+import { AccessTokenGuard } from './guards/access-token.guard';
+import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { ConfigService } from '@nestjs/config';
 import type { RefreshAuthRequest } from './interfaces/refresh-auth-request.interface';
-import { LoginRequestDto } from './dto/requests/login-request.dto';
-import { AUTH_ERROR_CODES } from './constants/auth.constants';
+import { LoginRequestDto } from './dtos/requests/login-request.dto';
+import { AUTH_ERROR_CODES } from './constants/auth.constant';
 import { ApiAuth } from 'src/auth/auth.swagger';
 import { ApiBearerAuth } from '@nestjs/swagger';
-import { KakaoGuard } from './guard/kakao.guard';
-import { GoogleGuard } from './guard/google.guard';
+import { KakaoGuard } from './guards/kakao.guard';
+import { GoogleGuard } from './guards/google.guard';
 import type { SocialLoginRequest } from './interfaces/social-login-request.interface';
 
 @Controller('auth')

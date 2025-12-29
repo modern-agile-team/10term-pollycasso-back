@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Profile, Strategy } from 'passport-google-oauth20';
 import { SocialLoginPayload } from '../interfaces/social-login.interface';
 import { Provider } from '@prisma/client';
-import { OAUTH_ERRORS_CODES } from '../constants/auth.constants';
+import { OAUTH_ERRORS_CODES } from '../constants/auth.constant';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {

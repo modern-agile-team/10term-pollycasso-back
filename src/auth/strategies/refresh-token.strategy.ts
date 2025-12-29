@@ -5,7 +5,7 @@ import { Request } from 'express';
 import { Strategy } from 'passport-jwt';
 import { RedisService } from '../../redis/redis.service';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
-import { REFRESH_TOKEN_ERROR_CODES } from '../constants/auth.constants';
+import { REFRESH_TOKEN_ERROR_CODES } from '../constants/auth.constant';
 
 @Injectable()
 export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'refresh-token') {
