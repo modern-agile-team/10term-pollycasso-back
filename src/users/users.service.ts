@@ -18,29 +18,7 @@ export class UsersService {
 
   // 유저 생성
   async createUser(userData: CreateUserDto): Promise<User> {
-    const MAX_RETRIES = 10;
-    let retries = 0;
-    while (retries < MAX_RETRIES) {
-      try {
-        const tag = this.createRandomTag();
-
-        return await this.usersRepository.createUser({
-          ...userData,
-          tag,
-        });
-      } catch (error) {
-        if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-          retries++;
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    throw new ConflictException({
-      code: USER_ERROR_CODES.TAG_GENERATION_FAILED,
-      errors: [USER_DOMAIN_ERRORS.TAG_GENERATION_FAILED],
-    });
+    return this.createUserWithTag(userData);
   }
 
   // Provider로 소셜 사용자 조회
@@ -50,9 +28,13 @@ export class UsersService {
 
   // 소셜 로그인 유저 생성
   async createSocialUser(userData: CreateSocialUserDto): Promise<User> {
+    return this.createUserWithTag(userData);
+  }
+
+  private async createUserWithTag(userData: CreateUserDto | CreateSocialUserDto): Promise<User> {
     const MAX_RETRIES = 10;
-    let retries = 0;
-    while (retries < MAX_RETRIES) {
+
+    for (let retries = 0; retries < MAX_RETRIES; retries++) {
       try {
         const tag = this.createRandomTag();
 
@@ -62,7 +44,6 @@ export class UsersService {
         });
       } catch (error) {
         if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-          retries++;
           continue;
         }
         throw error;
@@ -76,6 +57,6 @@ export class UsersService {
   }
 
   private createRandomTag(): string {
-    return String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0');
+    return String(Math.floor(Math.random() * 2) + 1).padStart(4, '0');
   }
 }
