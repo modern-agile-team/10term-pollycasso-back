@@ -7,7 +7,6 @@ export class RoomMapper {
       name: prismaRoom.name,
       mode: prismaRoom.mode,
       maxPlayers: prismaRoom.maxPlayers,
-      currentPlayers: prismaRoom.currentPlayers,
       isPrivate: prismaRoom.isPrivate,
       hashedPassword: prismaRoom.hashedPassword,
       status: prismaRoom.status,
@@ -21,9 +20,8 @@ export class RoomMapper {
       name: room.name,
       mode: room.mode,
       maxPlayers: room.maxPlayers,
-      currentPlayers: room.currentPlayers,
       isPrivate: room.isPrivate,
-      hashedPassword: room.hashedPassword,
+      hashedPassword: room.hashedPassword ?? undefined,
       status: room.status,
     };
   }

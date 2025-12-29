@@ -29,8 +29,8 @@ enum Role {
 }
 
 enum Team {
-  A
-  B
+  RED
+  BLUE
   NONE
 }
 
@@ -43,6 +43,8 @@ enum MatchStatus {
 enum RoomStatus {
   WAITING
   IN_PROGRESS
+  LOADING
+  FINISHED
 }
 
 model User {
@@ -104,7 +106,6 @@ model Room {
   name           String
   mode           RoomMode
   maxPlayers     Int        @map("max_players")
-  currentPlayers Int        @default(0)
   isPrivate      Boolean    @map("is_private")
   hashedPassword String?    @map("hashed_password") @db.VarChar(60)
   createdAt      DateTime   @default(now()) @map("created_at")
@@ -131,6 +132,7 @@ model RoomMember {
   role      Role      @default(PLAYER)
   team      Team      @default(NONE)
   isReady   Boolean   @default(false) @map("is_ready")
+  outfit    Json?
   joinedAt  DateTime  @default(now()) @map("joined_at")
   leftAt    DateTime? @map("left_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

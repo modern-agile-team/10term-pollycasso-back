@@ -1,0 +1,53 @@
+export const WAITING_ERROR_CODES = {
+  INVALID_INPUT: 'INVALID_INPUT',
+  ACCESS_TOKEN_MISSING: 'ACCESS_TOKEN_MISSING',
+  EXPIRED_ACCESS_TOKEN: 'EXPIRED_ACCESS_TOKEN',
+  INVALID_ACCESS_TOKEN: 'INVALID_ACCESS_TOKEN',
+  CLIENT_STATE_INVALID: 'CLIENT_STATE_INVALID',
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
+  GAME_START_NOT_HOST: 'GAME_START_NOT_HOST',
+  HOST_CANNOT_TOGGLE_READY: 'HOST_CANNOT_TOGGLE_READY',
+  PLAYER_NOT_FOUND: 'PLAYER_NOT_FOUND',
+  ROOM_NOT_FOUND: 'ROOM_NOT_FOUND',
+  ROOM_PASSWORD_REQUIRED: 'ROOM_PASSWORD_REQUIRED',
+  ROOM_INVALID_PASSWORD: 'ROOM_INVALID_PASSWORD',
+  ROOM_FULL: 'ROOM_FULL',
+  ALREADY_JOINED: 'ALREADY_JOINED',
+  CANNOT_KICK_SELF: 'CANNOT_KICK_SELF',
+  GAME_ALREADY_STARTED: 'GAME_ALREADY_STARTED',
+  GAME_START_NOT_ENOUGH_PLAYERS: 'GAME_START_NOT_ENOUGH_PLAYERS',
+  NOT_ALL_PLAYERS_READY: 'NOT_ALL_PLAYERS_READY',
+  TEAM_FULL: 'TEAM_FULL',
+  SOLO_MODE_NO_TEAMS: 'SOLO_MODE_NO_TEAMS',
+  INVALID_TEAM: 'INVALID_TEAM',
+  TEAM_IMBALANCE: 'TEAM_IMBALANCE',
+  MAX_PLAYERS_LESS_THAN_CURRENT: 'MAX_PLAYERS_LESS_THAN_CURRENT',
+  ALREADY_IN_ANOTHER_ROOM: 'ALREADY_IN_ANOTHER_ROOM',
+} as const;
+
+export const WAITING_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
+  ROOM_PASSWORD_REQUIRED: {
+    field: 'password',
+    reason: 'Password is required for private room',
+  },
+  ROOM_INVALID_PASSWORD: {
+    field: 'password',
+    reason: 'Password does not match',
+  },
+  CANNOT_KICK_SELF: {
+    field: 'targetUserId',
+    reason: 'Cannot kick yourself',
+  },
+  SOLO_MODE_NO_TEAMS: {
+    field: 'mode',
+    reason: 'Solo mode does not support teams',
+  },
+  INVALID_TEAM: {
+    field: 'team',
+    reason: 'Invalid team selection',
+  },
+  MAX_PLAYERS_LESS_THAN_CURRENT: {
+    field: 'maxPlayers',
+    reason: 'Cannot set max players less than current player count',
+  },
+} as const;

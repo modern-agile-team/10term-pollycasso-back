@@ -15,4 +15,13 @@ export class ChatService {
       createdAt: new Date().toISOString(),
     };
   }
+
+  createSystemMessage(params: { message: string }): MessageResponseDto {
+    return {
+      senderId: 'system',
+      nickname: 'System',
+      message: params.message,
+      createdAt: new Date().toISOString(),
+    };
+  }
 }

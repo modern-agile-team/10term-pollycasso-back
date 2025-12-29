@@ -1,15 +1,17 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
-import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { ROOM_CONSTANTS, ROOM_ERROR_CODES } from './constants/room.constant';
 import { Room } from './entities/room.entity';
 import type { IRoomsEventPublisher } from './events/room-event.publisher';
 import type { IRoomsRepository } from './interfaces/room.repository.interface';
+import { IRoomReader } from './interfaces/room-reader.interface';
+import { IRoomWriter } from './interfaces/room-writer.interface';
+import { RoomMode } from '@prisma/client';
 
 @Injectable()
-export class RoomsService {
+export class RoomsService implements IRoomReader, IRoomWriter {
   constructor(
     @Inject('IRoomsRepository')
     private readonly roomsRepository: IRoomsRepository,
@@ -35,26 +37,6 @@ export class RoomsService {
     return createdRoom;
   }
 
-  async updateRoom(id: number, dto: UpdateRoomDto): Promise<Room> {
-    const room = await this.getOneRoom(id);
-
-    const hashedPassword =
-      dto.isPrivate && dto.password ? await PasswordEncoderUtil.hash(dto.password) : null;
-
-    room.update({
-      name: dto.name,
-      mode: dto.mode,
-      maxPlayers: dto.maxPlayers,
-      isPrivate: dto.isPrivate,
-      hashedPassword,
-    });
-
-    const updatedRoom = await this.roomsRepository.updateRoom(id, room);
-    this.roomsEventPublisher.roomUpdated(updatedRoom);
-
-    return updatedRoom;
-  }
-
   async getOneRoom(id: number): Promise<Room> {
     const room = await this.roomsRepository.findOneRoom(id);
     if (!room) throw new NotFoundException({ code: ROOM_ERROR_CODES.ROOM_NOT_FOUND });
@@ -69,5 +51,47 @@ export class RoomsService {
     await this.getOneRoom(id);
     await this.roomsRepository.deleteRoom(id);
     this.roomsEventPublisher.roomDeleted(id);
+  }
+
+  async updateRoomByWaiting(
+    roomId: number,
+    payload: {
+      name?: string;
+      mode?: RoomMode;
+      maxPlayers?: number;
+      isPrivate?: boolean;
+      password?: string;
+    },
+  ): Promise<Room> {
+    const room = await this.getOneRoom(roomId);
+
+    const hashedPassword =
+      payload.isPrivate && payload.password
+        ? await PasswordEncoderUtil.hash(payload.password)
+        : payload.isPrivate
+          ? room.hashedPassword
+          : null;
+
+    room.update({
+      name: payload.name,
+      mode: payload.mode,
+      maxPlayers: payload.maxPlayers,
+      isPrivate: payload.isPrivate,
+      hashedPassword,
+    });
+
+    const updatedRoom = await this.roomsRepository.updateRoom(roomId, room);
+    this.roomsEventPublisher.roomUpdated(updatedRoom);
+
+    return updatedRoom;
+  }
+
+  async startGame(roomId: number): Promise<void> {
+    const room = await this.getOneRoom(roomId);
+
+    room.startGame();
+
+    await this.roomsRepository.updateRoom(roomId, room);
+    this.roomsEventPublisher.roomUpdated(room);
   }
 }

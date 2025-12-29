@@ -1,12 +1,11 @@
 import { RoomMode, RoomStatus } from '@prisma/client';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ROOM_CONSTANTS, ROOM_DOMAIN_ERRORS, ROOM_ERROR_CODES } from '../constants/room.constant';
 
 export interface RoomProps {
   name: string;
   mode: RoomMode;
   maxPlayers: number;
-  currentPlayers: number;
   isPrivate: boolean;
   hashedPassword: string | null;
   status: RoomStatus;
@@ -43,7 +42,6 @@ export class Room {
       name,
       mode,
       maxPlayers,
-      currentPlayers: ROOM_CONSTANTS.INITIAL_CURRENT_PLAYERS,
       isPrivate,
       hashedPassword,
       status: RoomStatus.WAITING,
@@ -64,10 +62,6 @@ export class Room {
 
   get maxPlayers() {
     return this.props.maxPlayers;
-  }
-
-  get currentPlayers() {
-    return this.props.currentPlayers;
   }
 
   get isPrivate() {
@@ -112,7 +106,7 @@ export class Room {
 
     if (
       this.props.mode === RoomMode.TEAM &&
-      !(ROOM_CONSTANTS.TEAM_ALLOWED_PLAYERS as readonly number[]).includes(this.props.maxPlayers)
+      !ROOM_CONSTANTS.TEAM_ALLOWED_PLAYERS.includes(this.props.maxPlayers)
     ) {
       throw new BadRequestException({
         code: ROOM_ERROR_CODES.TEAM_MODE_PLAYERS,
@@ -132,5 +126,25 @@ export class Room {
     } else {
       this.props.hashedPassword = null;
     }
+  }
+
+  startGame(): void {
+    if (this.props.status !== RoomStatus.WAITING) {
+      throw new ConflictException({
+        code: ROOM_ERROR_CODES.ROOM_NOT_WAITING,
+        errors: [ROOM_DOMAIN_ERRORS[ROOM_ERROR_CODES.ROOM_NOT_WAITING]],
+      });
+    }
+    this.props.status = RoomStatus.IN_PROGRESS;
+  }
+
+  finishGame(): void {
+    if (this.props.status !== RoomStatus.IN_PROGRESS) {
+      throw new ConflictException({
+        code: ROOM_ERROR_CODES.ROOM_NOT_IN_PROGRESS,
+        errors: [ROOM_DOMAIN_ERRORS[ROOM_ERROR_CODES.ROOM_NOT_IN_PROGRESS]],
+      });
+    }
+    this.props.status = RoomStatus.WAITING;
   }
 }
