@@ -62,7 +62,7 @@ export class WaitingStateResponseDto {
       isPrivate: boolean;
     };
     players: Array<{
-      userId: string | number;
+      userId: number;
       nickname: string;
       team: Team;
       isReady: boolean;
