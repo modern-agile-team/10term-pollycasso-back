@@ -7,8 +7,9 @@ import { UserData } from './interfaces/user-data.interface';
 import { TokenDto } from './dto/responses/token.dto';
 import { AccessTokenDto } from './dto/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
-import { AUTH_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/auth.constants';
+import { AUTH_DOMAIN_ERRORS } from './constants/auth.constants';
 import { SocialLoginPayload } from './interfaces/social-login.interface';
+import { USER_ERROR_CODES } from 'src/users/constants/user.constant';
 
 @Injectable()
 export class AuthService {

@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { User } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateSocialUserDto } from './dto/create-social-user.dto';
 import { Provider } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { USER_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/user.constant';
 
 @Injectable()
 export class UsersService {
@@ -16,7 +18,29 @@ export class UsersService {
 
   // 유저 생성
   async createUser(userData: CreateUserDto): Promise<User> {
-    return this.usersRepository.createUser(userData);
+    const MAX_RETRIES = 10;
+    let retries = 0;
+    while (retries < MAX_RETRIES) {
+      try {
+        const tag = this.createRandomTag();
+
+        return await this.usersRepository.createUser({
+          ...userData,
+          tag,
+        });
+      } catch (error) {
+        if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+          retries++;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new ConflictException({
+      code: USER_ERROR_CODES.TAG_GENERATION_FAILED,
+      errors: [USER_DOMAIN_ERRORS.TAG_GENERATION_FAILED],
+    });
   }
 
   // Provider로 소셜 사용자 조회
@@ -26,6 +50,32 @@ export class UsersService {
 
   // 소셜 로그인 유저 생성
   async createSocialUser(userData: CreateSocialUserDto): Promise<User> {
-    return this.usersRepository.createUser(userData);
+    const MAX_RETRIES = 10;
+    let retries = 0;
+    while (retries < MAX_RETRIES) {
+      try {
+        const tag = this.createRandomTag();
+
+        return await this.usersRepository.createUser({
+          ...userData,
+          tag,
+        });
+      } catch (error) {
+        if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+          retries++;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new ConflictException({
+      code: USER_ERROR_CODES.TAG_GENERATION_FAILED,
+      errors: [USER_DOMAIN_ERRORS.TAG_GENERATION_FAILED],
+    });
+  }
+
+  private createRandomTag(): string {
+    return String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0');
   }
 }
