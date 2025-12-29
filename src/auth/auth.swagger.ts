@@ -75,30 +75,42 @@ const badRequestErrors = (keys: (keyof typeof badRequestExamples)[]) =>
     },
   });
 
-const conflictErrors = () =>
+const conflictExamples = {
+  UsernameAlreadyExists: {
+    summary: 'UsernameAlreadyExists',
+    value: {
+      status: 409,
+      code: 'USERNAME_ALREADY_EXISTS',
+      errors: [{ field: 'username', reason: ['This username already exists.'] }],
+    },
+  },
+  TagGenerationFailed: {
+    summary: 'TAG_GENERATION_FAILED',
+    value: {
+      status: 409,
+      code: 'TAG_GENERATION_FAILED',
+      errors: [{ field: 'tag', reason: ['Failed to generate a unique tag. Please try again.'] }],
+    },
+  },
+};
+
+export const conflictErrors = (keys: (keyof typeof conflictExamples)[]) =>
   ApiResponse({
     status: 409,
-    description: '이미 사용 중인 아이디입니다.',
+    description: '요청한 리소스가 이미 존재하여 처리할 수 없습니다.',
     content: {
       'application/json': {
-        examples: {
-          UsernameAlreadyExists: {
-            summary: 'UsernameAlreadyExists',
-            value: {
-              status: 409,
-              code: 'USERNAME_ALREADY_EXISTS',
-              errors: [
-                {
-                  field: 'username',
-                  reason: ['This username already exists.'],
-                },
-              ],
-            },
+        examples: keys.reduce(
+          (acc, key) => {
+            acc[key] = conflictExamples[key];
+            return acc;
           },
-        },
+          {} as Record<string, object>,
+        ),
       },
     },
   });
+
 const unauthorizedExamples = {
   InvalidCredentials: {
     summary: 'InvalidCredentials',
@@ -216,7 +228,7 @@ export const ApiAuth = {
         description: '회원가입 성공',
       }),
       badRequestErrors(['UsernameInvalidInput', 'PasswordInvalidInput', 'NicknameInvalidInput']),
-      conflictErrors(),
+      conflictErrors(['UsernameAlreadyExists', 'TagGenerationFailed']),
     ),
 
   login: () =>
@@ -309,6 +321,7 @@ export const ApiAuth = {
         },
       }),
       unauthorizedErrors(['InvalidOAuthCode']),
+      conflictErrors(['TagGenerationFailed']),
       InternalServerErrores(),
       BadGatewayErrores(),
     ),
@@ -336,6 +349,7 @@ export const ApiAuth = {
         },
       }),
       unauthorizedErrors(['InvalidOAuthCode']),
+      conflictErrors(['TagGenerationFailed']),
       InternalServerErrores(),
       BadGatewayErrores(),
     ),
