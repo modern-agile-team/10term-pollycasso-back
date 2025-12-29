@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -12,28 +13,30 @@ import {
 } from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
-import { SignupRequestDto } from './dto/requests/signup-request.dto';
-import { AccessTokenGuard } from './guard/access-token.guard';
-import { RefreshTokenGuard } from './guard/refresh-token.guard';
+import { SignupRequestDto } from './dtos/requests/signup-request.dto';
+import { AccessTokenGuard } from './guards/access-token.guard';
+import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { ConfigService } from '@nestjs/config';
 import type { RefreshAuthRequest } from './interfaces/refresh-auth-request.interface';
-import { LoginRequestDto } from './dto/requests/login-request.dto';
-import { AUTH_ERROR_CODES } from './constants/auth.constants';
+import { LoginRequestDto } from './dtos/requests/login-request.dto';
+import { AUTH_ERROR_CODES } from './constants/auth.constant';
 import { ApiAuth } from 'src/auth/auth.swagger';
 import { ApiBearerAuth } from '@nestjs/swagger';
-import { KakaoGuard } from './guard/kakao.guard';
-import { GoogleGuard } from './guard/google.guard';
+import { KakaoGuard } from './guards/kakao.guard';
+import { GoogleGuard } from './guards/google.guard';
 import type { SocialLoginRequest } from './interfaces/social-login-request.interface';
 
 @Controller('auth')
 export class AuthController {
   private readonly refreshName: string;
+  private readonly accessName: string;
 
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
   ) {
     this.refreshName = this.configService.getOrThrow<string>('REFRESH_NAME');
+    this.accessName = this.configService.getOrThrow<string>('ACCESS_NAME');
   }
 
   @Post('signup')
@@ -90,12 +93,9 @@ export class AuthController {
   async kakaoLoginCallback(
     @Req() req: SocialLoginRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
+    @Query('state') state: string,
   ) {
-    const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
-
-    this.setRefreshToken(res, refreshToken);
-
-    return { accessToken };
+    return this.handleOAuthCallback(req, res, state);
   }
 
   @Get('google')
@@ -112,18 +112,33 @@ export class AuthController {
   async googleLoginCallback(
     @Req() req: SocialLoginRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
+    @Query('state') state: string,
   ) {
+    return this.handleOAuthCallback(req, res, state);
+  }
+
+  private async handleOAuthCallback(req: SocialLoginRequest, res: ExpressResponse, state: string) {
     const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
 
     this.setRefreshToken(res, refreshToken);
+    this.setAccessToken(res, accessToken);
 
-    return { accessToken };
+    let redirectUrl = this.authService.validateRedirectUrl(state);
+
+    return res.redirect(redirectUrl);
+  }
+
+  private setAccessToken(res: ExpressResponse, accessToken: string) {
+    res.cookie(this.accessName, accessToken, {
+      ...this.commonCookieOptions(),
+      maxAge: parseInt(this.configService.getOrThrow<string>('ACCESS_COOKIE_MAXAGE'), 10),
+    });
   }
 
   private setRefreshToken(res: ExpressResponse, refreshToken: string) {
     res.cookie(this.refreshName, refreshToken, {
       ...this.commonCookieOptions(),
-      maxAge: parseInt(this.configService.getOrThrow<string>('COOKIE_MAXAGE'), 10),
+      maxAge: parseInt(this.configService.getOrThrow<string>('REFRESH_COOKIE_MAXAGE'), 10),
     });
   }
 

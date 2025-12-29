@@ -1,21 +1,23 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { UsersService } from 'src/users/users.service';
-import { SignupRequestDto } from './dto/requests/signup-request.dto';
+import { UsersService } from 'src/user/user.service';
+import { SignupRequestDto } from './dtos/requests/signup-request.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
-import { TokenService } from './token/token.service';
+import { TokenService } from './tokens/token.service';
 import { UserData } from './interfaces/user-data.interface';
-import { TokenDto } from './dto/responses/token.dto';
-import { AccessTokenDto } from './dto/responses/access-token.dto';
-import { PasswordEncoderUtil } from 'src/common/hashing/password-encoder.util';
-import { AUTH_DOMAIN_ERRORS } from './constants/auth.constants';
 import { SocialLoginPayload } from './interfaces/social-login.interface';
-import { USER_ERROR_CODES } from 'src/users/constants/user.constant';
+import { USER_ERROR_CODES } from 'src/user/constants/user.constant';
+import { TokenDto } from './dtos/responses/token.dto';
+import { AccessTokenDto } from './dtos/responses/access-token.dto';
+import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
+import { AUTH_DOMAIN_ERRORS } from './constants/auth.constant';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UsersService,
     private readonly tokenService: TokenService,
+    private readonly configService: ConfigService,
   ) {}
 
   // 회원가입
@@ -49,7 +51,7 @@ export class AuthService {
     if (!isMatch) return null;
 
     const { hashedPassword: _, ...result } = user;
-    return result;
+    return result as UserData;
   }
 
   // 로그인
@@ -105,5 +107,38 @@ export class AuthService {
       accessToken,
       refreshToken,
     };
+  }
+
+  // redirect URL 검증
+  validateRedirectUrl(state: string) {
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    const fallbackUrl = new URL('/auth/callback', frontendUrl).toString();
+
+    if (!state) return fallbackUrl;
+
+    const allowedOriginsRaw = this.configService.get<string>('ALLOW_REDIRECT_ORIGINS') ?? '';
+
+    const whitelist = new Set(
+      [new URL(frontendUrl).origin, ...allowedOriginsRaw.split(',').map((s) => s.trim())].filter(
+        Boolean,
+      ),
+    );
+
+    try {
+      if (state.startsWith('/') && !state.startsWith('//')) {
+        return new URL(state, frontendUrl).toString();
+      }
+
+      const parsed = new URL(state);
+
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return fallbackUrl;
+      if (!whitelist.has(parsed.origin)) return fallbackUrl;
+
+      if (parsed.username || parsed.password) return fallbackUrl;
+
+      return parsed.toString();
+    } catch {
+      return fallbackUrl;
+    }
   }
 }

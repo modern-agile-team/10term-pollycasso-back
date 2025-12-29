@@ -4,7 +4,7 @@ import { Strategy, Profile } from 'passport-kakao';
 import { ConfigService } from '@nestjs/config';
 import { SocialLoginPayload } from '../interfaces/social-login.interface';
 import { Provider } from '@prisma/client';
-import { OAUTH_ERRORS_CODES } from '../constants/auth.constants';
+import { OAUTH_ERRORS_CODES } from '../constants/auth.constant';
 
 @Injectable()
 export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
