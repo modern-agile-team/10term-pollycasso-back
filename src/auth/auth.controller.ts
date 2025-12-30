@@ -123,7 +123,7 @@ export class AuthController {
     this.setRefreshToken(res, refreshToken);
     this.setAccessToken(res, accessToken);
 
-    let redirectUrl = this.authService.validateRedirectUrl(state);
+    const redirectUrl = this.authService.validateRedirectUrl(state);
 
     return res.redirect(redirectUrl);
   }

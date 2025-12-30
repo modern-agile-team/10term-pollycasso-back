@@ -1,11 +1,10 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { UsersRepository } from './user.repository';
 import { User } from '@prisma/client';
 import { CreateUserDto } from './dtos/create-user.dto';
 import { CreateSocialUserDto } from './dtos/create-social-user.dto';
 import { Provider } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { USER_DOMAIN_ERRORS, USER_ERROR_CODES } from 'src/user/constants/user.constant';
 
 @Injectable()
 export class UsersService {
@@ -50,10 +49,7 @@ export class UsersService {
       }
     }
 
-    throw new ConflictException({
-      code: USER_ERROR_CODES.TAG_GENERATION_FAILED,
-      errors: [USER_DOMAIN_ERRORS.TAG_GENERATION_FAILED],
-    });
+    throw new InternalServerErrorException();
   }
 
   private createRandomTag(): string {
