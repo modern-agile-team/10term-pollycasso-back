@@ -4,4 +4,5 @@ export class CreateSocialUserDto {
   provider: Provider;
   providerId: string;
   nickname: string;
+  tag?: string;
 }

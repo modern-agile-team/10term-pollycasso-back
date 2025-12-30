@@ -50,6 +50,7 @@ model User {
   username       String?   @unique @db.VarChar(20)
   hashedPassword String?   @map("hashed_password") @db.VarChar(60)
   nickname       String    @db.VarChar(30)
+  tag            String    @db.VarChar(10)
   provider       Provider?
   providerId     String?   @map("provider_id") @db.VarChar(50)
   createdAt      DateTime  @default(now()) @map("created_at")
@@ -61,6 +62,7 @@ model User {
   votes       Vote[]
 
   @@unique([provider, providerId])
+  @@unique([nickname, tag])
   @@map("users")
 }
 

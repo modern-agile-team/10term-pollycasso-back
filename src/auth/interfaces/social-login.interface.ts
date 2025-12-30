@@ -4,4 +4,5 @@ export interface SocialLoginPayload {
   provider: Provider;
   providerId: string;
   nickname: string;
+  tag?: string;
 }

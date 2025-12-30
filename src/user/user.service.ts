@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { UsersRepository } from './user.repository';
 import { User } from '@prisma/client';
 import { CreateUserDto } from './dtos/create-user.dto';
 import { CreateSocialUserDto } from './dtos/create-social-user.dto';
 import { Provider } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class UsersService {
@@ -16,7 +17,7 @@ export class UsersService {
 
   // 유저 생성
   async createUser(userData: CreateUserDto): Promise<User> {
-    return this.usersRepository.createUser(userData);
+    return this.createUserWithTag(userData);
   }
 
   // Provider로 소셜 사용자 조회
@@ -26,6 +27,32 @@ export class UsersService {
 
   // 소셜 로그인 유저 생성
   async createSocialUser(userData: CreateSocialUserDto): Promise<User> {
-    return this.usersRepository.createUser(userData);
+    return this.createUserWithTag(userData);
+  }
+
+  private async createUserWithTag(userData: CreateUserDto | CreateSocialUserDto): Promise<User> {
+    const MAX_RETRIES = 10;
+
+    for (let retries = 0; retries < MAX_RETRIES; retries++) {
+      try {
+        const tag = this.createRandomTag();
+
+        return await this.usersRepository.createUser({
+          ...userData,
+          tag,
+        });
+      } catch (error) {
+        if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new InternalServerErrorException();
+  }
+
+  private createRandomTag(): string {
+    return String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0');
   }
 }

@@ -75,30 +75,34 @@ const badRequestErrors = (keys: (keyof typeof badRequestExamples)[]) =>
     },
   });
 
-const conflictErrors = () =>
+const conflictExamples = {
+  UsernameAlreadyExists: {
+    summary: 'UsernameAlreadyExists',
+    value: {
+      status: 409,
+      code: 'USERNAME_ALREADY_EXISTS',
+      errors: [{ field: 'username', reason: ['This username already exists.'] }],
+    },
+  },
+};
+
+export const conflictErrors = (keys: (keyof typeof conflictExamples)[]) =>
   ApiResponse({
     status: 409,
-    description: '이미 사용 중인 아이디입니다.',
+    description: '요청한 리소스가 이미 존재하여 처리할 수 없습니다.',
     content: {
       'application/json': {
-        examples: {
-          UsernameAlreadyExists: {
-            summary: 'UsernameAlreadyExists',
-            value: {
-              status: 409,
-              code: 'USERNAME_ALREADY_EXISTS',
-              errors: [
-                {
-                  field: 'username',
-                  reason: ['This username already exists.'],
-                },
-              ],
-            },
+        examples: keys.reduce(
+          (acc, key) => {
+            acc[key] = conflictExamples[key];
+            return acc;
           },
-        },
+          {} as Record<string, object>,
+        ),
       },
     },
   });
+
 const unauthorizedExamples = {
   InvalidCredentials: {
     summary: 'InvalidCredentials',
@@ -167,18 +171,18 @@ const unauthorizedErrors = (keys: (keyof typeof unauthorizedExamples)[]) =>
     },
   });
 
-const InternalServerErrores = () =>
+const BaseInternalServerErrors = (description: string) =>
   ApiResponse({
     status: 500,
-    description: 'OAuth 서버에서 ID와 username을 가져오는 데 실패했습니다.',
+    description,
     content: {
       'application/json': {
         examples: {
-          InvalidOAuthCode: {
-            summary: 'InvalidOAuthProfile',
+          InternalServerError: {
+            summary: 'INTERNAL_SERVER_ERROR',
             value: {
               status: 500,
-              code: 'INVALID_OAUTH_PROFILE',
+              code: 'INTERNAL_SERVER_ERROR',
               errors: [],
             },
           },
@@ -186,6 +190,12 @@ const InternalServerErrores = () =>
       },
     },
   });
+
+export const ApiTagInternalServerErrors = () =>
+  BaseInternalServerErrors('닉네임 태그 자동 생성 과정에서 서버 내부 오류가 발생했습니다.');
+
+export const ApiOAuthInternalServerErrors = () =>
+  BaseInternalServerErrors('OAuth 서버에서 ID와 username을 가져오는 데 실패했습니다.');
 
 const BadGatewayErrores = () =>
   ApiResponse({
@@ -216,7 +226,8 @@ export const ApiAuth = {
         description: '회원가입 성공',
       }),
       badRequestErrors(['UsernameInvalidInput', 'PasswordInvalidInput', 'NicknameInvalidInput']),
-      conflictErrors(),
+      conflictErrors(['UsernameAlreadyExists']),
+      ApiTagInternalServerErrors(),
     ),
 
   login: () =>
@@ -309,7 +320,7 @@ export const ApiAuth = {
         },
       }),
       unauthorizedErrors(['InvalidOAuthCode']),
-      InternalServerErrores(),
+      ApiOAuthInternalServerErrors(),
       BadGatewayErrores(),
     ),
   googlecallback: () =>
@@ -336,7 +347,7 @@ export const ApiAuth = {
         },
       }),
       unauthorizedErrors(['InvalidOAuthCode']),
-      InternalServerErrores(),
+      ApiOAuthInternalServerErrors(),
       BadGatewayErrores(),
     ),
 };

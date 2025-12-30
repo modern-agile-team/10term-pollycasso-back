@@ -4,11 +4,12 @@ import { SignupRequestDto } from './dtos/requests/signup-request.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { TokenService } from './tokens/token.service';
 import { UserData } from './interfaces/user-data.interface';
+import { SocialLoginPayload } from './interfaces/social-login.interface';
+import { USER_ERROR_CODES } from 'src/user/constants/user.constant';
 import { TokenDto } from './dtos/responses/token.dto';
 import { AccessTokenDto } from './dtos/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
-import { AUTH_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/auth.constant';
-import { SocialLoginPayload } from './interfaces/social-login.interface';
+import { AUTH_DOMAIN_ERRORS } from './constants/auth.constant';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
