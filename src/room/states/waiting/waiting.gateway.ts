@@ -106,33 +106,36 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   async handleDisconnect(client: Socket) {
     const data = client.data as ClientData;
-    if (data?.userId && data?.roomId) {
-      try {
-        const playersBeforeLeave = await this.waitingService.getPlayers(data.roomId);
-        const wasLastPlayer = playersBeforeLeave.length === 1;
-        const leavingPlayer = playersBeforeLeave.find((p) => p.userId === data.userId);
 
-        await this.waitingService.leaveRoom(data.roomId, data.userId);
-
-        if (!wasLastPlayer) {
-          this.server.to(`room:${data.roomId}`).emit('room:syncPlayerList', {
-            players: await this.waitingService.getPlayers(data.roomId),
-          });
-
-          if (leavingPlayer) {
-            const systemMessage = this.chatService.createSystemMessage({
-              message: `${leavingPlayer.nickname}님이 퇴장했습니다.`,
-            });
-            this.server.to(`room:${data.roomId}`).emit('chat:systemMessage', systemMessage);
-          }
-        }
-
-        this.logger.debug(`User ${data.userId} left room ${data.roomId}`);
-      } catch (error) {
-        this.logger.error('Error handling disconnect:', error);
-      }
+    if (!data?.userId || !data?.roomId) {
+      this.logger.log(`Client disconnected: ${client.id}`);
+      return;
     }
-    this.logger.log(`Client disconnected: ${client.id}`);
+
+    try {
+      const playersBeforeLeave = await this.waitingService.getPlayers(data.roomId);
+      const wasLastPlayer = playersBeforeLeave.length === 1;
+      const leavingPlayer = playersBeforeLeave.find((p) => p.userId === data.userId);
+
+      await this.waitingService.leaveRoom(data.roomId, data.userId);
+
+      if (!wasLastPlayer) {
+        this.server.to(`room:${data.roomId}`).emit('room:syncPlayerList', {
+          players: await this.waitingService.getPlayers(data.roomId),
+        });
+
+        if (leavingPlayer) {
+          const systemMessage = this.chatService.createSystemMessage({
+            message: `${leavingPlayer.nickname}님이 퇴장했습니다.`,
+          });
+          this.server.to(`room:${data.roomId}`).emit('chat:systemMessage', systemMessage);
+        }
+      }
+
+      this.logger.debug(`User ${data.userId} left room ${data.roomId}`);
+    } catch (error) {
+      this.logger.error('Error handling disconnect:', error);
+    }
   }
 
   private getClientData(client: Socket): ClientData | null {
