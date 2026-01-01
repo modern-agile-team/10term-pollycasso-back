@@ -20,8 +20,7 @@ export class RoomsService implements IRoomReader, IRoomWriter {
   ) {}
 
   async createRoom(dto: CreateRoomDto): Promise<Room> {
-    const hashedPassword =
-      dto.isPrivate && dto.password ? await PasswordEncoderUtil.hash(dto.password) : null;
+    const hashedPassword = dto.password ? await PasswordEncoderUtil.hash(dto.password) : null;
 
     const room = Room.create({
       name: dto.name,
@@ -53,7 +52,7 @@ export class RoomsService implements IRoomReader, IRoomWriter {
     this.roomsEventPublisher.roomDeleted(id);
   }
 
-  async updateRoomByWaiting(
+  async updateRoomWhileWaiting(
     roomId: number,
     payload: {
       name?: string;
@@ -65,12 +64,9 @@ export class RoomsService implements IRoomReader, IRoomWriter {
   ): Promise<Room> {
     const room = await this.getOneRoom(roomId);
 
-    const hashedPassword =
-      payload.isPrivate && payload.password
-        ? await PasswordEncoderUtil.hash(payload.password)
-        : payload.isPrivate
-          ? room.hashedPassword
-          : null;
+    const hashedPassword = payload.password
+      ? await PasswordEncoderUtil.hash(payload.password)
+      : undefined;
 
     room.update({
       name: payload.name,

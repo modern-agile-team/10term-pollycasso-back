@@ -50,3 +50,8 @@ export const WAITING_DOMAIN_ERRORS: Record<string, { field: string; reason: stri
     reason: 'Cannot set max players less than current player count',
   },
 } as const;
+
+export const WAITING_CONSTANTS = {
+  GAME_SESSION_TTL_SECONDS: 3600,
+  DEFAULT_PLAYER_LEVEL: 1,
+} as const;

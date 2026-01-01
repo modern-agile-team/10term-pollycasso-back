@@ -25,7 +25,6 @@ interface UpdateRoomProps {
   maxPlayers?: number;
   isPrivate?: boolean;
   hashedPassword?: string | null;
-  status?: RoomStatus;
 }
 
 export class Room {

@@ -2,7 +2,7 @@ import { RoomMode } from '@prisma/client';
 import { Room } from '../entities/room.entity';
 
 export interface IRoomWriter {
-  updateRoomByWaiting(
+  updateRoomWhileWaiting(
     roomId: number,
     payload: {
       name?: string;

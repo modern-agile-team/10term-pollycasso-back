@@ -1,21 +1,15 @@
-import {
-  Injectable,
-  ConflictException,
-  ForbiddenException,
-  BadRequestException,
-  NotFoundException,
-  Inject,
-} from '@nestjs/common';
-import { Team, RoomMode, RoomStatus } from '@prisma/client';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Team, RoomMode } from '@prisma/client';
 import { WaitingState, WaitingPlayerState } from './waiting.state';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WaitingStateResponseDto } from './dtos/responses/waiting-state-response.dto';
-import { WAITING_ERROR_CODES, WAITING_DOMAIN_ERRORS } from './constants/waiting.constant';
+import { WAITING_CONSTANTS, WAITING_ERROR_CODES } from './constants/waiting.constant';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
+import { Waiting } from './entities/waiting.entity';
+import { Room } from 'src/room/entities/room.entity';
 import type { IRoomReader } from 'src/room/interfaces/room-reader.interface';
 import type { IRoomWriter } from 'src/room/interfaces/room-writer.interface';
-import { ROOM_CONSTANTS } from 'src/room/constants/room.constant';
 
 @Injectable()
 export class WaitingService {
@@ -25,6 +19,14 @@ export class WaitingService {
     @Inject('IRoomReader') private readonly roomReader: IRoomReader,
     @Inject('IRoomWriter') private readonly roomWriter: IRoomWriter,
   ) {}
+
+  private async loadWaitingEntity(roomId: number): Promise<Waiting> {
+    const room = await this.findRoomOrThrow(roomId);
+    const players = await this.waitingState.getPlayers(roomId);
+    const hostId = await this.waitingState.getHostId(roomId);
+
+    return Waiting.load(room, players, hostId);
+  }
 
   private async findRoomOrThrow(roomId: number) {
     try {
@@ -39,37 +41,42 @@ export class WaitingService {
     userId: number,
     password?: string,
   ): Promise<WaitingStateResponseDto> {
-    const room = await this.findRoomOrThrow(roomId);
+    const waiting = await this.loadWaitingEntity(roomId);
 
-    if (room.status !== RoomStatus.WAITING) {
-      throw new ConflictException({ code: WAITING_ERROR_CODES.GAME_ALREADY_STARTED });
-    }
+    waiting.canJoin(userId);
 
-    const currentPlayers = await this.waitingState.getPlayers(roomId);
-    if (currentPlayers.find((p) => p.userId === userId)) {
+    if (waiting.hasPlayer(userId)) {
       return this.getState(roomId);
     }
 
-    if (currentPlayers.length >= room.maxPlayers) {
-      throw new ConflictException({ code: WAITING_ERROR_CODES.ROOM_FULL });
+    if (waiting.requiresPassword()) {
+      await this.validatePassword(waiting.room, password);
     }
 
-    if (room.isPrivate && room.hashedPassword) {
-      if (!password) {
-        throw new BadRequestException({
-          code: WAITING_ERROR_CODES.ROOM_PASSWORD_REQUIRED,
-          errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.ROOM_PASSWORD_REQUIRED]],
-        });
-      }
-      const isValid = await PasswordEncoderUtil.compare(password, room.hashedPassword);
-      if (!isValid) {
-        throw new BadRequestException({
-          code: WAITING_ERROR_CODES.ROOM_INVALID_PASSWORD,
-          errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.ROOM_INVALID_PASSWORD]],
-        });
-      }
+    const player = await this.createPlayer(userId, waiting);
+    const isHost = waiting.isEmpty();
+
+    await this.waitingState.joinRoom(roomId, player, isHost);
+
+    return this.getState(roomId);
+  }
+
+  private async validatePassword(room: Room, password?: string): Promise<void> {
+    if (!password) {
+      throw new NotFoundException({
+        code: WAITING_ERROR_CODES.ROOM_PASSWORD_REQUIRED,
+      });
     }
 
+    const isValid = await PasswordEncoderUtil.compare(password, room.hashedPassword!);
+    if (!isValid) {
+      throw new NotFoundException({
+        code: WAITING_ERROR_CODES.ROOM_INVALID_PASSWORD,
+      });
+    }
+  }
+
+  private async createPlayer(userId: number, waiting: Waiting): Promise<WaitingPlayerState> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { profile: true },
@@ -77,10 +84,10 @@ export class WaitingService {
 
     const nickname = user?.nickname ?? 'Unknown';
     const level = user?.profile?.level ?? 1;
-    const isHost = currentPlayers.length === 0;
-    const initialTeam = this.getInitialTeam(room.mode, currentPlayers);
+    const isHost = waiting.isEmpty();
+    const initialTeam = waiting.getInitialTeam();
 
-    const player: WaitingPlayerState = {
+    return {
       userId,
       nickname,
       team: initialTeam,
@@ -89,54 +96,23 @@ export class WaitingService {
       pageStatus: PlayerPageStatus.IDLE,
       outfit: undefined,
     };
-
-    await this.waitingState.joinRoom(roomId, player, isHost);
-
-    return this.getState(roomId);
   }
 
   async toggleReady(roomId: number, userId: number): Promise<boolean> {
-    const player = await this.waitingState.getPlayer(roomId, userId);
-    if (!player) throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
-
-    const hostId = await this.waitingState.getHostId(roomId);
-    if (hostId === userId)
-      throw new ForbiddenException({ code: WAITING_ERROR_CODES.HOST_CANNOT_TOGGLE_READY });
-
-    return this.waitingState.toggleReady(roomId, userId);
+    const waiting = await this.loadWaitingEntity(roomId);
+    waiting.validateToggleReady(userId);
+    return await this.waitingState.toggleReady(roomId, userId);
   }
 
   async changeTeam(roomId: number, userId: number, team: Team): Promise<void> {
-    const room = await this.findRoomOrThrow(roomId);
-
-    if (room.mode === RoomMode.SOLO) {
-      throw new BadRequestException({
-        code: WAITING_ERROR_CODES.SOLO_MODE_NO_TEAMS,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.SOLO_MODE_NO_TEAMS]],
-      });
-    }
-    if (team === Team.NONE) {
-      throw new BadRequestException({
-        code: WAITING_ERROR_CODES.INVALID_TEAM,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.INVALID_TEAM]],
-      });
-    }
-
-    const players = await this.waitingState.getPlayers(roomId);
-    const player = players.find((p) => p.userId === userId);
-    if (!player) throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
-
-    const maxPerTeam = Math.ceil(room.maxPlayers / 2);
-    const targetTeamCount = players.filter((p) => p.team === team && p.userId !== userId).length;
-    if (targetTeamCount >= maxPerTeam)
-      throw new ConflictException({ code: WAITING_ERROR_CODES.TEAM_FULL });
-
+    const waiting = await this.loadWaitingEntity(roomId);
+    waiting.validateTeamChange(userId, team);
     await this.waitingState.changeTeam(roomId, userId, team);
   }
 
   async updatePageStatus(roomId: number, userId: number, status: PlayerPageStatus): Promise<void> {
-    const player = await this.waitingState.getPlayer(roomId, userId);
-    if (!player) throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
+    const waiting = await this.loadWaitingEntity(roomId);
+    waiting.validatePlayerExists(userId);
     await this.waitingState.updatePageStatus(roomId, userId, status);
   }
 
@@ -145,8 +121,8 @@ export class WaitingService {
     userId: number,
     outfit: Record<string, unknown>,
   ): Promise<void> {
-    const player = await this.waitingState.getPlayer(roomId, userId);
-    if (!player) throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
+    const waiting = await this.loadWaitingEntity(roomId);
+    waiting.validatePlayerExists(userId);
     await this.waitingState.updateOutfit(roomId, userId, outfit);
   }
 
@@ -161,39 +137,43 @@ export class WaitingService {
       password?: string;
     },
   ): Promise<void> {
-    const hostId = await this.waitingState.getHostId(roomId);
-    if (hostId !== requesterId)
-      throw new ForbiddenException({ code: WAITING_ERROR_CODES.PERMISSION_DENIED });
+    const waiting = await this.loadWaitingEntity(roomId);
+    waiting.validateSettingsUpdate(requesterId);
 
     if (settings.maxPlayers) {
-      const currentPlayers = await this.waitingState.getPlayers(roomId);
-      if (settings.maxPlayers < currentPlayers.length) {
-        throw new BadRequestException({
-          code: WAITING_ERROR_CODES.MAX_PLAYERS_LESS_THAN_CURRENT,
-          errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.MAX_PLAYERS_LESS_THAN_CURRENT]],
-        });
-      }
+      waiting.validateMaxPlayersUpdate(settings.maxPlayers);
     }
 
-    if (settings.mode) {
-      const room = await this.findRoomOrThrow(roomId);
-      if (room.mode !== settings.mode) await this.resetForModeChange(roomId, settings.mode);
+    if (settings.mode && waiting.shouldResetTeamsForMode(settings.mode)) {
+      await this.resetTeamsForMode(roomId, settings.mode, waiting);
     }
 
-    await this.roomWriter.updateRoomByWaiting(roomId, settings);
+    await this.roomWriter.updateRoomWhileWaiting(roomId, settings);
+  }
+
+  private async resetTeamsForMode(
+    roomId: number,
+    newMode: RoomMode,
+    waiting: Waiting,
+  ): Promise<void> {
+    const players = waiting.players;
+    await Promise.all(
+      players.map(async (player, index) => {
+        const newTeam =
+          newMode === RoomMode.SOLO ? Team.NONE : index % 2 === 0 ? Team.RED : Team.BLUE;
+
+        await this.waitingState.changeTeam(roomId, player.userId, newTeam);
+
+        if (player.userId !== waiting.hostId) {
+          await this.waitingState.setReady(roomId, player.userId, false);
+        }
+      }),
+    );
   }
 
   async kickPlayer(roomId: number, requesterId: number, targetUserId: number): Promise<void> {
-    const hostId = await this.waitingState.getHostId(roomId);
-    if (hostId !== requesterId)
-      throw new ForbiddenException({ code: WAITING_ERROR_CODES.PERMISSION_DENIED });
-    if (requesterId === targetUserId) {
-      throw new BadRequestException({
-        code: WAITING_ERROR_CODES.CANNOT_KICK_SELF,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.CANNOT_KICK_SELF]],
-      });
-    }
-
+    const waiting = await this.loadWaitingEntity(roomId);
+    waiting.validateKick(requesterId, targetUserId);
     await this.waitingState.leaveRoom(roomId, targetUserId);
   }
 
@@ -208,39 +188,13 @@ export class WaitingService {
   }
 
   async startGame(roomId: number, requesterId: number): Promise<void> {
-    const hostId = await this.waitingState.getHostId(roomId);
-    if (hostId !== requesterId)
-      throw new ForbiddenException({ code: WAITING_ERROR_CODES.GAME_START_NOT_HOST });
-
-    const room = await this.findRoomOrThrow(roomId);
-    if (room.status !== RoomStatus.WAITING)
-      throw new ConflictException({ code: WAITING_ERROR_CODES.GAME_ALREADY_STARTED });
-
-    const players = await this.waitingState.getPlayers(roomId);
-
-    if (room.mode === RoomMode.SOLO) {
-      if (players.length < ROOM_CONSTANTS.SOLO_MIN_PLAYERS)
-        throw new ConflictException({ code: WAITING_ERROR_CODES.GAME_START_NOT_ENOUGH_PLAYERS });
-    } else if (!ROOM_CONSTANTS.TEAM_ALLOWED_PLAYERS.includes(players.length)) {
-      throw new ConflictException({ code: WAITING_ERROR_CODES.GAME_START_NOT_ENOUGH_PLAYERS });
-    }
-
-    if (!this.checkAllPlayersReady(players, hostId)) {
-      throw new ConflictException({ code: WAITING_ERROR_CODES.NOT_ALL_PLAYERS_READY });
-    }
-
-    if (room.mode === RoomMode.TEAM) {
-      const redCount = players.filter((p) => p.team === Team.RED).length;
-      const blueCount = players.filter((p) => p.team === Team.BLUE).length;
-      if (Math.abs(redCount - blueCount) > 1)
-        throw new ConflictException({ code: WAITING_ERROR_CODES.TEAM_IMBALANCE });
-    }
-
+    const waiting = await this.loadWaitingEntity(roomId);
+    waiting.validateGameStart(requesterId);
     await this.roomWriter.startGame(roomId);
   }
 
   async markRoomAsStarted(roomId: number): Promise<void> {
-    await this.waitingState.setRoomExpiry(roomId, 3600);
+    await this.waitingState.setRoomExpiry(roomId, WAITING_CONSTANTS.GAME_SESSION_TTL_SECONDS);
   }
 
   async getState(roomId: number): Promise<WaitingStateResponseDto> {
@@ -280,34 +234,12 @@ export class WaitingService {
   }
 
   async canStartMatch(roomId: number): Promise<boolean> {
-    const players = await this.waitingState.getPlayers(roomId);
-    const hostId = await this.waitingState.getHostId(roomId);
-    return this.checkAllPlayersReady(players, hostId);
-  }
-
-  private async resetForModeChange(roomId: number, newMode: RoomMode): Promise<void> {
-    const players = await this.waitingState.getPlayers(roomId);
-    const hostId = await this.waitingState.getHostId(roomId);
-
-    await Promise.all(
-      players.map(async (player, i) => {
-        const team = newMode === RoomMode.SOLO ? Team.NONE : i % 2 === 0 ? Team.RED : Team.BLUE;
-        await this.waitingState.changeTeam(roomId, player.userId, team);
-        if (player.userId !== hostId)
-          await this.waitingState.setReady(roomId, player.userId, false);
-      }),
-    );
-  }
-
-  private checkAllPlayersReady(players: WaitingPlayerState[], hostId: number | null): boolean {
-    const nonHostPlayers = players.filter((p) => p.userId !== hostId);
-    return nonHostPlayers.length > 0 && nonHostPlayers.every((p) => p.isReady);
-  }
-
-  private getInitialTeam(mode: RoomMode, existingPlayers: WaitingPlayerState[]): Team {
-    if (mode === RoomMode.SOLO) return Team.NONE;
-    const redCount = existingPlayers.filter((p) => p.team === Team.RED).length;
-    const blueCount = existingPlayers.filter((p) => p.team === Team.BLUE).length;
-    return redCount <= blueCount ? Team.RED : Team.BLUE;
+    try {
+      const waiting = await this.loadWaitingEntity(roomId);
+      waiting.validateGameStart(waiting.hostId!);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
