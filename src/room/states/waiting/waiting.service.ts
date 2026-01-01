@@ -3,7 +3,11 @@ import { Team, RoomMode } from '@prisma/client';
 import { WaitingState, WaitingPlayerState } from './waiting.state';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WaitingStateResponseDto } from './dtos/responses/waiting-state-response.dto';
-import { WAITING_CONSTANTS, WAITING_ERROR_CODES } from './constants/waiting.constant';
+import {
+  WAITING_CONSTANTS,
+  WAITING_DOMAIN_ERRORS,
+  WAITING_ERROR_CODES,
+} from './constants/waiting.constant';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { Waiting } from './entities/waiting.entity';
@@ -65,6 +69,7 @@ export class WaitingService {
     if (!password) {
       throw new NotFoundException({
         code: WAITING_ERROR_CODES.ROOM_PASSWORD_REQUIRED,
+        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.ROOM_PASSWORD_REQUIRED]],
       });
     }
 
@@ -72,6 +77,7 @@ export class WaitingService {
     if (!isValid) {
       throw new NotFoundException({
         code: WAITING_ERROR_CODES.ROOM_INVALID_PASSWORD,
+        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.ROOM_INVALID_PASSWORD]],
       });
     }
   }
