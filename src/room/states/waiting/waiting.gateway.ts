@@ -128,7 +128,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
           const systemMessage = this.chatService.createSystemMessage({
             message: `${leavingPlayer.nickname}님이 퇴장했습니다.`,
           });
-          this.server.to(`room:${data.roomId}`).emit('chat:systemMessage', systemMessage);
+          this.server.to(`room:${data.roomId}`).emit('room:systemMessage', systemMessage);
         }
       }
 
@@ -189,9 +189,9 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     const systemMessage = this.chatService.createSystemMessage({
       message: `${clientData.nickname}님이 입장했습니다.`,
     });
-    this.server.to(`room:${body.roomId}`).emit('chat:systemMessage', systemMessage);
+    this.server.to(`room:${body.roomId}`).emit('room:systemMessage', systemMessage);
 
-    client.emit('room:join', state);
+    client.emit('room:joinSuccess', state);
     this.logger.debug(`User ${clientData.userId} joined room ${body.roomId}`);
   }
 
@@ -298,7 +298,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     const systemMessage = this.chatService.createSystemMessage({
       message: '게임 설정이 변경되었습니다.',
     });
-    this.server.to(`room:${roomId}`).emit('chat:systemMessage', systemMessage);
+    this.server.to(`room:${roomId}`).emit('room:systemMessage', systemMessage);
   }
 
   @SubscribeMessage('room:kickUser')
@@ -341,7 +341,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
       const systemMessage = this.chatService.createSystemMessage({
         message: `${kickedPlayer.nickname}님이 강퇴되었습니다.`,
       });
-      this.server.to(`room:${roomId}`).emit('chat:systemMessage', systemMessage);
+      this.server.to(`room:${roomId}`).emit('room:systemMessage', systemMessage);
     }
   }
 
@@ -411,7 +411,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
         const systemMessage = this.chatService.createSystemMessage({
           message: `${leavingPlayer.nickname}님이 퇴장했습니다.`,
         });
-        this.server.to(`room:${roomId}`).emit('chat:systemMessage', systemMessage);
+        this.server.to(`room:${roomId}`).emit('room:systemMessage', systemMessage);
       }
     }
 
