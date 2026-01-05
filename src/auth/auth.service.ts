@@ -59,6 +59,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: userData.id,
       nickname: userData.nickname,
+      tag: userData.tag,
     };
     const accessToken = this.tokenService.createAccessToken(payload);
     const refreshToken = await this.tokenService.createRefreshToken(payload);
@@ -74,6 +75,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: userData.sub,
       nickname: userData.nickname,
+      tag: userData.tag,
     };
     return this.tokenService.refreshAccessOnly(payload);
   }
@@ -98,6 +100,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       nickname: user.nickname,
+      tag: user.tag,
     };
 
     const accessToken = this.tokenService.createAccessToken(payload);
