@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
   Delete,
   ParseIntPipe,
@@ -13,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { RoomsService } from './room.service';
 import { CreateRoomDto } from './dtos/requests/create-room.dto';
-import { UpdateRoomDto } from './dtos/requests/update-room.dto';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { PaginatedRoomResponseDto } from './dtos/responses/paginated-room-response.dto';
 import { ResRoomDto } from './dtos/responses/room-response.dto';
@@ -48,13 +46,6 @@ export class RoomsController {
   @ApiRoom.getOneRoom()
   async getOneRoom(@Param('id', ParseIntPipe) id: number) {
     const room = await this.roomsService.getOneRoom(id);
-    return new ResRoomDto(room);
-  }
-
-  @Patch(':id')
-  @ApiRoom.updateRoom()
-  async updateRoom(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateRoomDto) {
-    const room = await this.roomsService.updateRoom(id, body);
     return new ResRoomDto(room);
   }
 

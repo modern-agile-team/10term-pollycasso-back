@@ -11,6 +11,9 @@ import { RoomsGateway } from './room.gateway';
     RoomsGateway,
     { provide: 'IRoomsRepository', useClass: RoomsRepository },
     { provide: 'IRoomsEventPublisher', useExisting: RoomsGateway },
+    { provide: 'IRoomReader', useExisting: RoomsService },
+    { provide: 'IRoomWriter', useExisting: RoomsService },
   ],
+  exports: ['IRoomReader', 'IRoomWriter'],
 })
 export class RoomsModule {}
