@@ -4,6 +4,8 @@ export const ROOM_ERROR_CODES = {
   TEAM_MODE_PLAYERS: 'TEAM_MODE_PLAYERS',
   PRIVATE_ROOM_NEEDS_PASSWORD: 'PRIVATE_ROOM_NEEDS_PASSWORD',
   ROOM_EVENT_FAILED: 'ROOM_EVENT_FAILED',
+  ROOM_NOT_WAITING: 'ROOM_NOT_WAITING',
+  ROOM_NOT_IN_PROGRESS: 'ROOM_NOT_IN_PROGRESS',
 } as const;
 
 export const ROOM_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
@@ -19,12 +21,20 @@ export const ROOM_DOMAIN_ERRORS: Record<string, { field: string; reason: string 
     field: 'password',
     reason: 'Private room requires a password',
   },
+  ROOM_NOT_WAITING: {
+    field: 'status',
+    reason: 'Room must be in WAITING status to start the game',
+  },
+  ROOM_NOT_IN_PROGRESS: {
+    field: 'status',
+    reason: 'Room must be IN_PROGRESS to finish the game',
+  },
 };
 
 export const ROOM_CONSTANTS = {
   ROOMS_PER_PAGE: 6,
   SOLO_MIN_PLAYERS: 3,
   SOLO_MAX_PLAYERS: 6,
-  TEAM_ALLOWED_PLAYERS: [4, 6],
+  TEAM_ALLOWED_PLAYERS: [4, 6] as readonly number[],
   INITIAL_CURRENT_PLAYERS: 0,
 } as const;

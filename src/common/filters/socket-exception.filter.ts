@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, Inject } from '@nestjs/common';
 import type { LoggerService } from '@nestjs/common';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { ArgumentsHost, Catch, HttpException, HttpStatus } from '@nestjs/common';
 import { BaseWsExceptionFilter, WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { buildErrorResponse } from '../utils/error-response.util';
@@ -52,7 +53,7 @@ export class SocketExceptionFilter extends BaseWsExceptionFilter {
       this.logger.warn(`[WS ${namespace} ${event}] Client error - ${normalized.code}`);
     }
 
-    client.emit('exception', normalized);
+    client.emit('system:notification', normalized);
 
     if (normalized.status === 401) {
       setTimeout(() => client.disconnect(), 0);

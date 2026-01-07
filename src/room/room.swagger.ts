@@ -111,16 +111,6 @@ export const ApiRoom = {
       unauthorizedError(),
     ),
 
-  updateRoom: () =>
-    applyDecorators(
-      ApiCookieAuth('accessToken'),
-      ApiOperation({ summary: '방 정보 수정' }),
-      ApiResponse({ status: 200, description: '방 수정 성공', type: ResRoomDto }),
-      badRequestErrors(),
-      roomNotFoundError(),
-      unauthorizedError(),
-    ),
-
   removeRoom: () =>
     applyDecorators(
       ApiCookieAuth('accessToken'),

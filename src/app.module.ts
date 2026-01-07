@@ -40,6 +40,7 @@ import WinstonCloudwatch from 'winston-cloudwatch';
     AuthModule,
     UsersModule,
     RoomsModule,
+    WaitingModule,
     ChatModule,
   ],
   controllers: [AppController],
