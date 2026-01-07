@@ -5,9 +5,11 @@ import { Room } from './entities/room.entity';
 import { IRoomsEventPublisher } from './events/room-event.publisher';
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
-import { Logger, UseFilters } from '@nestjs/common';
+import { Inject, UseFilters } from '@nestjs/common';
 import { ROOM_ERROR_CODES } from './constants/room.constant';
 import { wsError } from 'src/common/utils/ws-error.util';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import type { Logger } from 'winston';
 
 @UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
@@ -18,10 +20,13 @@ import { wsError } from 'src/common/utils/ws-error.util';
   namespace: '/rooms',
 })
 export class RoomsGateway implements IRoomsEventPublisher {
-  private readonly logger = new Logger(RoomsGateway.name);
-
   @WebSocketServer()
   server: Server;
+
+  constructor(
+    @Inject(WINSTON_MODULE_NEST_PROVIDER)
+    private readonly logger: Logger,
+  ) {}
 
   private broadcastEvent<T>(event: string, payload: T) {
     try {

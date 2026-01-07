@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { WaitingService } from './waiting.service';
-import { UseFilters, UsePipes, ValidationPipe, Logger } from '@nestjs/common';
+import { UseFilters, UsePipes, ValidationPipe, Inject } from '@nestjs/common';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { WAITING_ERROR_CODES } from './constants/waiting.constant';
 import { wsError } from 'src/common/utils/ws-error.util';
@@ -23,6 +23,8 @@ import { UpdateOutfitDto } from './dtos/requests/update-outfit.dto';
 import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import type { Logger } from 'winston';
 
 interface JwtPayload {
   sub: string;
@@ -62,12 +64,13 @@ interface ClientData {
 })
 export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
-  private readonly logger = new Logger(WaitingGateway.name);
 
   constructor(
     private readonly waitingService: WaitingService,
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER)
+    private readonly logger: Logger,
   ) {}
 
   handleConnection(client: Socket) {
@@ -90,7 +93,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
         userId: Number(payload.sub),
         nickname: payload.nickname,
       };
-      this.logger.log(`User connected: ${payload.nickname} (${client.id})`);
+      this.logger.info(`User connected: ${payload.nickname}`);
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
       const error = wsError(
@@ -108,7 +111,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     const data = client.data as ClientData;
 
     if (!data?.userId || !data?.roomId) {
-      this.logger.log(`Client disconnected: ${client.id}`);
+      this.logger.info(`User disconnected: ${data?.nickname ?? 'Unknown'}`);
       return;
     }
 
