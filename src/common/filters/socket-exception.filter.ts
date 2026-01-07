@@ -1,5 +1,5 @@
 import { ArgumentsHost, Catch, Inject } from '@nestjs/common';
-import type { LoggerService, HttpException, HttpStatus } from '@nestjs/common';
+import type { LoggerService } from '@nestjs/common';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { BaseWsExceptionFilter, WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
