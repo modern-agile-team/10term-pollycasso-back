@@ -9,10 +9,10 @@ import {
   Length,
   MaxLength,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
 import { RoomMode } from '@prisma/client';
+import { ApiProperty } from '@nestjs/swagger';
 
-export class UpdateRoomDto {
+export class UpdateSettingsDto {
   @IsOptional()
   @MaxLength(15)
   @IsNotEmpty()

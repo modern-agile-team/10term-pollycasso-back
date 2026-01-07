@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { ChatModule } from './chat/chat.module';
+import { WaitingModule } from './room/states/waiting/waiting.module';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import { utilities } from 'nest-winston';
@@ -40,6 +41,7 @@ import WinstonCloudwatch from 'winston-cloudwatch';
     AuthModule,
     UsersModule,
     RoomsModule,
+    WaitingModule,
     ChatModule,
   ],
   controllers: [AppController],

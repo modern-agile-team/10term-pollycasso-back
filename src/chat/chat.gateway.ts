@@ -22,7 +22,7 @@ interface JwtPayload {
 }
 
 interface ClientData {
-  userId: string;
+  userId: number;
   nickname: string;
 }
 
@@ -84,7 +84,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (!token) {
       const error = wsError(401, CHAT_ERROR_CODES.ACCESS_TOKEN_MISSING);
-      client.emit('exception', error.getError());
+      client.emit('system:notification', error.getError());
       client.disconnect();
       return;
     }
@@ -93,7 +93,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const payload = this.jwtService.verify<JwtPayload>(token);
 
       client.data = {
-        userId: payload.sub,
+        userId: Number(payload.sub),
         nickname: payload.nickname,
       };
 
@@ -109,7 +109,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           : CHAT_ERROR_CODES.INVALID_ACCESS_TOKEN,
       );
 
-      client.emit('exception', error.getError());
+      client.emit('system:notification', error.getError());
       client.disconnect();
     }
   }
@@ -129,7 +129,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       const message = this.chatService.createLobbyMessage({
-        senderId: clientData.userId,
+        senderId: clientData.userId.toString(),
         nickname: clientData.nickname,
         message: data.message,
       });
