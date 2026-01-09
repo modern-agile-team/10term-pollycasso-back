@@ -8,6 +8,7 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { UsePipes, ValidationPipe, UseFilters, Inject } from '@nestjs/common';
+import type { LoggerService } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
@@ -16,7 +17,6 @@ import { CHAT_ERROR_CODES } from './constants/chat.constant';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { wsError } from 'src/common/utils/ws-error.util';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
-import type { Logger } from 'winston';
 
 interface JwtPayload {
   sub: string;
@@ -61,7 +61,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
     @Inject(WINSTON_MODULE_NEST_PROVIDER)
-    private readonly logger: Logger,
+    private readonly logger: LoggerService,
   ) {}
 
   private getClientData(client: Socket): ClientData | null {
@@ -100,7 +100,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
 
       void client.join('lobby');
-      this.logger.info(`User connected: ${payload.nickname}`);
+      this.logger.log(`User connected: ${payload.nickname}`);
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
 
@@ -118,7 +118,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleDisconnect(client: Socket) {
     const data = this.getClientData(client);
-    this.logger.info(`User disconnected: ${data?.nickname ?? 'Unknown'}`);
+    this.logger.log(`User disconnected: ${data?.nickname ?? 'Unknown'}`);
   }
 
   @SubscribeMessage('lobby:send')
@@ -137,9 +137,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       void this.server.to('lobby').emit('lobby:message', message);
-      this.logger.debug(`Message sent by ${clientData.nickname}: ${data.message}`);
-    } catch (error) {
-      this.logger.error(error);
+    } catch (_error) {
       throw wsError(500, CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
     }
   }
