@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, Inject } from '@nestjs/common';
+import { ArgumentsHost, Catch, Inject, HttpException } from '@nestjs/common';
 import type { LoggerService } from '@nestjs/common';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { BaseWsExceptionFilter, WsException } from '@nestjs/websockets';
@@ -32,10 +32,18 @@ export class SocketExceptionFilter extends BaseWsExceptionFilter {
   override catch(exception: unknown, host: ArgumentsHost) {
     const client = host.switchToWs().getClient<Socket>();
 
-    const raw: unknown =
-      exception instanceof WsException ? (exception.getError?.() ?? exception) : exception;
+    let raw: unknown = exception;
+    let status = 500;
 
-    const status = hasStatus(raw) ? raw.status : 500;
+    if (exception instanceof WsException) {
+      raw = exception.getError?.() ?? exception;
+      status = hasStatus(raw) ? raw.status : 500;
+    }
+
+    else if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      raw = exception.getResponse();
+    }
 
     const normalized = buildErrorResponse(raw as WsErrorPayload, status);
 
