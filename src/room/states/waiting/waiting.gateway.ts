@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { WaitingService } from './waiting.service';
-import { UseFilters, UsePipes, ValidationPipe, Logger } from '@nestjs/common';
+import { UseFilters, UsePipes, ValidationPipe, Inject } from '@nestjs/common';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { WAITING_ERROR_CODES } from './constants/waiting.constant';
 import { wsError } from 'src/common/utils/ws-error.util';
@@ -23,6 +23,8 @@ import { UpdateOutfitDto } from './dtos/requests/update-outfit.dto';
 import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import type { LoggerService } from '@nestjs/common';
 
 interface JwtPayload {
   sub: string;
@@ -62,12 +64,13 @@ interface ClientData {
 })
 export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
-  private readonly logger = new Logger(WaitingGateway.name);
 
   constructor(
     private readonly waitingService: WaitingService,
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER)
+    private readonly logger: LoggerService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -90,7 +93,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
         userId: Number(payload.sub),
         nickname: payload.nickname,
       };
-      this.logger.log(`User connected: ${payload.nickname} (${client.id})`);
+      this.logger.log(`User connected: ${payload.nickname}`);
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
       const error = wsError(
@@ -108,33 +111,26 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     const data = client.data as ClientData;
 
     if (!data?.userId || !data?.roomId) {
-      this.logger.log(`Client disconnected: ${client.id}`);
+      this.logger.log(`User disconnected: ${data?.nickname ?? 'Unknown'}`);
       return;
     }
+    const playersBeforeLeave = await this.waitingService.getPlayers(data.roomId);
+    const wasLastPlayer = playersBeforeLeave.length === 1;
+    const leavingPlayer = playersBeforeLeave.find((p) => p.userId === data.userId);
 
-    try {
-      const playersBeforeLeave = await this.waitingService.getPlayers(data.roomId);
-      const wasLastPlayer = playersBeforeLeave.length === 1;
-      const leavingPlayer = playersBeforeLeave.find((p) => p.userId === data.userId);
+    await this.waitingService.leaveRoom(data.roomId, data.userId);
 
-      await this.waitingService.leaveRoom(data.roomId, data.userId);
+    if (!wasLastPlayer) {
+      this.server.to(`room:${data.roomId}`).emit('room:syncPlayerList', {
+        players: await this.waitingService.getPlayers(data.roomId),
+      });
 
-      if (!wasLastPlayer) {
-        this.server.to(`room:${data.roomId}`).emit('room:syncPlayerList', {
-          players: await this.waitingService.getPlayers(data.roomId),
+      if (leavingPlayer) {
+        const systemMessage = this.chatService.createSystemMessage({
+          message: `${leavingPlayer.nickname}님이 퇴장했습니다.`,
         });
-
-        if (leavingPlayer) {
-          const systemMessage = this.chatService.createSystemMessage({
-            message: `${leavingPlayer.nickname}님이 퇴장했습니다.`,
-          });
-          this.server.to(`room:${data.roomId}`).emit('room:systemMessage', systemMessage);
-        }
+        this.server.to(`room:${data.roomId}`).emit('room:systemMessage', systemMessage);
       }
-
-      this.logger.debug(`User ${data.userId} left room ${data.roomId}`);
-    } catch (error) {
-      this.logger.error('Error handling disconnect:', error);
     }
   }
 
@@ -158,22 +154,16 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     if (clientData.roomId && clientData.roomId !== body.roomId) {
-      try {
-        const previousRoomId = clientData.roomId;
-        const playersBeforeLeave = await this.waitingService.getPlayers(previousRoomId);
+      const previousRoomId = clientData.roomId;
+      const playersBeforeLeave = await this.waitingService.getPlayers(previousRoomId);
 
-        await this.waitingService.leaveRoom(previousRoomId, clientData.userId);
-        await client.leave(`room:${previousRoomId}`);
+      await this.waitingService.leaveRoom(previousRoomId, clientData.userId);
+      await client.leave(`room:${previousRoomId}`);
 
-        if (playersBeforeLeave.length > 1) {
-          this.server.to(`room:${previousRoomId}`).emit('room:syncPlayerList', {
-            players: await this.waitingService.getPlayers(previousRoomId),
-          });
-        }
-
-        this.logger.debug(`User ${clientData.userId} left previous room ${previousRoomId}`);
-      } catch (error) {
-        this.logger.warn(`Failed to leave previous room: ${error}`);
+      if (playersBeforeLeave.length > 1) {
+        this.server.to(`room:${previousRoomId}`).emit('room:syncPlayerList', {
+          players: await this.waitingService.getPlayers(previousRoomId),
+        });
       }
     }
 
@@ -192,7 +182,6 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     this.server.to(`room:${body.roomId}`).emit('room:systemMessage', systemMessage);
 
     client.emit('room:joinSuccess', state);
-    this.logger.debug(`User ${clientData.userId} joined room ${body.roomId}`);
   }
 
   @SubscribeMessage('room:readyToggle')
@@ -323,11 +312,8 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     if (targetClient) {
       (targetClient.data as ClientData).roomId = undefined;
 
-      targetClient.emit('system:notification', {
-        status: 403,
-        code: 'ROOM_KICKED',
-        errors: [],
-      });
+      const error = wsError(403, WAITING_ERROR_CODES.ROOM_KICKED);
+      targetClient.emit('system:notification', error.getError());
 
       targetClient.leave(`room:${roomId}`);
       targetClient.disconnect();
@@ -417,8 +403,6 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     client.emit('room:leave', { success: true });
     (client.data as ClientData).roomId = undefined;
-
-    this.logger.debug(`User ${userId} left room ${roomId}`);
   }
 
   @SubscribeMessage('room:send')
@@ -443,7 +427,5 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     });
 
     this.server.to(`room:${roomId}`).emit('room:message', message);
-
-    this.logger.debug(`Message sent in room ${roomId} by ${player.nickname}: ${body.message}`);
   }
 }

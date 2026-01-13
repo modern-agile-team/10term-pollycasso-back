@@ -7,7 +7,8 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { UsePipes, ValidationPipe, UseFilters, Logger } from '@nestjs/common';
+import { UsePipes, ValidationPipe, UseFilters, Inject } from '@nestjs/common';
+import type { LoggerService } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
@@ -15,6 +16,7 @@ import { SendMessageDto } from './dtos/requests/send-message.dto';
 import { CHAT_ERROR_CODES } from './constants/chat.constant';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { wsError } from 'src/common/utils/ws-error.util';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 interface JwtPayload {
   sub: string;
@@ -55,11 +57,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  private readonly logger = new Logger(ChatGateway.name);
-
   constructor(
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER)
+    private readonly logger: LoggerService,
   ) {}
 
   private getClientData(client: Socket): ClientData | null {
@@ -135,9 +137,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       void this.server.to('lobby').emit('lobby:message', message);
-      this.logger.debug(`Message sent by ${clientData.nickname}: ${data.message}`);
-    } catch (error) {
-      this.logger.error(error);
+    } catch (_error) {
       throw wsError(500, CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
     }
   }
