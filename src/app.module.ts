@@ -9,6 +9,7 @@ import { PrismaService } from './prisma/prisma.service';
 import { ConfigModule } from '@nestjs/config';
 import { ChatModule } from './chat/chat.module';
 import { WaitingModule } from './room/states/waiting/waiting.module';
+import { GameModule } from './room/states/game/game.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { WaitingModule } from './room/states/waiting/waiting.module';
     RoomsModule,
     WaitingModule,
     ChatModule,
+    GameModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
