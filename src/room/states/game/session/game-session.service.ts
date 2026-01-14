@@ -4,6 +4,9 @@ import { GAME_EVENT_PUBLISHER } from '../interfaces/game-event-publisher.interfa
 import type { IGameStateStore } from '../interfaces/game-state-store.interfaces';
 import type { IGameEventPublisher } from '../interfaces/game-event-publisher.interfaces';
 import { TopicService } from '../topic/topic.service';
+import { GameSessionEntity } from '../entities/game-session.entity';
+import { RANDOM_THEMES } from '../topic/constants/topic.constant';
+import { GAME_ERRORS } from '../constants/game.constant';
 
 @Injectable()
 export class GameSessionService {
@@ -22,7 +25,6 @@ export class GameSessionService {
 
     setTimeout(async () => {
       const current = await this.gameStateStore.get(roomId);
-
       if (!current || current.phase !== GamePhase.LOADING) return;
 
       const themeContext = await this.topicService.buildThemeSelectionContext(roomId);
@@ -30,30 +32,41 @@ export class GameSessionService {
 
       const { selectorId, selectorNickname } = themeContext;
 
-      const next = await this.gameStateStore.patch(roomId, {
-        phase: GamePhase.THEME_SELECTING,
-        endsAt: Date.now() + 32000,
-        phaseContext: { kind: GamePhase.THEME_SELECTING, selectorId, selectorNickname },
-      });
+      try {
+        const entity = GameSessionEntity.restore(current);
+        entity.startThemeSelection(selectorId, selectorNickname);
 
-      this.eventPublisher.broadcastGameState(roomId, next);
+        await this.gameStateStore.set(roomId, entity.state as any);
+
+        this.eventPublisher.broadcastGameState(roomId, entity.state);
+      } catch (e) {
+        if (e instanceof Error && e.message === GAME_ERRORS.PHASE_MUST_BE_LOADING) {
+          return;
+        }
+        console.error(`[startTopicPhase] Error in room ${roomId}:`, e);
+      }
     }, delay);
+    1;
   }
 
   // 주제 확정 및 DRAWING 단계 시작 처리
-  async startDrawingPhase(roomId: number, currentTheme: string) {
-    const nextState = await this.gameStateStore.patch(roomId, {
-      phase: GamePhase.DRAWING,
-      endsAt: Date.now() + 60000,
-      currentTheme,
-      currentRound: 1,
-      totalRounds: 3,
-      phaseContext: null,
-    });
+  async startDrawingPhase(roomId: number, userId: number, typedValue: string) {
+    const state = await this.gameStateStore.get(roomId);
+    if (!state) return null;
 
-    this.eventPublisher.emitThemeConfirmed(roomId, currentTheme);
-    this.eventPublisher.broadcastGameState(roomId, nextState);
+    const entity = GameSessionEntity.restore(state);
 
-    return nextState;
+    const trimmed = (typedValue ?? '').trim();
+
+    const theme = trimmed ? trimmed : entity.pickRandomTheme(RANDOM_THEMES);
+
+    entity.startDrawing(userId, theme);
+
+    await this.gameStateStore.set(roomId, entity.state as any);
+
+    this.eventPublisher.emitThemeConfirmed(roomId, entity.currentTheme);
+    this.eventPublisher.broadcastGameState(roomId, entity.state);
+
+    return entity.state;
   }
 }

@@ -46,23 +46,11 @@ export class TopicGateway {
     const { roomId, userId } = client.data;
     if (!roomId) return;
 
-    const state = await this.gameStateStore.get(roomId);
-
-    if (!state || state.phase !== GamePhase.THEME_SELECTING) return;
-
-    if (!state.phaseContext || state.phaseContext.kind !== GamePhase.THEME_SELECTING) {
-      return;
+    try {
+      await this.gameSessionService.startDrawingPhase(roomId, userId, data.value);
+    } catch (e) {
+      console.error(e.message);
     }
-
-    if (state.phaseContext.selectorId !== userId) {
-      return;
-    }
-
-    const inputVal = (data.value || '').trim();
-
-    const currentTheme = inputVal ? inputVal : this.topicService.pickRandomTheme(roomId);
-
-    await this.gameSessionService.startDrawingPhase(roomId, currentTheme);
   }
 
   @SubscribeMessage('test:setPhase')

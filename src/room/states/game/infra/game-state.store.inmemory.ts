@@ -9,6 +9,7 @@ function defaultState(): GameState {
     totalRounds: null,
     phaseContext: null,
     currentTheme: null,
+    recentThemes: [],
   };
 }
 
@@ -31,6 +32,7 @@ export class InMemoryGameStateStore implements IGameStateStore {
       ...prev,
       ...partial,
       phaseContext: partial.phaseContext === undefined ? prev.phaseContext : partial.phaseContext,
+      recentThemes: partial.recentThemes === undefined ? prev.recentThemes : partial.recentThemes,
     };
 
     this.map.set(roomId, next);
