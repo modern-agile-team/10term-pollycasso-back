@@ -62,6 +62,9 @@ export class GameSessionEntity {
     this._state.currentRound = 1;
     this._state.totalRounds = 3;
     this._state.phaseContext = null;
+
+    const currentRecent = this._state.recentThemes ?? [];
+    this._state.recentThemes = [trimmed, ...currentRecent].slice(0, 3);
   }
 
   pickRandomTheme(pool: string[]): string {
@@ -72,10 +75,6 @@ export class GameSessionEntity {
 
     const idx = Math.floor(Math.random() * finalPool.length);
     const selected = finalPool[idx];
-
-    const nextRecent = [selected, ...recent].slice(0, 3);
-
-    this._state.recentThemes = nextRecent;
 
     return selected;
   }

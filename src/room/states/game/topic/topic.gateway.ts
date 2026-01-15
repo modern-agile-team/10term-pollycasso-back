@@ -8,7 +8,6 @@ import {
 } from '@nestjs/websockets';
 import { Server } from 'socket.io';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
-import { TopicService } from './topic.service';
 import { GAME_STATE_STORE, GamePhase } from '../interfaces/game-state-store.interfaces';
 import type { GameState, IGameStateStore } from '../interfaces/game-state-store.interfaces';
 import { TopicDto } from './dtos/requests/topic.dto';
@@ -25,7 +24,6 @@ import { GameSessionService } from '../session/game-session.service';
 })
 export class TopicGateway {
   constructor(
-    private readonly topicService: TopicService,
     private readonly gameSessionService: GameSessionService,
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
   ) {}
@@ -49,7 +47,11 @@ export class TopicGateway {
     try {
       await this.gameSessionService.startDrawingPhase(roomId, userId, data.value);
     } catch (e) {
-      console.error(e.message);
+      if (e instanceof Error) {
+        console.error(e.message);
+      } else {
+        console.error(e);
+      }
     }
   }
 
@@ -77,7 +79,7 @@ export class TopicGateway {
     if (data.phase === GamePhase.THEME_SELECTING) {
       patch.phaseContext = {
         kind: GamePhase.THEME_SELECTING,
-        selectorId: data.selectorId ?? client.data.userId, // 기본은 자기 자신
+        selectorId: data.selectorId ?? client.data.userId,
       };
       patch.currentTheme = null;
     } else if (data.phase === GamePhase.DRAWING) {
@@ -85,14 +87,10 @@ export class TopicGateway {
       patch.currentTheme = data.currentTheme ?? 'TEST_THEME';
     } else {
       patch.phaseContext = null;
-      // 필요하면 다른 phase별 초기화 추가
     }
 
     const next = await this.gameStateStore.patch(roomId, patch);
 
-    // 테스트할 때 바로 눈에 보이게 브로드캐스트까지
     this.server.to(`game:room:${roomId}`).emit('room:updateGameState', next);
-
-    console.log(`[TEST] Room ${roomId} phase forced to ${data.phase}`);
   }
 }

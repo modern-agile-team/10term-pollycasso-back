@@ -5,8 +5,6 @@ import { WAITING_ERROR_CODES } from '../waiting/constants/waiting.constant';
 import { wsError } from 'src/common/utils/ws-error.util';
 import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
-import { WaitingService } from '../waiting/waiting.service';
-import { ChatService } from 'src/chat/chat.service';
 import { JwtService } from '@nestjs/jwt';
 import { WaitingState } from '../waiting/waiting.state';
 
@@ -39,8 +37,6 @@ export class GameGateway implements IGameEventPublisher {
   private readonly logger = new Logger(GameGateway.name);
 
   constructor(
-    private readonly waitingService: WaitingService,
-    private readonly chatService: ChatService,
     private readonly waitingState: WaitingState,
     private readonly jwtService: JwtService,
   ) {}
@@ -77,7 +73,7 @@ export class GameGateway implements IGameEventPublisher {
         const hostId = await this.waitingState.getHostId(roomId);
         data.isHost = hostId === userId;
 
-        client.join(`game:room:${roomId}`);
+        await client.join(`game:room:${roomId}`);
       }
 
       client.data = data;

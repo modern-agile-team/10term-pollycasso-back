@@ -23,30 +23,28 @@ export class GameSessionService {
 
     const delay = Math.max(0, state.endsAt - Date.now());
 
-    setTimeout(async () => {
-      const current = await this.gameStateStore.get(roomId);
-      if (!current || current.phase !== GamePhase.LOADING) return;
+    setTimeout(() => {
+      void (async () => {
+        const current = await this.gameStateStore.get(roomId);
+        if (!current || current.phase !== GamePhase.LOADING) return;
 
-      const themeContext = await this.topicService.buildThemeSelectionContext(roomId);
-      if (!themeContext) return;
+        const themeContext = await this.topicService.buildThemeSelectionContext(roomId);
+        if (!themeContext) return;
 
-      const { selectorId, selectorNickname } = themeContext;
+        const { selectorId, selectorNickname } = themeContext;
 
-      try {
-        const entity = GameSessionEntity.restore(current);
-        entity.startThemeSelection(selectorId, selectorNickname);
+        try {
+          const entity = GameSessionEntity.restore(current);
+          entity.startThemeSelection(selectorId, selectorNickname);
 
-        await this.gameStateStore.set(roomId, entity.state as any);
-
-        this.eventPublisher.broadcastGameState(roomId, entity.state);
-      } catch (e) {
-        if (e instanceof Error && e.message === GAME_ERRORS.PHASE_MUST_BE_LOADING) {
-          return;
+          await this.gameStateStore.set(roomId, entity.state);
+          this.eventPublisher.broadcastGameState(roomId, entity.state);
+        } catch (e) {
+          if (e instanceof Error && e.message === GAME_ERRORS.PHASE_MUST_BE_LOADING) return;
+          console.error(`[startTopicPhase] Error in room ${roomId}:`, e);
         }
-        console.error(`[startTopicPhase] Error in room ${roomId}:`, e);
-      }
+      })();
     }, delay);
-    1;
   }
 
   // 주제 확정 및 DRAWING 단계 시작 처리
@@ -62,7 +60,7 @@ export class GameSessionService {
 
     entity.startDrawing(userId, theme);
 
-    await this.gameStateStore.set(roomId, entity.state as any);
+    await this.gameStateStore.set(roomId, entity.state);
 
     this.eventPublisher.emitThemeConfirmed(roomId, entity.currentTheme);
     this.eventPublisher.broadcastGameState(roomId, entity.state);

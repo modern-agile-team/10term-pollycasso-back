@@ -17,15 +17,16 @@ function defaultState(): GameState {
 export class InMemoryGameStateStore implements IGameStateStore {
   private readonly map = new Map<number, GameState>();
 
-  async get(roomId: number): Promise<GameState | null> {
-    return this.map.get(roomId) ?? null;
+  get(roomId: number): Promise<GameState | null> {
+    return Promise.resolve(this.map.get(roomId) ?? null);
   }
 
-  async set(roomId: number, state: GameState): Promise<void> {
+  set(roomId: number, state: GameState): Promise<void> {
     this.map.set(roomId, { ...state });
+    return Promise.resolve();
   }
 
-  async patch(roomId: number, partial: Partial<GameState>): Promise<GameState> {
+  patch(roomId: number, partial: Partial<GameState>): Promise<GameState> {
     const prev = this.map.get(roomId) ?? defaultState();
 
     const next: GameState = {
@@ -36,10 +37,11 @@ export class InMemoryGameStateStore implements IGameStateStore {
     };
 
     this.map.set(roomId, next);
-    return next;
+    return Promise.resolve(next);
   }
 
-  async clear(roomId: number): Promise<void> {
+  clear(roomId: number): Promise<void> {
     this.map.delete(roomId);
+    return Promise.resolve();
   }
 }
