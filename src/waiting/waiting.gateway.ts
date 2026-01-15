@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { WaitingService } from './waiting.service';
-import { UseFilters, UsePipes, ValidationPipe, Logger } from '@nestjs/common';
+import { UseFilters, UsePipes, ValidationPipe, Inject } from '@nestjs/common';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import {
   WAITING_ERROR_CODES,
@@ -69,7 +69,6 @@ interface ClientData {
 })
 export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
-  private readonly logger = new Logger(WaitingGateway.name);
 
   constructor(
     private readonly waitingService: WaitingService,
@@ -98,7 +97,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
         userId: Number(payload.sub),
         nickname: payload.nickname,
       };
-      this.logger.log(`User connected: ${payload.nickname} (${client.id})`);
+      this.logger.log(`User connected: ${payload.nickname}`);
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
       const error = wsError(
@@ -169,7 +168,11 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     if (clientData.roomId && clientData.roomId !== body.roomId) {
       const previousRoomId = clientData.roomId;
       const playersBeforeLeave = await this.waitingService.getPlayers(previousRoomId);
+      const previousRoomId = clientData.roomId;
+      const playersBeforeLeave = await this.waitingService.getPlayers(previousRoomId);
 
+      await this.waitingService.leaveRoom(previousRoomId, clientData.userId);
+      await client.leave(`room:${previousRoomId}`);
       await this.waitingService.leaveRoom(previousRoomId, clientData.userId);
       await client.leave(`room:${previousRoomId}`);
 
