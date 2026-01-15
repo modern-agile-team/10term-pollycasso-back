@@ -148,7 +148,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     return null;
   }
 
-  private emitPlayerListSync(roomId: number, players: WaitingPlayerState[]) {
+  private emitPlayerListSync(roomId: number, players: WaitingPlayerState[] | unknown[]) {
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_SYNC_PLAYER_LIST, {
       players,
     });
