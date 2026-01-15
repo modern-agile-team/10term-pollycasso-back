@@ -23,7 +23,6 @@ export const WAITING_ERROR_CODES = {
   INVALID_TEAM: 'INVALID_TEAM',
   TEAM_IMBALANCE: 'TEAM_IMBALANCE',
   MAX_PLAYERS_LESS_THAN_CURRENT: 'MAX_PLAYERS_LESS_THAN_CURRENT',
-  ROOM_KICKED: 'ROOM_KICKED',
 } as const;
 
 export const WAITING_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {

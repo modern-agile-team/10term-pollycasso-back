@@ -29,7 +29,6 @@ import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
 import { GameStateStore } from 'src/game-state/game-state.store';
 import { GamePhase } from 'src/game-state/interfaces/game-state.interface';
-import { WaitingPlayerState } from './waiting.store';
 
 interface JwtPayload {
   sub: string;
