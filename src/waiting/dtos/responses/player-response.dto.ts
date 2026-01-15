@@ -23,7 +23,7 @@ export class PlayerResponseDto {
     example: PlayerPageStatus.IDLE,
     enum: PlayerPageStatus,
   })
-  pageStatus: PlayerPageStatus;
+  status: PlayerPageStatus;
 
   @ApiProperty({
     description: '아웃핏 (코디)',
@@ -38,7 +38,7 @@ export class PlayerResponseDto {
     team: Team;
     isReady: boolean;
     level: number;
-    pageStatus?: PlayerPageStatus;
+    status?: PlayerPageStatus;
     outfit?: Record<string, unknown>;
   }) {
     this.userId = data.userId;
@@ -46,7 +46,7 @@ export class PlayerResponseDto {
     this.team = data.team;
     this.isReady = data.isReady;
     this.level = data.level;
-    this.pageStatus = data.pageStatus || PlayerPageStatus.IDLE;
+    this.status = data.status || PlayerPageStatus.IDLE;
     this.outfit = data.outfit;
   }
 }

@@ -15,7 +15,7 @@ export interface WaitingPlayerState {
 }
 
 @Injectable()
-export class WaitingState {
+export class WaitingStore {
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
   private getMembersKey(roomId: number) {
@@ -39,10 +39,11 @@ export class WaitingState {
   }
 
   async joinRoom(roomId: number, player: WaitingPlayerState, isHost: boolean) {
-    await this.redis.set(this.getUserRoomKey(player.userId), roomId.toString());
+    const pipeline = this.redis.pipeline();
 
-    await this.redis.sadd(this.getMembersKey(roomId), player.userId.toString());
-    await this.redis.hset(this.getPlayerKey(roomId, player.userId), {
+    pipeline.set(this.getUserRoomKey(player.userId), roomId.toString());
+    pipeline.sadd(this.getMembersKey(roomId), player.userId.toString());
+    pipeline.hset(this.getPlayerKey(roomId, player.userId), {
       userId: player.userId.toString(),
       nickname: player.nickname,
       team: player.team,
@@ -53,18 +54,23 @@ export class WaitingState {
     });
 
     if (isHost) {
-      await this.redis.set(this.getHostKey(roomId), player.userId.toString());
+      pipeline.set(this.getHostKey(roomId), player.userId.toString());
     }
+
+    await pipeline.exec();
   }
 
   async leaveRoom(roomId: number, userId: number) {
-    await this.redis.del(this.getUserRoomKey(userId));
-
-    await this.redis.srem(this.getMembersKey(roomId), userId.toString());
-    await this.redis.del(this.getPlayerKey(roomId, userId));
-
     const hostId = await this.redis.get(this.getHostKey(roomId));
-    if (hostId === userId.toString()) {
+    const isHost = hostId === userId.toString();
+
+    const pipeline = this.redis.pipeline();
+    pipeline.del(this.getUserRoomKey(userId));
+    pipeline.srem(this.getMembersKey(roomId), userId.toString());
+    pipeline.del(this.getPlayerKey(roomId, userId));
+    await pipeline.exec();
+
+    if (isHost) {
       await this.autoTransferHost(roomId);
     }
   }
@@ -149,6 +155,16 @@ export class WaitingState {
     return status === 'STARTED';
   }
 
+  async markGameStartedAtomic(roomId: number, ttlSeconds: number): Promise<boolean> {
+    const key = this.getRoomStartedKey(roomId);
+    const result = await this.redis.set(key, '1', 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  }
+
+  private getRoomStartedKey(roomId: number): string {
+    return `waiting:room:${roomId}:started`;
+  }
+
   async getCurrentRoom(userId: number): Promise<number | null> {
     const roomId = await this.redis.get(this.getUserRoomKey(userId));
     return roomId ? Number(roomId) : null;
@@ -172,8 +188,10 @@ export class WaitingState {
   private async autoTransferHost(roomId: number) {
     const players = await this.getPlayers(roomId);
     if (players.length > 0) {
-      await this.redis.set(this.getHostKey(roomId), players[0].userId.toString());
-      await this.setReady(roomId, players[0].userId, true);
+      const pipeline = this.redis.pipeline();
+      pipeline.set(this.getHostKey(roomId), players[0].userId.toString());
+      pipeline.hset(this.getPlayerKey(roomId, players[0].userId), 'isReady', '1');
+      await pipeline.exec();
     } else {
       await this.redis.del(this.getHostKey(roomId));
     }
