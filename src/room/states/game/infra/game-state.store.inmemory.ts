@@ -8,7 +8,7 @@ function defaultState(): GameState {
     currentRound: null,
     totalRounds: null,
     phaseContext: null,
-    currentTheme: null,
+    currentTheme: undefined,
     recentThemes: [],
   };
 }

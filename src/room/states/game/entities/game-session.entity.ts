@@ -5,17 +5,24 @@ export class GameSessionEntity {
   private constructor(private _state: GameState) {}
 
   static restore(state: GameState): GameSessionEntity {
-    return new GameSessionEntity({ ...state, recentThemes: state.recentThemes ?? [] });
+    const cloned = structuredClone(state);
+    return new GameSessionEntity({ ...cloned, recentThemes: cloned.recentThemes ?? [] });
   }
 
   get state(): Readonly<GameState> {
-    return this._state;
+    return structuredClone(this._state);
   }
-  get currentTheme(): string {
-    if (!this._state.currentTheme) {
+
+  get currentTheme(): string | undefined {
+    return this._state.currentTheme;
+  }
+
+  getConfirmedTheme(): string {
+    const theme = this._state.currentTheme;
+    if (!theme) {
       throw new Error(GAME_ERRORS.THEME_NOT_SET);
     }
-    return this._state.currentTheme;
+    return theme;
   }
 
   startThemeSelection(selectorId: number, selectorNickname?: string): void {
@@ -24,9 +31,9 @@ export class GameSessionEntity {
     }
 
     this._state.phase = GamePhase.THEME_SELECTING;
-    this._state.endsAt = Date.now() + 32000;
+    this._state.endsAt = Date.now() + 32000; // 32초
 
-    this._state.currentTheme = null;
+    this._state.currentTheme = undefined;
 
     this._state.phaseContext = {
       kind: GamePhase.THEME_SELECTING,
@@ -50,21 +57,21 @@ export class GameSessionEntity {
       throw new Error(GAME_ERRORS.PERMISSION_DENIED_SELECTOR);
     }
 
-    const trimmed = (theme ?? '').trim();
-    if (!trimmed) {
+    const trimmedTheme = theme.trim();
+    if (!trimmedTheme) {
       throw new Error(GAME_ERRORS.THEME_INVALID);
     }
 
     this._state.phase = GamePhase.DRAWING;
-    this._state.currentTheme = trimmed;
-    this._state.endsAt = Date.now() + 92000;
+    this._state.currentTheme = trimmedTheme;
+    this._state.endsAt = Date.now() + 92000; // 92초
 
     this._state.currentRound = 1;
     this._state.totalRounds = 3;
     this._state.phaseContext = null;
 
     const currentRecent = this._state.recentThemes ?? [];
-    this._state.recentThemes = [trimmed, ...currentRecent].slice(0, 3);
+    this._state.recentThemes = [trimmedTheme, ...currentRecent].slice(0, 3);
   }
 
   pickRandomTheme(pool: string[]): string {

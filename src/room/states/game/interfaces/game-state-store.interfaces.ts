@@ -28,7 +28,7 @@ export interface GameState {
   endsAt: number | null;
   currentRound: number | null;
   totalRounds: number | null;
-  currentTheme: string | null;
+  currentTheme?: string;
   recentThemes: string[];
   phaseContext: PhaseContext;
 }

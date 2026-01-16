@@ -81,7 +81,7 @@ export class TopicGateway {
         kind: GamePhase.THEME_SELECTING,
         selectorId: data.selectorId ?? client.data.userId,
       };
-      patch.currentTheme = null;
+      patch.currentTheme = undefined;
     } else if (data.phase === GamePhase.DRAWING) {
       patch.phaseContext = null;
       patch.currentTheme = data.currentTheme ?? 'TEST_THEME';

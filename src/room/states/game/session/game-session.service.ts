@@ -62,7 +62,7 @@ export class GameSessionService {
 
     await this.gameStateStore.set(roomId, entity.state);
 
-    this.eventPublisher.emitThemeConfirmed(roomId, entity.currentTheme);
+    this.eventPublisher.emitThemeConfirmed(roomId, entity.getConfirmedTheme());
     this.eventPublisher.broadcastGameState(roomId, entity.state);
 
     return entity.state;
