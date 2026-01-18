@@ -4,11 +4,11 @@ import { TopicService } from './topic/topic.service';
 import { GAME_STATE_STORE } from './interfaces/game-state-store.interfaces';
 import { InMemoryGameStateStore } from './infra/game-state.store.inmemory';
 import { GameGateway } from './game.gateway';
-import { WaitingModule } from '../waiting/waiting.module';
 import { ChatModule } from 'src/chat/chat.module';
 import { JwtModule } from '@nestjs/jwt';
 import { GAME_EVENT_PUBLISHER } from './interfaces/game-event-publisher.interfaces';
 import { GameSessionService } from './session/game-session.service';
+import { WaitingModule } from 'src/waiting/waiting.module';
 
 @Module({
   imports: [

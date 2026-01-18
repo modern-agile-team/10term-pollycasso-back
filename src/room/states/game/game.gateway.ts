@@ -1,12 +1,12 @@
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { IGameEventPublisher } from './interfaces/game-event-publisher.interfaces';
 import { Server, Socket } from 'socket.io';
-import { WAITING_ERROR_CODES } from '../waiting/constants/waiting.constant';
 import { wsError } from 'src/common/utils/ws-error.util';
 import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
-import { WaitingState } from '../waiting/waiting.state';
+import { WAITING_ERROR_CODES } from 'src/waiting/constants/waiting.constant';
+import { WaitingStore } from 'src/waiting/waiting.store';
 
 @UsePipes(
   new ValidationPipe({
@@ -37,7 +37,7 @@ export class GameGateway implements IGameEventPublisher {
   private readonly logger = new Logger(GameGateway.name);
 
   constructor(
-    private readonly waitingState: WaitingState,
+    private readonly waitingState: WaitingStore,
     private readonly jwtService: JwtService,
   ) {}
 
