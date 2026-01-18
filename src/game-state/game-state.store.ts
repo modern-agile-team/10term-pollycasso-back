@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
 import { GameState } from './interfaces/game-state.interface';
+import { RedisService } from 'src/redis/redis.service';
 
 @Injectable()
 export class GameStateStore {
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  constructor(private readonly redis: RedisService) {}
 
   private getKey(roomId: number): string {
     return `game:state:${roomId}`;
@@ -18,14 +17,12 @@ export class GameStateStore {
   }
 
   async set(roomId: number, state: GameState): Promise<void> {
-    await this.redis.set(this.getKey(roomId), JSON.stringify(state), 'EX', 3600);
+    await this.redis.set(this.getKey(roomId), JSON.stringify(state), 3600);
   }
 
   async patch(roomId: number, partial: Partial<GameState>): Promise<GameState | null> {
     const current = await this.get(roomId);
-    if (!current) {
-      return null;
-    }
+    if (!current) return null;
 
     const updated: GameState = { ...current, ...partial };
     await this.set(roomId, updated);
