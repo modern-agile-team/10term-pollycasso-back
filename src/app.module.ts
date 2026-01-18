@@ -5,6 +5,8 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './user/user.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ChatModule } from './chat/chat.module';
+import { WaitingModule } from './room/states/waiting/waiting.module';
+import { GameModule } from './room/states/game/game.module';
 import { WinstonModule } from 'nest-winston';
 import { winstonConfig } from './config/winston.config';
 import { AppController } from './app.controller';
@@ -26,6 +28,7 @@ import { GameStateModule } from './game-state/game-state.module';
     WaitingModule,
     ChatModule,
     GameStateModule,
+    GameModule,
   ],
   controllers: [AppController],
   providers: [AppService],
