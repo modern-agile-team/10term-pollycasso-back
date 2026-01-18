@@ -43,7 +43,6 @@ enum MatchStatus {
 enum RoomStatus {
   WAITING
   IN_PROGRESS
-  LOADING
   FINISHED
 }
 

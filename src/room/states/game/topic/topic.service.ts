@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { WaitingState } from '../../waiting/waiting.state';
 import { RANDOM_THEMES } from './constants/topic.constant';
+import { WaitingStore } from 'src/waiting/waiting.store';
 
 @Injectable()
 export class TopicService {
-  constructor(private readonly waitingState: WaitingState) {}
+  constructor(private readonly waitingState: WaitingStore) {}
 
   // 랜덤 주제자 선정
   async buildThemeSelectionContext(roomId: number) {

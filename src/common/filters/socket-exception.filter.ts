@@ -38,9 +38,7 @@ export class SocketExceptionFilter extends BaseWsExceptionFilter {
     if (exception instanceof WsException) {
       raw = exception.getError?.() ?? exception;
       status = hasStatus(raw) ? raw.status : 500;
-    }
-
-    else if (exception instanceof HttpException) {
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       raw = exception.getResponse();
     }

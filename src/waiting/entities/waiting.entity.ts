@@ -5,10 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Room } from 'src/room/entities/room.entity';
-import { WaitingPlayerState } from '../waiting.state';
 import { RoomStatus, RoomMode, Team } from '@prisma/client';
 import { WAITING_ERROR_CODES, WAITING_DOMAIN_ERRORS } from '../constants/waiting.constant';
 import { ROOM_CONSTANTS } from 'src/room/constants/room.constant';
+import { WaitingPlayerState } from '../waiting.store';
 
 export class Waiting {
   private constructor(
@@ -22,14 +22,14 @@ export class Waiting {
   }
 
   canJoin(userId: number): void {
+    if (this.players.some((p) => p.userId === userId)) {
+      return;
+    }
+
     if (this.room.status !== RoomStatus.WAITING) {
       throw new ConflictException({
         code: WAITING_ERROR_CODES.GAME_ALREADY_STARTED,
       });
-    }
-
-    if (this.players.some((p) => p.userId === userId)) {
-      return;
     }
 
     if (this.players.length >= this.room.maxPlayers) {
@@ -208,7 +208,6 @@ export class Waiting {
     if (!player) {
       throw new NotFoundException({
         code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.PLAYER_NOT_FOUND]],
       });
     }
     return player;
