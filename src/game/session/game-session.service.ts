@@ -37,8 +37,10 @@ export class GameSessionService {
           const entity = GameSessionEntity.restore(current);
           entity.startThemeSelection(selectorId, selectorNickname);
 
-          await this.gameStateStore.set(roomId, entity.state);
-          this.eventPublisher.broadcastGameState(roomId, entity.state);
+          const nextState = entity.state;
+
+          await this.gameStateStore.set(roomId, nextState);
+          this.eventPublisher.broadcastGameState(roomId, nextState);
         } catch (e) {
           if (e instanceof Error && e.message === GAME_ERRORS.PHASE_MUST_BE_LOADING) return;
           console.error(`[startTopicPhase] Error in room ${roomId}:`, e);
@@ -60,11 +62,13 @@ export class GameSessionService {
 
     entity.startDrawing(userId, theme);
 
-    await this.gameStateStore.set(roomId, entity.state);
+    const nextState = entity.state;
+
+    await this.gameStateStore.set(roomId, nextState);
 
     this.eventPublisher.emitThemeConfirmed(roomId, entity.getConfirmedTheme());
-    this.eventPublisher.broadcastGameState(roomId, entity.state);
+    this.eventPublisher.broadcastGameState(roomId, nextState);
 
-    return entity.state;
+    return nextState;
   }
 }
