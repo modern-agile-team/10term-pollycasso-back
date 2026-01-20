@@ -29,7 +29,7 @@ export class GameStateStore {
     return updated;
   }
 
-  async clear(roomId: number): Promise<void> {
+  async delete(roomId: number): Promise<void> {
     await this.redis.del(this.getKey(roomId));
   }
 }
