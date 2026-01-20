@@ -6,3 +6,7 @@ export const GAME_ERRORS = {
   THEME_INVALID: 'GAME_THEME_INVALID',
   THEME_NOT_SET: 'GAME_THEME_NOT_SET',
 } as const;
+
+export const GAME_EVENTS = {
+  LOADING_STARTED: 'game.loading.started',
+} as const;

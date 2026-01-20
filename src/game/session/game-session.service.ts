@@ -6,7 +6,8 @@ import type { IGameEventPublisher } from '../interfaces/game-event-publisher.int
 import { TopicService } from '../topic/topic.service';
 import { GameSessionEntity } from '../entities/game-session.entity';
 import { RANDOM_THEMES } from '../topic/constants/topic.constant';
-import { GAME_ERRORS } from '../constants/game.constant';
+import { GAME_ERRORS, GAME_EVENTS } from '../constants/game.constant';
+import { OnEvent } from '@nestjs/event-emitter';
 
 @Injectable()
 export class GameSessionService {
@@ -15,6 +16,11 @@ export class GameSessionService {
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
     @Inject(GAME_EVENT_PUBLISHER) private readonly eventPublisher: IGameEventPublisher,
   ) {}
+
+  @OnEvent(GAME_EVENTS.LOADING_STARTED)
+  async handleLoadingStarted(payload: { roomId: number }) {
+    await this.startTopicPhase(payload.roomId);
+  }
 
   // TOPIC 자동 전환 처리
   async startTopicPhase(roomId: number) {
