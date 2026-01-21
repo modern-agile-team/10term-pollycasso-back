@@ -113,11 +113,11 @@ model UserStats {
 
 model Friend {
   id           Int          @id @default(autoincrement())
-  userId       Int
-  targetUserId Int
+  userId       Int          @map("user_id")
+  targetUserId Int          @map("target_user_id")
   status       FriendStatus
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
 
   user       User @relation("UserFriendSent", fields: [userId], references: [id], onDelete: Cascade)
   targetUser User @relation("UserFriendReceived", fields: [targetUserId], references: [id], onDelete: Cascade)

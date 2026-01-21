@@ -5,17 +5,17 @@ import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { ROOM_CONSTANTS, ROOM_ERROR_CODES } from './constants/room.constant';
 import { Room } from './entities/room.entity';
 import type { IRoomsEventPublisher } from './events/room-event.publisher';
-import type { IRoomsRepository } from './interfaces/room.repository.interface';
+import type { IRoomRepository } from './interfaces/room-repository.interface';
 import { IRoomReader } from './interfaces/room-reader.interface';
 import { IRoomWriter } from './interfaces/room-writer.interface';
 import { RoomMode } from '@prisma/client';
 
 @Injectable()
-export class RoomsService implements IRoomReader, IRoomWriter {
+export class RoomService implements IRoomReader, IRoomWriter {
   constructor(
-    @Inject('IRoomsRepository')
-    private readonly roomsRepository: IRoomsRepository,
-    @Inject('IRoomsEventPublisher')
+    @Inject('IRoomRepository')
+    private readonly roomsRepository: IRoomRepository,
+    @Inject('IRoomEventPublisher')
     private readonly roomsEventPublisher: IRoomsEventPublisher,
   ) {}
 

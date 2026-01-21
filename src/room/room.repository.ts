@@ -5,10 +5,10 @@ import { RoomMapper } from './entities/mappers/room.mapper';
 import { QueryRoomDto } from './dtos/requests/query-room.dto';
 import { Prisma } from '@prisma/client';
 import { paginate } from 'src/common/utils/paginate.util';
-import { IRoomsRepository } from './interfaces/room.repository.interface';
+import { IRoomRepository } from './interfaces/room-repository.interface';
 
 @Injectable()
-export class RoomsRepository implements IRoomsRepository {
+export class RoomRepository implements IRoomRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async createRoom(room: Room): Promise<Room> {

@@ -1,5 +1,6 @@
 export interface UserData {
   id: number;
+  sub: number;
   username: string | null;
   nickname: string;
   tag: string;
