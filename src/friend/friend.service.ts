@@ -26,7 +26,7 @@ export class FriendService {
     }
 
     const existing = await this.friendRepository.findFriendship(userId, targetUser.id);
-    if (existing) return;
+    if (existing) return existing;
 
     return await this.friendRepository.create(userId, targetUser.id);
   }

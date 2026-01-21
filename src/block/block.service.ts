@@ -27,10 +27,8 @@ export class BlockService {
       });
     }
 
-    const alreadyBlocked = await this.blockRepository.find(userId, targetUser.id);
-    if (alreadyBlocked) {
-      return alreadyBlocked;
-    }
+    const existing = await this.blockRepository.find(userId, targetUser.id);
+    if (existing) return existing;
 
     return await this.blockRepository.create(userId, targetUser.id);
   }
