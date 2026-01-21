@@ -8,11 +8,15 @@ import {
 } from '@nestjs/websockets';
 import { Server } from 'socket.io';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
-import { GAME_STATE_STORE, GamePhase } from '../interfaces/game-state-store.interfaces';
-import type { GameState, IGameStateStore } from '../interfaces/game-state-store.interfaces';
 import { TopicDto } from './dtos/requests/topic.dto';
 import type { GameSocket } from '../interfaces/gameSocket.interface';
 import { GameSessionService } from '../session/game-session.service';
+import {
+  GAME_STATE_STORE,
+  GamePhase,
+  GameState,
+  type IGameStateStore,
+} from 'src/game-state/interfaces/game-state.interface';
 
 @UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
