@@ -9,11 +9,14 @@ import { JwtModule } from '@nestjs/jwt';
 import { GAME_EVENT_PUBLISHER } from './interfaces/game-event-publisher.interfaces';
 import { GameSessionService } from './session/game-session.service';
 import { WaitingModule } from 'src/waiting/waiting.module';
+import { GameStateStore } from 'src/game-state/game-state.store';
+import { RedisModule } from 'src/redis/redis.module';
 
 @Module({
   imports: [
     WaitingModule,
     ChatModule,
+    RedisModule,
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRATION },
@@ -25,7 +28,7 @@ import { WaitingModule } from 'src/waiting/waiting.module';
     TopicGateway,
     TopicService,
     GameSessionService,
-    { provide: GAME_STATE_STORE, useClass: InMemoryGameStateStore },
+    { provide: GAME_STATE_STORE, useClass: GameStateStore },
     { provide: GAME_EVENT_PUBLISHER, useExisting: GameGateway },
   ],
   exports: [],
