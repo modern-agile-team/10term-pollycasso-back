@@ -1,12 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { GAME_STATE_STORE, GamePhase } from '../interfaces/game-state-store.interfaces';
 import { GAME_EVENT_PUBLISHER } from '../interfaces/game-event-publisher.interfaces';
-import type { IGameStateStore } from '../interfaces/game-state-store.interfaces';
 import type { IGameEventPublisher } from '../interfaces/game-event-publisher.interfaces';
 import { TopicService } from '../topic/topic.service';
 import { GameSessionEntity } from '../entities/game-session.entity';
 import { RANDOM_THEMES } from '../topic/constants/topic.constant';
-import { GAME_ERRORS } from '../constants/game.constant';
+import { GAME_ERRORS, GAME_EVENTS } from '../constants/game.constant';
+import { OnEvent } from '@nestjs/event-emitter';
+import {
+  GAME_STATE_STORE,
+  GamePhase,
+  type IGameStateStore,
+} from 'src/game-state/interfaces/game-state.interface';
 
 @Injectable()
 export class GameSessionService {
@@ -15,6 +19,11 @@ export class GameSessionService {
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
     @Inject(GAME_EVENT_PUBLISHER) private readonly eventPublisher: IGameEventPublisher,
   ) {}
+
+  @OnEvent(GAME_EVENTS.LOADING_STARTED)
+  async handleLoadingStarted(payload: { roomId: number }) {
+    await this.startTopicPhase(payload.roomId);
+  }
 
   // TOPIC 자동 전환 처리
   async startTopicPhase(roomId: number) {
@@ -37,8 +46,10 @@ export class GameSessionService {
           const entity = GameSessionEntity.restore(current);
           entity.startThemeSelection(selectorId, selectorNickname);
 
-          await this.gameStateStore.set(roomId, entity.state);
-          this.eventPublisher.broadcastGameState(roomId, entity.state);
+          const nextState = entity.state;
+
+          await this.gameStateStore.set(roomId, nextState);
+          this.eventPublisher.broadcastGameState(roomId, nextState);
         } catch (e) {
           if (e instanceof Error && e.message === GAME_ERRORS.PHASE_MUST_BE_LOADING) return;
           console.error(`[startTopicPhase] Error in room ${roomId}:`, e);
@@ -60,11 +71,13 @@ export class GameSessionService {
 
     entity.startDrawing(userId, theme);
 
-    await this.gameStateStore.set(roomId, entity.state);
+    const nextState = entity.state;
+
+    await this.gameStateStore.set(roomId, nextState);
 
     this.eventPublisher.emitThemeConfirmed(roomId, entity.getConfirmedTheme());
-    this.eventPublisher.broadcastGameState(roomId, entity.state);
+    this.eventPublisher.broadcastGameState(roomId, nextState);
 
-    return entity.state;
+    return nextState;
   }
 }

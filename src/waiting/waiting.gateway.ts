@@ -29,6 +29,8 @@ import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
 import { GameStateStore } from 'src/game-state/game-state.store';
 import { GamePhase } from 'src/game-state/interfaces/game-state.interface';
+import { GAME_EVENTS } from 'src/game/constants/game.constant';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 interface JwtPayload {
   sub: string;
@@ -75,6 +77,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
     private readonly gameStateStore: GameStateStore,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   handleConnection(client: Socket) {
@@ -383,6 +386,8 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
       endsAt: loadingEndTime,
       phaseContext: null,
     });
+
+    this.eventEmitter.emit(GAME_EVENTS.LOADING_STARTED, { roomId });
   }
 
   @SubscribeMessage(WAITING_EVENTS.ROOM_LEAVE)

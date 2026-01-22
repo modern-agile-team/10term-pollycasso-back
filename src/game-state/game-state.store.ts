@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { GameState } from './interfaces/game-state.interface';
+import { GameState, IGameStateStore } from './interfaces/game-state.interface';
 import { RedisService } from 'src/redis/redis.service';
 
 @Injectable()
-export class GameStateStore {
+export class GameStateStore implements IGameStateStore {
   constructor(private readonly redis: RedisService) {}
 
   private getKey(roomId: number): string {
@@ -29,7 +29,7 @@ export class GameStateStore {
     return updated;
   }
 
-  async clear(roomId: number): Promise<void> {
+  async delete(roomId: number): Promise<void> {
     await this.redis.del(this.getKey(roomId));
   }
 }
