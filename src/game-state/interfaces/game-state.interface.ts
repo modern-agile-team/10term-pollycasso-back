@@ -1,3 +1,5 @@
+export const GAME_STATE_STORE = Symbol('GAME_STATE_STORE');
+
 export enum GamePhase {
   WAITING = 'WAITING',
   LOADING = 'LOADING',
@@ -8,13 +10,13 @@ export enum GamePhase {
   FINISHED = 'FINISHED',
 }
 
-export class ThemeSelectPhaseContext {
+export interface ThemeSelectPhaseContext {
   kind: GamePhase.THEME_SELECTING;
   selectorId: number;
   selectorNickname?: string;
 }
 
-export class EvaluatingContext {
+export interface EvaluatingContext {
   kind: GamePhase.EVALUATING;
   votes: Record<number, number>;
 }
@@ -29,4 +31,11 @@ export interface GameState {
   currentTheme: string | null;
   recentThemes: string[];
   phaseContext: PhaseContext;
+}
+
+export interface IGameStateStore {
+  get(roomId: number): Promise<GameState | null>;
+  set(roomId: number, state: GameState): Promise<void>;
+  patch(roomId: number, partial: Partial<GameState>): Promise<GameState | null>;
+  delete(roomId: number): Promise<void>;
 }

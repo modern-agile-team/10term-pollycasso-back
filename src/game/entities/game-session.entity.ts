@@ -1,5 +1,5 @@
+import { GamePhase, GameState } from 'src/game-state/interfaces/game-state.interface';
 import { GAME_ERRORS } from '../constants/game.constant';
-import { GamePhase, GameState } from '../interfaces/game-state-store.interfaces';
 
 export class GameSessionEntity {
   private constructor(private _state: GameState) {}
@@ -13,7 +13,7 @@ export class GameSessionEntity {
     return structuredClone(this._state);
   }
 
-  get currentTheme(): string | undefined {
+  get currentTheme(): string | null {
     return this._state.currentTheme;
   }
 
@@ -33,7 +33,7 @@ export class GameSessionEntity {
     this._state.phase = GamePhase.THEME_SELECTING;
     this._state.endsAt = Date.now() + 32000; // 32초
 
-    this._state.currentTheme = undefined;
+    this._state.currentTheme = null;
 
     this._state.phaseContext = {
       kind: GamePhase.THEME_SELECTING,

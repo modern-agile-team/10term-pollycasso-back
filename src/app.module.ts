@@ -12,10 +12,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { WaitingModule } from './waiting/waiting.module';
 import { GameStateModule } from './game-state/game-state.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    EventEmitterModule.forRoot(),
     WinstonModule.forRootAsync({
       useFactory: (configService: ConfigService) => winstonConfig(configService),
       inject: [ConfigService],
