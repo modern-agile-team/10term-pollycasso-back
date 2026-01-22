@@ -12,32 +12,32 @@ export class FriendService {
     private readonly userService: UsersService,
   ) {}
 
-  async sendRequest(userId: number, targetTag: string) {
-    const targetUser = await this.userService.findUserByTag(targetTag);
+  async sendRequest(userId: number, targetUserId: number) {
+    const targetUser = await this.userService.findOneById(targetUserId);
     if (!targetUser) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
     }
 
-    if (userId === targetUser.id) {
+    if (userId === targetUserId) {
       throw new BadRequestException({
         code: FRIEND_ERROR_CODES.CANNOT_ADD_SELF,
         errors: [FRIEND_DOMAIN_ERRORS[FRIEND_ERROR_CODES.CANNOT_ADD_SELF]],
       });
     }
 
-    const existing = await this.friendRepository.findFriendship(userId, targetUser.id);
+    const existing = await this.friendRepository.findFriendship(userId, targetUserId);
     if (existing) return existing;
 
-    return await this.friendRepository.create(userId, targetUser.id);
+    return await this.friendRepository.create(userId, targetUserId);
   }
 
-  async cancelRequest(userId: number, targetTag: string) {
-    const targetUser = await this.userService.findUserByTag(targetTag);
+  async cancelRequest(userId: number, targetUserId: number) {
+    const targetUser = await this.userService.findOneById(targetUserId);
     if (!targetUser) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
     }
 
-    const request = await this.friendRepository.findFriendship(userId, targetUser.id);
+    const request = await this.friendRepository.findFriendship(userId, targetUserId);
     if (!request) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.REQUEST_NOT_FOUND });
     }
@@ -52,13 +52,13 @@ export class FriendService {
     await this.friendRepository.deleteById(request.id);
   }
 
-  async respond(userId: number, requesterTag: string, accept: boolean) {
-    const requester = await this.userService.findUserByTag(requesterTag);
+  async respond(userId: number, requesterId: number, accept: boolean) {
+    const requester = await this.userService.findOneById(requesterId);
     if (!requester) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
     }
 
-    const request = await this.friendRepository.findFriendship(requester.id, userId);
+    const request = await this.friendRepository.findFriendship(requesterId, userId);
     if (!request) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.REQUEST_NOT_FOUND });
     }
@@ -78,13 +78,13 @@ export class FriendService {
     return await this.friendRepository.updateStatus(request.id, FriendStatus.ACCEPTED);
   }
 
-  async remove(userId: number, friendTag: string) {
-    const friend = await this.userService.findUserByTag(friendTag);
+  async remove(userId: number, friendUserId: number) {
+    const friend = await this.userService.findOneById(friendUserId);
     if (!friend) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
     }
 
-    const friendship = await this.friendRepository.findFriendship(userId, friend.id);
+    const friendship = await this.friendRepository.findFriendship(userId, friendUserId);
     if (!friendship || friendship.status !== FriendStatus.ACCEPTED) {
       throw new BadRequestException({
         code: FRIEND_ERROR_CODES.NOT_FRIENDS,
@@ -92,6 +92,6 @@ export class FriendService {
       });
     }
 
-    await this.friendRepository.deleteBidirectional(userId, friend.id);
+    await this.friendRepository.deleteBidirectional(userId, friendUserId);
   }
 }

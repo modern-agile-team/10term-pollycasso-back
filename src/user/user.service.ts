@@ -15,8 +15,8 @@ export class UsersService {
     return this.usersRepository.findOneByUsername(username);
   }
 
-  async findUserByTag(tag: string): Promise<User | null> {
-    return this.usersRepository.findOneByTag(tag);
+  async findOneById(id: number): Promise<User | null> {
+    return this.usersRepository.findOneById(id);
   }
 
   // 유저 생성

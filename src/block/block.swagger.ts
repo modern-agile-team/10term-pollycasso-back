@@ -13,7 +13,7 @@ const badRequestErrors = () =>
         value: {
           status: 400,
           code: 'CANNOT_SELF_BLOCK',
-          errors: [{ field: 'targetTag', message: 'Cannot block yourself' }],
+          errors: [{ field: 'targetUserId', message: 'Cannot block yourself' }],
         },
       },
     },
@@ -62,7 +62,7 @@ export const ApiBlock = {
     applyDecorators(
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '사용자 차단' }),
-      ApiParam({ name: 'targetTag', type: 'string', description: '차단할 사용자 태그' }),
+      ApiParam({ name: 'targetUserId', type: 'number', description: '차단할 사용자 ID' }),
       ApiResponse({
         status: 201,
         description: '사용자 차단 성공',
@@ -84,7 +84,7 @@ export const ApiBlock = {
     applyDecorators(
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '사용자 차단 해제' }),
-      ApiParam({ name: 'targetTag', type: 'string', description: '차단 해제할 사용자 태그' }),
+      ApiParam({ name: 'targetUserId', type: 'number', description: '차단 해제할 사용자 ID' }),
       ApiResponse({
         status: 204,
         description: '사용자 차단 해제 성공',

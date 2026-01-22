@@ -1,4 +1,13 @@
-import { Controller, Delete, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  HttpCode,
+  Param,
+  ParseIntPipe,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AccessTokenGuard } from 'src/auth/guards/access-token.guard';
 import { BlockService } from './block.service';
 import { ApiBlock } from './block.swagger';
@@ -9,17 +18,23 @@ import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 export class BlockController {
   constructor(private readonly blockService: BlockService) {}
 
-  @Post(':targetTag')
+  @Post(':targetUserId')
   @HttpCode(201)
   @ApiBlock.block()
-  async block(@Req() req: { user: JwtPayload }, @Param('targetTag') targetTag: string) {
-    return await this.blockService.block(req.user.sub, targetTag);
+  async block(
+    @Req() req: { user: JwtPayload },
+    @Param('targetUserId', ParseIntPipe) targetUserId: number,
+  ) {
+    return await this.blockService.block(req.user.sub, targetUserId);
   }
 
-  @Delete(':targetTag')
+  @Delete(':targetUserId')
   @HttpCode(204)
   @ApiBlock.unblock()
-  async unblock(@Req() req: { user: JwtPayload }, @Param('targetTag') targetTag: string) {
-    await this.blockService.unblock(req.user.sub, targetTag);
+  async unblock(
+    @Req() req: { user: JwtPayload },
+    @Param('targetUserId', ParseIntPipe) targetUserId: number,
+  ) {
+    await this.blockService.unblock(req.user.sub, targetUserId);
   }
 }

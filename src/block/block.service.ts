@@ -1,49 +1,46 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { BLOCK_DOMAIN_ERRORS, BLOCK_ERROR_CODES } from './constants/block.constant';
-import type { IFriendRepository } from 'src/friend/interfaces/friend-repository.interface';
 import type { IBlockRepository } from './interfaces/block-repository.interface';
 import { UsersService } from 'src/user/user.service';
 
 @Injectable()
 export class BlockService {
   constructor(
-    @Inject('IFriendRepository')
-    private readonly friendRepository: IFriendRepository,
     @Inject('IBlockRepository')
     private readonly blockRepository: IBlockRepository,
     private readonly userService: UsersService,
   ) {}
 
-  async block(userId: number, targetTag: string) {
-    const targetUser = await this.userService.findUserByTag(targetTag);
+  async block(userId: number, targetUserId: number) {
+    const targetUser = await this.userService.findOneById(targetUserId);
     if (!targetUser) {
       throw new NotFoundException({ code: BLOCK_ERROR_CODES.USER_NOT_FOUND });
     }
 
-    if (userId === targetUser.id) {
+    if (userId === targetUserId) {
       throw new BadRequestException({
         code: BLOCK_ERROR_CODES.CANNOT_SELF_BLOCK,
         errors: [BLOCK_DOMAIN_ERRORS[BLOCK_ERROR_CODES.CANNOT_SELF_BLOCK]],
       });
     }
 
-    const existing = await this.blockRepository.find(userId, targetUser.id);
+    const existing = await this.blockRepository.find(userId, targetUserId);
     if (existing) return existing;
 
-    return await this.blockRepository.create(userId, targetUser.id);
+    return await this.blockRepository.create(userId, targetUserId);
   }
 
-  async unblock(userId: number, targetTag: string) {
-    const targetUser = await this.userService.findUserByTag(targetTag);
+  async unblock(userId: number, targetUserId: number) {
+    const targetUser = await this.userService.findOneById(targetUserId);
     if (!targetUser) {
       throw new NotFoundException({ code: BLOCK_ERROR_CODES.USER_NOT_FOUND });
     }
 
-    const exists = await this.blockRepository.find(userId, targetUser.id);
+    const exists = await this.blockRepository.find(userId, targetUserId);
     if (!exists) {
       throw new NotFoundException({ code: BLOCK_ERROR_CODES.BLOCK_NOT_FOUND });
     }
 
-    await this.blockRepository.delete(userId, targetUser.id);
+    await this.blockRepository.delete(userId, targetUserId);
   }
 }

@@ -6,7 +6,7 @@ export const BLOCK_ERROR_CODES = {
 
 export const BLOCK_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
   CANNOT_SELF_BLOCK: {
-    field: 'targetTag',
+    field: 'targetId',
     reason: 'Cannot block yourself',
   },
 };
