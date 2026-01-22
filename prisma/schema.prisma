@@ -35,7 +35,6 @@ enum Team {
 }
 
 enum MatchStatus {
-  PENDING
   ACTIVE
   COMPLETED
 }
@@ -60,6 +59,7 @@ model User {
   profile     UserProfile?
   stats       UserStats?
   roomMembers RoomMember[]
+  gameItems UserGameItem[]
   votes       Vote[]
 
   @@unique([provider, providerId])
@@ -212,4 +212,30 @@ model Vote {
   @@unique([matchId, drawingId, voterId])
   @@index([rating])
   @@map("votes")
+}
+
+model GameItem {
+  id          Int           @id @default(autoincrement())
+  name        String        @db.VarChar(50)
+  price       Int
+  description String        @db.Text
+  effect      String        @db.VarChar(50)
+  imagePath   String?       @db.VarChar(255) @map("image_path")
+
+  userItems   UserGameItem[]
+
+  @@map("game_items")
+}
+
+model UserGameItem {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  gameItemId Int      @map("game_item_id")
+  quantity   Int      @default(1)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameItem   GameItem @relation(fields: [gameItemId], references: [id])
+
+  @@unique([userId, gameItemId])
+  @@map("user_game_items")
 }

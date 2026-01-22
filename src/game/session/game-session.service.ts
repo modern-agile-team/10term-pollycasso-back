@@ -43,7 +43,6 @@ export class GameSessionService {
           this.eventPublisher.broadcastGameState(roomId, nextState);
         } catch (e) {
           if (e instanceof Error && e.message === GAME_ERRORS.PHASE_MUST_BE_LOADING) return;
-          console.error(`[startTopicPhase] Error in room ${roomId}:`, e);
         }
       })();
     }, delay);
@@ -57,7 +56,6 @@ export class GameSessionService {
     const entity = GameSessionEntity.restore(state);
 
     const trimmed = (typedValue ?? '').trim();
-
     const theme = trimmed ? trimmed : entity.pickRandomTheme(RANDOM_THEMES);
 
     entity.startDrawing(userId, theme);

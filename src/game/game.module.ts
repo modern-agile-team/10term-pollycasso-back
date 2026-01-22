@@ -9,6 +9,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { GAME_EVENT_PUBLISHER } from './interfaces/game-event-publisher.interfaces';
 import { GameSessionService } from './session/game-session.service';
 import { WaitingModule } from 'src/waiting/waiting.module';
+import { DrawingGateway } from './drawing/drawing.gateway';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { WaitingModule } from 'src/waiting/waiting.module';
     GameSessionService,
     { provide: GAME_STATE_STORE, useClass: InMemoryGameStateStore },
     { provide: GAME_EVENT_PUBLISHER, useExisting: GameGateway },
+    DrawingGateway,
   ],
   exports: [],
 })
