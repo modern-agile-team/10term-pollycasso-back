@@ -14,8 +14,8 @@ export class BlockService {
     private readonly userService: UsersService,
   ) {}
 
-  async block(userId: number, targetUsername: string) {
-    const targetUser = await this.userService.findUserByUsername(targetUsername);
+  async block(userId: number, targetTag: string) {
+    const targetUser = await this.userService.findUserByTag(targetTag);
     if (!targetUser) {
       throw new NotFoundException({ code: BLOCK_ERROR_CODES.USER_NOT_FOUND });
     }
@@ -33,8 +33,8 @@ export class BlockService {
     return await this.blockRepository.create(userId, targetUser.id);
   }
 
-  async unblock(userId: number, targetUsername: string) {
-    const targetUser = await this.userService.findUserByUsername(targetUsername);
+  async unblock(userId: number, targetTag: string) {
+    const targetUser = await this.userService.findUserByTag(targetTag);
     if (!targetUser) {
       throw new NotFoundException({ code: BLOCK_ERROR_CODES.USER_NOT_FOUND });
     }

@@ -15,6 +15,10 @@ export class UsersService {
     return this.usersRepository.findOneByUsername(username);
   }
 
+  async findUserByTag(tag: string): Promise<User | null> {
+    return this.usersRepository.findOneByTag(tag);
+  }
+
   // 유저 생성
   async createUser(userData: CreateUserDto): Promise<User> {
     return this.createUserWithTag(userData);

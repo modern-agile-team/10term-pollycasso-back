@@ -12,8 +12,8 @@ export class FriendService {
     private readonly userService: UsersService,
   ) {}
 
-  async sendRequest(userId: number, targetUsername: string) {
-    const targetUser = await this.userService.findUserByUsername(targetUsername);
+  async sendRequest(userId: number, targetTag: string) {
+    const targetUser = await this.userService.findUserByTag(targetTag);
     if (!targetUser) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
     }
@@ -31,8 +31,8 @@ export class FriendService {
     return await this.friendRepository.create(userId, targetUser.id);
   }
 
-  async cancelRequest(userId: number, targetUsername: string) {
-    const targetUser = await this.userService.findUserByUsername(targetUsername);
+  async cancelRequest(userId: number, targetTag: string) {
+    const targetUser = await this.userService.findUserByTag(targetTag);
     if (!targetUser) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
     }
@@ -52,8 +52,8 @@ export class FriendService {
     await this.friendRepository.deleteById(request.id);
   }
 
-  async respond(userId: number, requesterUsername: string, accept: boolean) {
-    const requester = await this.userService.findUserByUsername(requesterUsername);
+  async respond(userId: number, requesterTag: string, accept: boolean) {
+    const requester = await this.userService.findUserByTag(requesterTag);
     if (!requester) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
     }
@@ -78,8 +78,8 @@ export class FriendService {
     return await this.friendRepository.updateStatus(request.id, FriendStatus.ACCEPTED);
   }
 
-  async remove(userId: number, friendUsername: string) {
-    const friend = await this.userService.findUserByUsername(friendUsername);
+  async remove(userId: number, friendTag: string) {
+    const friend = await this.userService.findUserByTag(friendTag);
     if (!friend) {
       throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
     }

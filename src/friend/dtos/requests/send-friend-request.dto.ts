@@ -5,8 +5,8 @@ export class SendFriendRequestDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty({
-    description: '대상 사용자명',
-    example: 'user1111',
+    description: '대상 사용자 태그',
+    example: '1234',
   })
-  targetUsername: string;
+  targetTag: string;
 }

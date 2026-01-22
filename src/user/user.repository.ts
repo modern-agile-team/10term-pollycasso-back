@@ -34,4 +34,10 @@ export class UsersRepository {
       },
     });
   }
+
+  async findOneByTag(tag: string): Promise<User | null> {
+    return this.prisma.user.findFirst({
+      where: { tag },
+    });
+  }
 }

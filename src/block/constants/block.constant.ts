@@ -4,9 +4,9 @@ export const BLOCK_ERROR_CODES = {
   USER_NOT_FOUND: 'USER_NOT_FOUND',
 } as const;
 
-export const BLOCK_DOMAIN_ERRORS: Record<string, { field: string; message: string }> = {
+export const BLOCK_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
   CANNOT_SELF_BLOCK: {
-    field: 'targetUserId',
-    message: 'Cannot block yourself',
+    field: 'targetTag',
+    reason: 'Cannot block yourself',
   },
 };

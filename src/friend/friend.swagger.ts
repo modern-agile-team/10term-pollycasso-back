@@ -13,7 +13,7 @@ const badRequestErrors = () =>
         value: {
           status: 400,
           code: 'CANNOT_ADD_SELF',
-          errors: [{ field: 'targetUserId', message: 'Cannot send friend request to yourself' }],
+          errors: [{ field: 'targetTag', message: 'Cannot send friend request to yourself' }],
         },
       },
       invalidRequestStatus: {
@@ -29,7 +29,7 @@ const badRequestErrors = () =>
         value: {
           status: 400,
           code: 'NOT_FRIENDS',
-          errors: [{ field: 'friendUsername', message: 'You are not friends with this user' }],
+          errors: [{ field: 'friendTag', message: 'You are not friends with this user' }],
         },
       },
     },
@@ -99,7 +99,7 @@ export const ApiFriend = {
     applyDecorators(
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '친구 요청 응답 (수락 / 거절)' }),
-      ApiParam({ name: 'requesterUsername', type: 'string', description: '요청자 사용자명' }),
+      ApiParam({ name: 'requesterTag', type: 'string', description: '요청자 사용자 태그' }),
       ApiResponse({
         status: 200,
         description: '친구 요청 응답 성공',
@@ -122,7 +122,7 @@ export const ApiFriend = {
     applyDecorators(
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '친구 요청 취소' }),
-      ApiParam({ name: 'targetUsername', type: 'string', description: '대상 사용자명' }),
+      ApiParam({ name: 'targetTag', type: 'string', description: '대상 사용자 태그' }),
       ApiResponse({
         status: 204,
         description: '친구 요청 취소 성공',
@@ -136,7 +136,7 @@ export const ApiFriend = {
     applyDecorators(
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '친구 삭제' }),
-      ApiParam({ name: 'friendUsername', type: 'string', description: '친구 사용자명' }),
+      ApiParam({ name: 'friendTag', type: 'string', description: '친구 사용자 태그' }),
       ApiResponse({
         status: 204,
         description: '친구 삭제 성공',
