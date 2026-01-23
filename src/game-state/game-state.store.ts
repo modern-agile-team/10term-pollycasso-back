@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { GameState, IGameStateStore } from './interfaces/game-state.interface';
+import { GameState } from './interfaces/game-state.interface';
 import { RedisService } from 'src/redis/redis.service';
 
 @Injectable()
-export class GameStateStore implements IGameStateStore {
+export class GameStateStore {
   constructor(private readonly redis: RedisService) {}
 
   private getKey(roomId: number): string {
