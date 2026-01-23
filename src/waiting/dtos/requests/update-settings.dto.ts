@@ -2,7 +2,6 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsNumberString,
   IsOptional,
   IsString,
@@ -15,7 +14,6 @@ import { ApiProperty } from '@nestjs/swagger';
 export class UpdateSettingsDto {
   @IsOptional()
   @MaxLength(15)
-  @IsNotEmpty()
   @IsString()
   @ApiProperty({
     description: '방 이름',

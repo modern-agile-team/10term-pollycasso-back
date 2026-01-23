@@ -1,8 +1,9 @@
-import { IsInt, IsNumberString, IsOptional, Length } from 'class-validator';
+import { IsInt, IsNumberString, IsOptional, Length, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class JoinRoomDto {
   @IsInt()
+  @Min(1)
   @ApiProperty({ description: '방 ID', example: 1 })
   roomId: number;
 
