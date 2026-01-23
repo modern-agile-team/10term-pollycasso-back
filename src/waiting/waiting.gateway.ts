@@ -14,6 +14,7 @@ import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filte
 import { WAITING_ERROR_CODES, WAITING_EVENTS } from './constants/waiting.constant';
 import { wsError } from 'src/common/utils/ws-error.util';
 import { SendMessageDto } from 'src/chat/dtos/requests/send-message.dto';
+import { ChatService } from 'src/chat/chat.service';
 import { JwtService } from '@nestjs/jwt';
 import { JoinRoomDto } from './dtos/requests/join-room.dto';
 import { ChangeTeamDto } from './dtos/requests/change-team.dto';
@@ -23,7 +24,6 @@ import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
 import { GameStateStore } from 'src/game-state/game-state.store';
-import { GamePhase } from 'src/game-state/interfaces/game-state.interface';
 import { GAME_EVENTS } from 'src/game/constants/game.constant';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
@@ -147,7 +147,9 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
   }
 
   private emitSystemMessage(roomId: number, message: string) {
-    const systemMessage = this.chatService.createSystemMessage({ message });
+    const systemMessage: ReturnType<ChatService['createSystemMessage']> =
+      this.chatService.createSystemMessage({ message });
+
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, systemMessage);
   }
 
