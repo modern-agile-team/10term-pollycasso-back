@@ -10,12 +10,6 @@ import { WAITING_ERROR_CODES, WAITING_DOMAIN_ERRORS } from '../constants/waiting
 import { ROOM_CONSTANTS } from 'src/room/constants/room.constant';
 import { WaitingPlayerState } from '../waiting.store';
 
-export interface TeamResetCommand {
-  userId: number;
-  newTeam: Team;
-  shouldResetReady: boolean;
-}
-
 export class Waiting {
   private constructor(
     public readonly room: Room,
@@ -64,6 +58,7 @@ export class Waiting {
 
     const redCount = this.players.filter((p) => p.team === Team.RED).length;
     const blueCount = this.players.filter((p) => p.team === Team.BLUE).length;
+
     return redCount <= blueCount ? Team.RED : Team.BLUE;
   }
 
@@ -73,6 +68,7 @@ export class Waiting {
         code: WAITING_ERROR_CODES.HOST_CANNOT_TOGGLE_READY,
       });
     }
+
     this.findPlayerOrThrow(userId);
   }
 
@@ -143,21 +139,6 @@ export class Waiting {
 
   shouldResetTeamsForMode(newMode: RoomMode): boolean {
     return this.room.mode !== newMode;
-  }
-
-  generateTeamResetCommands(newMode: RoomMode): TeamResetCommand[] {
-    return this.players.map((player, index) => {
-      const newTeam =
-        newMode === RoomMode.SOLO ? Team.NONE : index % 2 === 0 ? Team.RED : Team.BLUE;
-
-      const shouldResetReady = player.userId !== this.hostId;
-
-      return {
-        userId: player.userId,
-        newTeam,
-        shouldResetReady,
-      };
-    });
   }
 
   validateGameStart(requesterId: number): void {

@@ -7,7 +7,8 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { UsePipes, ValidationPipe, UseFilters } from '@nestjs/common';
+import { UsePipes, ValidationPipe, UseFilters, Inject } from '@nestjs/common';
+import type { LoggerService } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
@@ -15,6 +16,7 @@ import { SendMessageDto } from './dtos/requests/send-message.dto';
 import { CHAT_ERROR_CODES } from './constants/chat.constant';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { wsError } from 'src/common/utils/ws-error.util';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 interface JwtPayload {
   sub: string;
@@ -58,6 +60,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER)
+    private readonly logger: LoggerService,
   ) {}
 
   private getClientData(client: Socket): ClientData | null {
@@ -96,6 +100,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
 
       void client.join('lobby');
+      this.logger.log(`User connected: ${payload.nickname}`);
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
 
@@ -111,7 +116,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  handleDisconnect(_client: Socket) {}
+  handleDisconnect(client: Socket) {
+    const data = this.getClientData(client);
+    this.logger.log(`User disconnected: ${data?.nickname ?? 'Unknown'}`);
+  }
 
   @SubscribeMessage('lobby:send')
   handleLobbyMessage(@MessageBody() data: SendMessageDto, @ConnectedSocket() client: Socket) {
