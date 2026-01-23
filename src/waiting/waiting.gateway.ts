@@ -22,7 +22,10 @@ import { UpdateOutfitDto } from './dtos/requests/update-outfit.dto';
 import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
-import { ChatService } from 'src/chat/chat.service';
+import { GameStateStore } from 'src/game-state/game-state.store';
+import { GamePhase } from 'src/game-state/interfaces/game-state.interface';
+import { GAME_EVENTS } from 'src/game/constants/game.constant';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 interface JwtPayload {
   sub: string;
@@ -67,6 +70,8 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     private readonly waitingService: WaitingService,
     private readonly jwtService: JwtService,
     private readonly chatService: ChatService,
+    private readonly gameStateStore: GameStateStore,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   handleConnection(client: Socket) {
@@ -355,6 +360,8 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
       endsAt: gameState.endsAt,
       phaseContext: null,
     });
+
+    this.eventEmitter.emit(GAME_EVENTS.LOADING_STARTED, { roomId });
   }
 
   @SubscribeMessage(WAITING_EVENTS.ROOM_LEAVE)
