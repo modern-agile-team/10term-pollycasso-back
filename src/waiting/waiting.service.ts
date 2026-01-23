@@ -361,7 +361,7 @@ export class WaitingService {
       throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
     }
 
-    return this.chatService.createLobbyMessage({
+    return this.chatService.createGlobalMessage({
       senderId: userId.toString(),
       nickname: player.nickname,
       message: messageText,

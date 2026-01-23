@@ -156,7 +156,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     });
   }
 
-  private emitSystemMessage(roomId: number, message: string) {
+  private emitRoomSystemMessage(roomId: number, message: string) {
     const systemMessage = this.chatService.createSystemMessage({ message });
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, systemMessage);
   }
@@ -187,7 +187,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     await client.join(`room:${body.roomId}`);
 
     this.emitPlayerListSync(body.roomId, state.players);
-    this.emitSystemMessage(body.roomId, `${clientData.nickname}님이 입장했습니다.`);
+    this.emitRoomSystemMessage(body.roomId, `${clientData.nickname}님이 입장했습니다.`);
 
     client.emit(WAITING_EVENTS.ROOM_JOIN_SUCCESS, state);
   }
@@ -289,7 +289,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     });
 
     this.emitPlayerListSync(roomId, state.players);
-    this.emitSystemMessage(roomId, '게임 설정이 변경되었습니다.');
+    this.emitRoomSystemMessage(roomId, '게임 설정이 변경되었습니다.');
   }
 
   @SubscribeMessage(WAITING_EVENTS.ROOM_KICK_USER)
@@ -327,7 +327,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     const players = await this.waitingService.getPlayers(roomId);
     this.emitPlayerListSync(roomId, players);
-    this.emitSystemMessage(roomId, `${kickedPlayer.nickname}님이 강퇴되었습니다.`);
+    this.emitRoomSystemMessage(roomId, `${kickedPlayer.nickname}님이 강퇴되었습니다.`);
   }
 
   @SubscribeMessage(WAITING_EVENTS.ROOM_NUDGE_USER)
@@ -423,18 +423,8 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     const { roomId, userId } = clientData;
-    const players = await this.waitingService.getPlayers(roomId);
-    const player = players.find((p) => p.userId === userId);
 
-    if (!player) {
-      throw wsError(404, WAITING_ERROR_CODES.PLAYER_NOT_FOUND);
-    }
-
-    const message = this.chatService.createLobbyMessage({
-      senderId: userId.toString(),
-      nickname: player.nickname,
-      message: body.message,
-    });
+    const message = await this.waitingService.handleChatMessage(roomId, userId, body.message);
 
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_MESSAGE, message);
   }
