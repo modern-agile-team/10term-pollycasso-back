@@ -1,234 +1,397 @@
 import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
-import { Room } from 'src/room/entities/room.entity';
-import { RoomStatus, RoomMode, Team } from '@prisma/client';
-import { ROOM_CONSTANTS } from 'src/room/constants/room.constant';
-import { WaitingPlayerState } from './waiting.store';
-import { WAITING_DOMAIN_ERRORS, WAITING_ERROR_CODES } from './constants/waiting.constant';
+  WebSocketGateway,
+  SubscribeMessage,
+  ConnectedSocket,
+  MessageBody,
+  WebSocketServer,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { WaitingService } from './waiting.service';
+import { UseFilters, UsePipes, ValidationPipe } from '@nestjs/common';
+import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
+import { WAITING_ERROR_CODES, WAITING_EVENTS } from './constants/waiting.constant';
+import { wsError } from 'src/common/utils/ws-error.util';
+import { SendMessageDto } from 'src/chat/dtos/requests/send-message.dto';
+import { JwtService } from '@nestjs/jwt';
+import { JoinRoomDto } from './dtos/requests/join-room.dto';
+import { ChangeTeamDto } from './dtos/requests/change-team.dto';
+import { UpdateStatusDto } from './dtos/requests/update-status.dto';
+import { UpdateOutfitDto } from './dtos/requests/update-outfit.dto';
+import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
+import { KickUserDto } from './dtos/requests/kick-user.dto';
+import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
+import { ChatService } from 'src/chat/chat.service';
 
-export interface TeamResetCommand {
-  userId: number;
-  newTeam: Team;
-  shouldResetReady: boolean;
+interface JwtPayload {
+  sub: string;
+  nickname: string;
 }
 
-export class Waiting {
-  private constructor(
-    public readonly room: Room,
-    public readonly players: WaitingPlayerState[],
-    public readonly hostId: number | null,
+interface ClientData {
+  userId: number;
+  nickname: string;
+  roomId?: number;
+}
+
+@UseFilters(SocketExceptionFilter)
+@UsePipes(
+  new ValidationPipe({
+    transform: true,
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    exceptionFactory: (errors) => {
+      throw wsError(
+        400,
+        WAITING_ERROR_CODES.INVALID_INPUT,
+        errors.map((e) => ({
+          field: e.property,
+          reason: Object.values(e.constraints ?? {}),
+        })),
+      );
+    },
+  }),
+)
+@WebSocketGateway({
+  namespace: '/waiting',
+  cors: {
+    origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [],
+    credentials: true,
+  },
+})
+export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer() server: Server;
+
+  constructor(
+    private readonly waitingService: WaitingService,
+    private readonly jwtService: JwtService,
+    private readonly chatService: ChatService,
   ) {}
 
-  static load(room: Room, players: WaitingPlayerState[], hostId: number | null): Waiting {
-    return new Waiting(room, players, hostId);
-  }
+  handleConnection(client: Socket) {
+    const auth = client.handshake.auth ?? {};
+    const headers = client.handshake.headers;
+    const token =
+      (typeof auth.token === 'string' ? auth.token : null) ||
+      (typeof headers.authorization === 'string' ? headers.authorization.split(' ')[1] : null);
 
-  canJoin(userId: number): void {
-    if (this.players.some((p) => p.userId === userId)) {
+    if (!token) {
+      const error = wsError(401, WAITING_ERROR_CODES.ACCESS_TOKEN_MISSING);
+      client.emit(WAITING_EVENTS.SYSTEM_NOTIFICATION, error.getError());
+      client.disconnect();
       return;
     }
 
-    if (this.room.status !== RoomStatus.WAITING) {
-      throw new ConflictException({
-        code: WAITING_ERROR_CODES.GAME_ALREADY_STARTED,
-      });
-    }
-
-    if (this.players.length >= this.room.maxPlayers) {
-      throw new ConflictException({
-        code: WAITING_ERROR_CODES.ROOM_FULL,
-      });
-    }
-  }
-
-  requiresPassword(): boolean {
-    return this.room.isPrivate && !!this.room.hashedPassword;
-  }
-
-  hasPlayer(userId: number): boolean {
-    return this.players.some((p) => p.userId === userId);
-  }
-
-  isEmpty(): boolean {
-    return this.players.length === 0;
-  }
-
-  getInitialTeam(): Team {
-    if (this.room.mode === RoomMode.SOLO) {
-      return Team.NONE;
-    }
-
-    const redCount = this.players.filter((p) => p.team === Team.RED).length;
-    const blueCount = this.players.filter((p) => p.team === Team.BLUE).length;
-    return redCount <= blueCount ? Team.RED : Team.BLUE;
-  }
-
-  validateToggleReady(userId: number): void {
-    if (this.hostId === userId) {
-      throw new ForbiddenException({
-        code: WAITING_ERROR_CODES.HOST_CANNOT_TOGGLE_READY,
-      });
-    }
-    this.findPlayerOrThrow(userId);
-  }
-
-  validateTeamChange(userId: number, newTeam: Team): void {
-    if (this.room.mode === RoomMode.SOLO) {
-      throw new BadRequestException({
-        code: WAITING_ERROR_CODES.SOLO_MODE_NO_TEAMS,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.SOLO_MODE_NO_TEAMS]],
-      });
-    }
-
-    if (newTeam === Team.NONE) {
-      throw new BadRequestException({
-        code: WAITING_ERROR_CODES.INVALID_TEAM,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.INVALID_TEAM]],
-      });
-    }
-
-    this.findPlayerOrThrow(userId);
-
-    const maxPerTeam = Math.ceil(this.room.maxPlayers / 2);
-    const targetTeamCount = this.players.filter(
-      (p) => p.team === newTeam && p.userId !== userId,
-    ).length;
-
-    if (targetTeamCount >= maxPerTeam) {
-      throw new ConflictException({
-        code: WAITING_ERROR_CODES.TEAM_FULL,
-      });
+    try {
+      const payload = this.jwtService.verify<JwtPayload>(token);
+      client.data = {
+        userId: Number(payload.sub),
+        nickname: payload.nickname,
+      } as ClientData;
+    } catch (err: unknown) {
+      const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
+      const error = wsError(
+        401,
+        isTokenExpired
+          ? WAITING_ERROR_CODES.EXPIRED_ACCESS_TOKEN
+          : WAITING_ERROR_CODES.INVALID_ACCESS_TOKEN,
+      );
+      client.emit(WAITING_EVENTS.SYSTEM_NOTIFICATION, error.getError());
+      client.disconnect();
     }
   }
 
-  validateKick(requesterId: number, targetUserId: number): void {
-    if (this.hostId !== requesterId) {
-      throw new ForbiddenException({
-        code: WAITING_ERROR_CODES.PERMISSION_DENIED,
-      });
+  async handleDisconnect(client: Socket) {
+    const data = client.data as ClientData;
+    if (!data?.userId || !data?.roomId) {
+      return;
     }
 
-    if (requesterId === targetUserId) {
-      throw new BadRequestException({
-        code: WAITING_ERROR_CODES.CANNOT_KICK_SELF,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.CANNOT_KICK_SELF]],
-      });
-    }
-  }
+    const result = await this.waitingService.handleDisconnect(data.roomId, data.userId);
+    if (!result.wasLastPlayer && !result.isGameInProgress) {
+      this.emitPlayerListSync(data.roomId, result.remainingPlayers);
 
-  validateSettingsUpdate(requesterId: number): void {
-    if (this.hostId !== requesterId) {
-      throw new ForbiddenException({
-        code: WAITING_ERROR_CODES.PERMISSION_DENIED,
-      });
+      if (result.systemMessage) {
+        this.server
+          .to(`room:${data.roomId}`)
+          .emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, result.systemMessage);
+      }
     }
   }
 
-  validatePlayerExists(userId: number): void {
-    this.findPlayerOrThrow(userId);
-  }
-
-  validateMaxPlayersUpdate(newMaxPlayers: number): void {
-    if (newMaxPlayers < this.players.length) {
-      throw new BadRequestException({
-        code: WAITING_ERROR_CODES.MAX_PLAYERS_LESS_THAN_CURRENT,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.MAX_PLAYERS_LESS_THAN_CURRENT]],
-      });
+  private getClientData(client: Socket): ClientData | null {
+    const data = client.data as unknown;
+    if (
+      data &&
+      typeof data === 'object' &&
+      'userId' in data &&
+      typeof data.userId === 'number' &&
+      'nickname' in data &&
+      typeof data.nickname === 'string'
+    ) {
+      return data as ClientData;
     }
+    return null;
   }
 
-  shouldResetTeamsForMode(newMode: RoomMode): boolean {
-    return this.room.mode !== newMode;
-  }
-
-  generateTeamResetCommands(newMode: RoomMode): TeamResetCommand[] {
-    return this.players.map((player, index) => {
-      const newTeam =
-        newMode === RoomMode.SOLO ? Team.NONE : index % 2 === 0 ? Team.RED : Team.BLUE;
-
-      const shouldResetReady = player.userId !== this.hostId;
-
-      return {
-        userId: player.userId,
-        newTeam,
-        shouldResetReady,
-      };
+  private emitPlayerListSync(roomId: number, players: unknown[]) {
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_SYNC_PLAYER_LIST, {
+      players,
     });
   }
 
-  validateGameStart(requesterId: number): void {
-    this.validateStartPermission(requesterId);
-    this.validateRoomStatus();
-    this.validatePlayerCount();
-    this.validateAllPlayersReady();
-    this.validateTeamBalance();
+  private emitSystemMessage(roomId: number, message: string) {
+    const systemMessage = this.chatService.createSystemMessage({ message });
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, systemMessage);
   }
 
-  private validateStartPermission(requesterId: number): void {
-    if (this.hostId !== requesterId) {
-      throw new ForbiddenException({
-        code: WAITING_ERROR_CODES.GAME_START_NOT_HOST,
-      });
+  @SubscribeMessage(WAITING_EVENTS.ROOM_JOIN)
+  async handleJoin(@MessageBody() body: JoinRoomDto, @ConnectedSocket() client: Socket) {
+    const clientData = this.getClientData(client);
+    if (!clientData) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
     }
-  }
 
-  private validateRoomStatus(): void {
-    if (this.room.status !== RoomStatus.WAITING) {
-      throw new ConflictException({
-        code: WAITING_ERROR_CODES.GAME_ALREADY_STARTED,
-      });
-    }
-  }
+    if (clientData.roomId && clientData.roomId !== body.roomId) {
+      const previousRoomId = clientData.roomId;
+      const playersBeforeLeave = await this.waitingService.getPlayers(previousRoomId);
 
-  private validatePlayerCount(): void {
-    if (this.room.mode === RoomMode.SOLO) {
-      if (this.players.length < ROOM_CONSTANTS.SOLO_MIN_PLAYERS) {
-        throw new ConflictException({
-          code: WAITING_ERROR_CODES.GAME_START_NOT_ENOUGH_PLAYERS,
-        });
-      }
-    } else if (!ROOM_CONSTANTS.TEAM_ALLOWED_PLAYERS.includes(this.players.length)) {
-      throw new ConflictException({
-        code: WAITING_ERROR_CODES.GAME_START_NOT_ENOUGH_PLAYERS,
-      });
-    }
-  }
+      await this.waitingService.leaveRoom(previousRoomId, clientData.userId);
+      await client.leave(`room:${previousRoomId}`);
 
-  private validateAllPlayersReady(): void {
-    const nonHostPlayers = this.players.filter((p) => p.userId !== this.hostId);
-    const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every((p) => p.isReady);
-
-    if (!allReady) {
-      throw new ConflictException({
-        code: WAITING_ERROR_CODES.NOT_ALL_PLAYERS_READY,
-      });
-    }
-  }
-
-  private validateTeamBalance(): void {
-    if (this.room.mode === RoomMode.TEAM) {
-      const redCount = this.players.filter((p) => p.team === Team.RED).length;
-      const blueCount = this.players.filter((p) => p.team === Team.BLUE).length;
-
-      if (Math.abs(redCount - blueCount) > 1) {
-        throw new ConflictException({
-          code: WAITING_ERROR_CODES.TEAM_IMBALANCE,
-        });
+      if (playersBeforeLeave.length > 1) {
+        const players = await this.waitingService.getPlayers(previousRoomId);
+        this.emitPlayerListSync(previousRoomId, players);
       }
     }
+
+    const state = await this.waitingService.joinRoom(body.roomId, clientData.userId, body.password);
+
+    (client.data as ClientData).roomId = body.roomId;
+    await client.join(`room:${body.roomId}`);
+
+    this.emitPlayerListSync(body.roomId, state.players);
+    this.emitSystemMessage(body.roomId, `${clientData.nickname}님이 입장했습니다.`);
+
+    client.emit(WAITING_EVENTS.ROOM_JOIN_SUCCESS, state);
   }
 
-  private findPlayerOrThrow(userId: number): WaitingPlayerState {
-    const player = this.players.find((p) => p.userId === userId);
-    if (!player) {
-      throw new NotFoundException({
-        code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND,
+  @SubscribeMessage(WAITING_EVENTS.ROOM_READY_TOGGLE)
+  async handleReadyToggle(@ConnectedSocket() client: Socket) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    const isReady = await this.waitingService.toggleReady(roomId, userId);
+
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_PLAYER, {
+      userId: userId.toString(),
+      changes: { isReady },
+    });
+
+    const allReady = await this.waitingService.canStartMatch(roomId);
+    if (allReady) {
+      this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_ALL_PLAYERS_READY, {
+        canStart: true,
       });
     }
-    return player;
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.ROOM_CHANGE_TEAM)
+  async handleChangeTeam(@MessageBody() body: ChangeTeamDto, @ConnectedSocket() client: Socket) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    await this.waitingService.changeTeam(roomId, userId, body.targetTeam);
+
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_PLAYER, {
+      userId: userId.toString(),
+      changes: { team: body.targetTeam },
+    });
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.ROOM_UPDATE_STATUS)
+  async handleUpdateStatus(
+    @MessageBody() body: UpdateStatusDto,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    await this.waitingService.updatePageStatus(roomId, userId, body.status);
+
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_PLAYER, {
+      userId: userId.toString(),
+      changes: { status: body.status },
+    });
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.ROOM_UPDATE_OUTFIT)
+  async handleUpdateOutfit(
+    @MessageBody() body: UpdateOutfitDto,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    await this.waitingService.updateOutfit(roomId, userId, body.outfit);
+
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_PLAYER, {
+      userId: userId.toString(),
+      changes: { outfit: body.outfit },
+    });
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.ROOM_UPDATE_SETTINGS)
+  async handleUpdateSettings(
+    @MessageBody() body: UpdateSettingsDto,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    await this.waitingService.updateSettings(roomId, userId, body);
+
+    const state = await this.waitingService.getState(roomId);
+
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_ROOM, {
+      roomSettings: state.settings,
+    });
+
+    this.emitPlayerListSync(roomId, state.players);
+    this.emitSystemMessage(roomId, '게임 설정이 변경되었습니다.');
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.ROOM_KICK_USER)
+  async handleKick(@MessageBody() body: KickUserDto, @ConnectedSocket() client: Socket) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    const playersBeforeKick = await this.waitingService.getPlayers(roomId);
+    const kickedPlayer = playersBeforeKick.find((p) => p.userId === body.targetUserId);
+
+    if (!kickedPlayer) {
+      throw wsError(404, WAITING_ERROR_CODES.PLAYER_NOT_FOUND);
+    }
+
+    await this.waitingService.kickPlayer(roomId, userId, body.targetUserId);
+
+    const targetClients = await this.server.in(`room:${roomId}`).fetchSockets();
+    const targetClient = targetClients.find(
+      (c) => (c.data as ClientData).userId === body.targetUserId,
+    );
+
+    if (targetClient) {
+      (targetClient.data as ClientData).roomId = undefined;
+      const error = wsError(403, WAITING_ERROR_CODES.ROOM_KICKED);
+      targetClient.emit(WAITING_EVENTS.SYSTEM_NOTIFICATION, error.getError());
+      targetClient.leave(`room:${roomId}`);
+      targetClient.disconnect();
+    }
+
+    const players = await this.waitingService.getPlayers(roomId);
+    this.emitPlayerListSync(roomId, players);
+    this.emitSystemMessage(roomId, `${kickedPlayer.nickname}님이 강퇴되었습니다.`);
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.ROOM_NUDGE_USER)
+  async handleNudge(@MessageBody() body: NudgeUserDto, @ConnectedSocket() client: Socket) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    const players = await this.waitingService.getPlayers(roomId);
+    const targetPlayer = players.find((p) => p.userId === body.targetUserId);
+
+    if (!targetPlayer) {
+      throw wsError(404, WAITING_ERROR_CODES.PLAYER_NOT_FOUND);
+    }
+
+    const targetClients = await this.server.in(`room:${roomId}`).fetchSockets();
+    const targetClient = targetClients.find(
+      (c) => (c.data as ClientData).userId === body.targetUserId,
+    );
+
+    if (targetClient) {
+      targetClient.emit(WAITING_EVENTS.ROOM_NUDGED, {
+        senderId: userId.toString(),
+      });
+    }
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.GAME_START_REQUEST)
+  async handleStartRequest(@ConnectedSocket() client: Socket) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+
+    const gameState = await this.waitingService.handleGameStart(roomId, userId);
+
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_GAME_STATE, {
+      phase: gameState.phase,
+      endsAt: gameState.endsAt,
+      phaseContext: null,
+    });
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.ROOM_LEAVE)
+  async handleLeave(@ConnectedSocket() client: Socket) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    const result = await this.waitingService.handleLeave(roomId, userId);
+
+    await client.leave(`room:${roomId}`);
+
+    if (!result.wasLastPlayer) {
+      this.emitPlayerListSync(roomId, result.remainingPlayers);
+      if (result.systemMessage) {
+        this.server
+          .to(`room:${roomId}`)
+          .emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, result.systemMessage);
+      }
+    }
+
+    client.emit(WAITING_EVENTS.ROOM_LEAVE, { success: true });
+    (client.data as ClientData).roomId = undefined;
+  }
+
+  @SubscribeMessage(WAITING_EVENTS.ROOM_SEND)
+  async handleSendMessage(@MessageBody() body: SendMessageDto, @ConnectedSocket() client: Socket) {
+    const clientData = this.getClientData(client);
+    if (!clientData?.roomId) {
+      throw wsError(400, WAITING_ERROR_CODES.CLIENT_STATE_INVALID);
+    }
+
+    const { roomId, userId } = clientData;
+    const message = await this.waitingService.handleChatMessage(roomId, userId, body.message);
+
+    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_MESSAGE, message);
   }
 }
