@@ -96,7 +96,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
 
       void client.join('lobby');
-      void client.join(`user:${payload.sub}`);
+      this.logger.log(`User connected: ${payload.nickname}`);
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
       const error = wsError(

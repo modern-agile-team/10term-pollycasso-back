@@ -1,20 +1,31 @@
 import { Injectable, NotFoundException, Inject, ConflictException } from '@nestjs/common';
-import { Team, RoomMode, RoomStatus } from '@prisma/client';
+import { Team, RoomStatus } from '@prisma/client';
 import { WaitingStore, WaitingPlayerState } from './waiting.store';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WaitingStateResponseDto } from './dtos/responses/waiting-state-response.dto';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
+import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
-import { Waiting } from './entities/waiting.entity';
+import { Waiting, TeamResetCommand } from './entities/waiting.entity';
 import { Room } from 'src/room/entities/room.entity';
 import type { IRoomReader } from 'src/room/interfaces/room-reader.interface';
 import type { IRoomWriter } from 'src/room/interfaces/room-writer.interface';
 import { ChatService } from 'src/chat/chat.service';
+import { MessageResponseDto } from 'src/chat/dtos/responses/message-response.dto';
+import { GameStateStore } from 'src/game-state/game-state.store';
+import { GamePhase } from 'src/game-state/interfaces/game-state.interface';
 import {
   WAITING_CONSTANTS,
   WAITING_DOMAIN_ERRORS,
   WAITING_ERROR_CODES,
 } from './constants/waiting.constant';
+
+interface DisconnectResult {
+  wasLastPlayer: boolean;
+  remainingPlayers: WaitingPlayerState[];
+  systemMessage: MessageResponseDto | null;
+  isGameInProgress: boolean;
+}
 
 @Injectable()
 export class WaitingService {
@@ -22,6 +33,7 @@ export class WaitingService {
     private readonly waitingStore: WaitingStore,
     private readonly prisma: PrismaService,
     private readonly chatService: ChatService,
+    private readonly gameStateStore: GameStateStore,
     @Inject('IRoomReader') private readonly roomReader: IRoomReader,
     @Inject('IRoomWriter') private readonly roomWriter: IRoomWriter,
   ) {}
@@ -30,11 +42,10 @@ export class WaitingService {
     const room = await this.findRoomOrThrow(roomId);
     const players = await this.waitingStore.getPlayers(roomId);
     const hostId = await this.waitingStore.getHostId(roomId);
-
     return Waiting.load(room, players, hostId);
   }
 
-  private async findRoomOrThrow(roomId: number) {
+  private async findRoomOrThrow(roomId: number): Promise<Room> {
     try {
       return await this.roomReader.getOneRoom(roomId);
     } catch {
@@ -48,7 +59,6 @@ export class WaitingService {
     password?: string,
   ): Promise<WaitingStateResponseDto> {
     const waiting = await this.loadWaitingEntity(roomId);
-
     waiting.canJoin(userId);
 
     if (waiting.hasPlayer(userId)) {
@@ -63,7 +73,6 @@ export class WaitingService {
     const isHost = waiting.isEmpty();
 
     await this.waitingStore.joinRoom(roomId, player, isHost);
-
     return this.getState(roomId);
   }
 
@@ -137,13 +146,7 @@ export class WaitingService {
   async updateSettings(
     roomId: number,
     requesterId: number,
-    settings: {
-      name?: string;
-      mode?: RoomMode;
-      maxPlayers?: number;
-      isPrivate?: boolean;
-      password?: string;
-    },
+    settings: UpdateSettingsDto,
   ): Promise<void> {
     const waiting = await this.loadWaitingEntity(roomId);
     waiting.validateSettingsUpdate(requesterId);
@@ -153,27 +156,23 @@ export class WaitingService {
     }
 
     if (settings.mode && waiting.shouldResetTeamsForMode(settings.mode)) {
-      await this.resetTeamsForMode(roomId, settings.mode, waiting);
+      const resetCommands = waiting.generateTeamResetCommands(settings.mode);
+      await this.executeTeamResetCommands(roomId, resetCommands);
     }
 
     await this.roomWriter.updateRoomWhileWaiting(roomId, settings);
   }
 
-  private async resetTeamsForMode(
+  private async executeTeamResetCommands(
     roomId: number,
-    newMode: RoomMode,
-    waiting: Waiting,
+    commands: TeamResetCommand[],
   ): Promise<void> {
-    const players = waiting.players;
     await Promise.all(
-      players.map(async (player, index) => {
-        const newTeam =
-          newMode === RoomMode.SOLO ? Team.NONE : index % 2 === 0 ? Team.RED : Team.BLUE;
+      commands.map(async (cmd) => {
+        await this.waitingStore.changeTeam(roomId, cmd.userId, cmd.newTeam);
 
-        await this.waitingStore.changeTeam(roomId, player.userId, newTeam);
-
-        if (player.userId !== waiting.hostId) {
-          await this.waitingStore.setReady(roomId, player.userId, false);
+        if (cmd.shouldResetReady) {
+          await this.waitingStore.setReady(roomId, cmd.userId, false);
         }
       }),
     );
@@ -187,8 +186,8 @@ export class WaitingService {
 
   async leaveRoom(roomId: number, userId: number): Promise<void> {
     await this.waitingStore.leaveRoom(roomId, userId);
-
     const players = await this.waitingStore.getPlayers(roomId);
+
     if (!players.length) {
       await this.waitingStore.clearRoom(roomId);
       await this.roomWriter.removeRoom(roomId);
@@ -211,10 +210,6 @@ export class WaitingService {
     }
 
     await this.roomWriter.startGame(roomId);
-  }
-
-  async markRoomAsStarted(roomId: number): Promise<void> {
-    await this.waitingStore.setRoomExpiry(roomId, WAITING_CONSTANTS.GAME_SESSION_TTL_SECONDS);
   }
 
   async getState(roomId: number): Promise<WaitingStateResponseDto> {
@@ -243,7 +238,7 @@ export class WaitingService {
     });
   }
 
-  async getPlayers(roomId: number) {
+  async getPlayers(roomId: number): Promise<WaitingPlayerState[]> {
     await this.findRoomOrThrow(roomId);
     return this.waitingStore.getPlayers(roomId);
   }
@@ -260,35 +255,30 @@ export class WaitingService {
 
   async handleGameStart(
     roomId: number,
-    userId: number,
-  ): Promise<{
-    roomId: number;
-    players: WaitingPlayerState[];
-  }> {
-    await this.startGame(roomId, userId);
+    requesterId: number,
+  ): Promise<{ phase: GamePhase; endsAt: number }> {
+    await this.startGame(roomId, requesterId);
 
-    await this.markRoomAsStarted(roomId);
-
-    const players = await this.getPlayers(roomId);
+    const loadingEndTime = Date.now() + WAITING_CONSTANTS.LOADING_PHASE_DURATION_MS;
+    await this.gameStateStore.set(roomId, {
+      phase: GamePhase.LOADING,
+      endsAt: loadingEndTime,
+      currentRound: 1,
+      totalRounds: WAITING_CONSTANTS.DEFAULT_ROUNDS,
+      currentTheme: null,
+      recentThemes: [],
+      phaseContext: null,
+    });
 
     return {
-      roomId,
-      players,
+      phase: GamePhase.LOADING,
+      endsAt: loadingEndTime,
     };
   }
 
-  async handleDisconnect(
-    roomId: number,
-    userId: number,
-  ): Promise<{
-    wasLastPlayer: boolean;
-    remainingPlayers: WaitingPlayerState[];
-    systemMessage: ReturnType<ChatService['createSystemMessage']> | null;
-    isGameInProgress: boolean;
-  }> {
+  async handleDisconnect(roomId: number, userId: number): Promise<DisconnectResult> {
     const room = await this.findRoomOrThrow(roomId);
     const isGameInProgress = room.status !== RoomStatus.WAITING;
-
     const players = await this.getPlayers(roomId);
     const wasLastPlayer = players.length === 1;
     const leavingPlayer = players.find((p) => p.userId === userId);
@@ -318,18 +308,9 @@ export class WaitingService {
     };
   }
 
-  async handleLeave(
-    roomId: number,
-    userId: number,
-  ): Promise<{
-    wasLastPlayer: boolean;
-    remainingPlayers: WaitingPlayerState[];
-    systemMessage: ReturnType<ChatService['createSystemMessage']> | null;
-    isGameInProgress: boolean;
-  }> {
+  async handleLeave(roomId: number, userId: number): Promise<DisconnectResult> {
     const room = await this.findRoomOrThrow(roomId);
     const isGameInProgress = room.status !== RoomStatus.WAITING;
-
     const players = await this.getPlayers(roomId);
     const wasLastPlayer = players.length === 1;
     const leavingPlayer = players.find((p) => p.userId === userId);
