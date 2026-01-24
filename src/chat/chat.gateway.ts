@@ -11,8 +11,8 @@ import { UsePipes, ValidationPipe, UseFilters } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
-import { SendMessageDto } from './dtos/requests/send-message.dto';
-import { CHAT_ERROR_CODES } from './constants/chat.constant';
+import { ChatSendChannel, SendMessageDto } from './dtos/requests/send-message.dto';
+import { CHAT_ERROR_CODES, CHAT_EVENTS } from './constants/chat.constant';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { wsError } from 'src/common/utils/ws-error.util';
 
@@ -24,6 +24,7 @@ interface JwtPayload {
 interface ClientData {
   userId: number;
   nickname: string;
+  roomId?: number;
 }
 
 @UseFilters(SocketExceptionFilter)
@@ -52,8 +53,7 @@ interface ClientData {
   namespace: '/chat',
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  @WebSocketServer()
-  server: Server;
+  @WebSocketServer() server: Server;
 
   constructor(
     private readonly chatService: ChatService,
@@ -82,7 +82,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (!token) {
       const error = wsError(401, CHAT_ERROR_CODES.ACCESS_TOKEN_MISSING);
-      client.emit('system:notification', error.getError());
+      client.emit(CHAT_EVENTS.SYSTEM_NOTIFICATION, error.getError());
       client.disconnect();
       return;
     }
@@ -98,7 +98,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       void client.join('lobby');
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
-
       const error = wsError(
         401,
         isTokenExpired
@@ -106,15 +105,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           : CHAT_ERROR_CODES.INVALID_ACCESS_TOKEN,
       );
 
-      client.emit('system:notification', error.getError());
+      client.emit(CHAT_EVENTS.SYSTEM_NOTIFICATION, error.getError());
       client.disconnect();
     }
   }
 
   handleDisconnect(_client: Socket) {}
 
-  @SubscribeMessage('lobby:send')
-  handleLobbyMessage(@MessageBody() data: SendMessageDto, @ConnectedSocket() client: Socket) {
+  @SubscribeMessage(CHAT_EVENTS.LOBBY_SEND)
+  handleMessage(@MessageBody() dto: SendMessageDto, @ConnectedSocket() client: Socket) {
     const clientData = this.getClientData(client);
 
     if (!clientData) {
@@ -122,13 +121,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-      const message = this.chatService.createLobbyMessage({
+      if (dto.channel === ChatSendChannel.GLOBAL) {
+        this.handleGlobalMessage(clientData, dto);
+      }
+    } catch (_error) {
+      throw wsError(500, CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
+    }
+  }
+
+  private handleGlobalMessage(clientData: ClientData, dto: SendMessageDto) {
+    try {
+      const message = this.chatService.createGlobalMessage({
         senderId: clientData.userId.toString(),
         nickname: clientData.nickname,
-        message: data.message,
+        message: dto.message,
       });
 
-      void this.server.to('lobby').emit('lobby:message', message);
+      this.server.to('lobby').emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
     } catch (_error) {
       throw wsError(500, CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
     }
