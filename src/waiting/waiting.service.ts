@@ -3,6 +3,7 @@ import { Team, RoomMode, RoomStatus } from '@prisma/client';
 import { WaitingStore, WaitingPlayerState } from './waiting.store';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WaitingStateResponseDto } from './dtos/responses/waiting-state-response.dto';
+import { PlayerResponseDto } from './dtos/responses/player-response.dto';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { Waiting } from './entities/waiting.entity';
@@ -47,6 +48,26 @@ export class WaitingService {
     } catch {
       throw new NotFoundException({ code: WAITING_ERROR_CODES.ROOM_NOT_FOUND });
     }
+  }
+
+  private convertToDto(players: WaitingPlayerState[]): PlayerResponseDto[] {
+    return players.map(
+      (p) =>
+        new PlayerResponseDto({
+          userId: p.userId,
+          nickname: p.nickname,
+          team: p.team,
+          isReady: p.isReady,
+          level: p.level,
+          status: p.pageStatus,
+          outfit: p.outfit,
+        }),
+    );
+  }
+
+  async getPlayersDto(roomId: number): Promise<PlayerResponseDto[]> {
+    const players = await this.waitingStore.getPlayers(roomId);
+    return this.convertToDto(players);
   }
 
   async joinRoom(
@@ -213,7 +234,7 @@ export class WaitingService {
     requesterId: number,
     targetUserId: number,
   ): Promise<{
-    remainingPlayers: WaitingPlayerState[];
+    remainingPlayers: PlayerResponseDto[];
     systemMessage: ChatMessageDto;
   }> {
     const waiting = await this.loadWaitingEntity(roomId);
@@ -233,17 +254,22 @@ export class WaitingService {
       message: `${kickedPlayer.nickname}님이 강퇴되었습니다.`,
     });
 
-    return { remainingPlayers, systemMessage };
+    return {
+      remainingPlayers: this.convertToDto(remainingPlayers),
+      systemMessage,
+    };
   }
 
-  async leaveRoom(roomId: number, userId: number): Promise<void> {
+  async leaveRoom(roomId: number, userId: number): Promise<PlayerResponseDto[]> {
     await this.waitingStore.leaveRoom(roomId, userId);
-
     const players = await this.waitingStore.getPlayers(roomId);
+
     if (!players.length) {
       await this.waitingStore.clearRoom(roomId);
       await this.roomWriter.removeRoom(roomId);
     }
+
+    return this.convertToDto(players);
   }
 
   async startGame(roomId: number, requesterId: number): Promise<void> {
@@ -325,21 +351,8 @@ export class WaitingService {
         maxPlayers: room.maxPlayers,
         isPrivate: room.isPrivate,
       },
-      players: players.map((p) => ({
-        userId: p.userId,
-        nickname: p.nickname,
-        team: p.team,
-        isReady: p.isReady,
-        level: p.level,
-        status: p.pageStatus,
-        outfit: p.outfit,
-      })),
+      players: this.convertToDto(players),
     });
-  }
-
-  async getPlayers(roomId: number) {
-    await this.findRoomOrThrow(roomId);
-    return this.waitingStore.getPlayers(roomId);
   }
 
   async canStartMatch(roomId: number): Promise<boolean> {
@@ -357,14 +370,14 @@ export class WaitingService {
     userId: number,
   ): Promise<{
     wasLastPlayer: boolean;
-    remainingPlayers: WaitingPlayerState[];
+    remainingPlayers: PlayerResponseDto[];
     systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
     const room = await this.findRoomOrThrow(roomId);
     const isGameInProgress = room.status !== RoomStatus.WAITING;
 
-    const players = await this.getPlayers(roomId);
+    const players = await this.waitingStore.getPlayers(roomId);
     const wasLastPlayer = players.length === 1;
     const leavingPlayer = players.find((p) => p.userId === userId);
 
@@ -376,7 +389,10 @@ export class WaitingService {
       }
     }
 
-    const remainingPlayers = wasLastPlayer || isGameInProgress ? [] : await this.getPlayers(roomId);
+    const remainingPlayers =
+      wasLastPlayer || isGameInProgress
+        ? []
+        : this.convertToDto(await this.waitingStore.getPlayers(roomId));
 
     const systemMessage =
       !wasLastPlayer && !isGameInProgress && leavingPlayer
@@ -398,20 +414,22 @@ export class WaitingService {
     userId: number,
   ): Promise<{
     wasLastPlayer: boolean;
-    remainingPlayers: WaitingPlayerState[];
+    remainingPlayers: PlayerResponseDto[];
     systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
     const room = await this.findRoomOrThrow(roomId);
     const isGameInProgress = room.status !== RoomStatus.WAITING;
 
-    const players = await this.getPlayers(roomId);
+    const players = await this.waitingStore.getPlayers(roomId);
     const wasLastPlayer = players.length === 1;
     const leavingPlayer = players.find((p) => p.userId === userId);
 
     await this.leaveRoom(roomId, userId);
 
-    const remainingPlayers = wasLastPlayer ? [] : await this.getPlayers(roomId);
+    const remainingPlayers = wasLastPlayer
+      ? []
+      : this.convertToDto(await this.waitingStore.getPlayers(roomId));
 
     const systemMessage =
       !wasLastPlayer && !isGameInProgress && leavingPlayer
@@ -429,7 +447,7 @@ export class WaitingService {
   }
 
   async handleChatMessage(roomId: number, userId: number, messageText: string) {
-    const players = await this.getPlayers(roomId);
+    const players = await this.waitingStore.getPlayers(roomId);
     const player = players.find((p) => p.userId === userId);
 
     if (!player) {
