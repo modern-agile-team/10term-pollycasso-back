@@ -46,6 +46,11 @@ enum RoomStatus {
   FINISHED
 }
 
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+}
+
 model User {
   id             Int       @id @default(autoincrement())
   username       String?   @unique @db.VarChar(20)
@@ -57,10 +62,14 @@ model User {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  profile     UserProfile?
-  stats       UserStats?
-  roomMembers RoomMember[]
-  votes       Vote[]
+  profile         UserProfile?
+  stats           UserStats?
+  roomMembers     RoomMember[]
+  votes           Vote[]
+  friendsSent     Friend[]     @relation("UserFriendSent")
+  friendsReceived Friend[]     @relation("UserFriendReceived")
+  blockingUsers   BlockList[]  @relation("BlockedBy")
+  blockedByUsers  BlockList[]  @relation("Blocking")
 
   @@unique([provider, providerId])
   @@unique([nickname, tag])
@@ -100,6 +109,37 @@ model UserStats {
 
   @@index([winRate(sort: Desc)])
   @@map("user_stats")
+}
+
+model Friend {
+  id           Int          @id @default(autoincrement())
+  userId       Int          @map("user_id")
+  targetUserId Int          @map("target_user_id")
+  status       FriendStatus
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  user       User @relation("UserFriendSent", fields: [userId], references: [id], onDelete: Cascade)
+  targetUser User @relation("UserFriendReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetUserId])
+  @@index([userId, status])
+  @@index([targetUserId, status])
+  @@map("friends")
+}
+
+model BlockList {
+  id        Int      @id @default(autoincrement())
+  blockerId Int
+  blockedId Int
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlockedBy", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocking", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("block_lists")
 }
 
 model Room {

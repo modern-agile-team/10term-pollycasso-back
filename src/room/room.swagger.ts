@@ -1,7 +1,7 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { StandardErrorResponseDto } from 'src/common/dtos/responses/standard-error-response.dto';
-import { ResRoomDto } from './dtos/responses/room-response.dto';
+import { RoomResponseDto } from './dtos/responses/room-response.dto';
 import { PaginatedRoomResponseDto } from './dtos/responses/paginated-room-response.dto';
 
 const badRequestErrors = () =>
@@ -84,7 +84,7 @@ export const ApiRoom = {
     applyDecorators(
       ApiCookieAuth('accessToken'),
       ApiOperation({ summary: '새로운 방 생성' }),
-      ApiResponse({ status: 201, description: '방 생성 성공', type: ResRoomDto }),
+      ApiResponse({ status: 201, description: '방 생성 성공', type: RoomResponseDto }),
       badRequestErrors(),
       unauthorizedError(),
     ),
@@ -106,7 +106,7 @@ export const ApiRoom = {
     applyDecorators(
       ApiCookieAuth('accessToken'),
       ApiOperation({ summary: '단일 방 조회' }),
-      ApiResponse({ status: 200, description: '방 조회 성공', type: ResRoomDto }),
+      ApiResponse({ status: 200, description: '방 조회 성공', type: RoomResponseDto }),
       roomNotFoundError(),
       unauthorizedError(),
     ),

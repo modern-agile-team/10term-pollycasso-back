@@ -1,7 +1,7 @@
 import { QueryRoomDto } from '../dtos/requests/query-room.dto';
 import { Room } from '../entities/room.entity';
 
-export interface IRoomsRepository {
+export interface IRoomRepository {
   createRoom(room: Room): Promise<Room>;
   findOneRoom(id: number): Promise<Room | null>;
   findAllRooms(

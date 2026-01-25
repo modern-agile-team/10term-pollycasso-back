@@ -12,6 +12,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { WaitingModule } from './waiting/waiting.module';
 import { GameStateModule } from './game-state/game-state.module';
+import { FriendModule } from './friend/friend.module';
+import { BlockModule } from './block/block.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
@@ -30,6 +32,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     ChatModule,
     GameStateModule,
     GameModule,
+    FriendModule,
+    BlockModule,
   ],
   controllers: [AppController],
   providers: [AppService],
