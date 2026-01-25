@@ -1,15 +1,22 @@
-import { IsString, MinLength, MaxLength, IsNotEmpty } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsString,
+  MinLength,
+  MaxLength,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsUUID,
+  ValidateIf,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import sanitizeHtml from 'sanitize-html';
 
+export enum ChatSendChannel {
+  GLOBAL = 'global',
+  DIRECT = 'direct',
+}
+
 export class SendMessageDto {
-  @ApiProperty({
-    description: '채팅 메시지 (1~50자)',
-    example: '안녕하세요!',
-    minLength: 1,
-    maxLength: 50,
-  })
   @Transform(({ value }) =>
     sanitizeHtml(String(value), {
       allowedTags: [],
@@ -21,4 +28,14 @@ export class SendMessageDto {
   @IsString()
   @IsNotEmpty()
   message: string;
+
+  @IsEnum(ChatSendChannel)
+  @IsNotEmpty()
+  channel: ChatSendChannel;
+
+  @IsOptional()
+  @ValidateIf((o: SendMessageDto) => o.channel === ChatSendChannel.DIRECT)
+  @IsUUID('4')
+  @IsNotEmpty()
+  targetId?: string;
 }
