@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
-import { ResRoomDto } from './dtos/responses/room-response.dto';
-import { ResDeletedRoomDto } from './dtos/responses/deleted-room-response.dto';
+import { RoomResponseDto } from './dtos/responses/room-response.dto';
+import { DeletedRoomResponseDto } from './dtos/responses/deleted-room-response.dto';
 import { Room } from './entities/room.entity';
 import { IRoomsEventPublisher } from './events/room-event.publisher';
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
@@ -17,7 +17,7 @@ import { wsError } from 'src/common/utils/ws-error.util';
   },
   namespace: '/rooms',
 })
-export class RoomsGateway implements IRoomsEventPublisher {
+export class RoomGateway implements IRoomsEventPublisher {
   @WebSocketServer()
   server: Server;
 
@@ -30,14 +30,14 @@ export class RoomsGateway implements IRoomsEventPublisher {
   }
 
   roomCreated(room: Room) {
-    this.broadcastEvent('room:created', new ResRoomDto(room));
+    this.broadcastEvent('room:created', new RoomResponseDto(room));
   }
 
   roomUpdated(room: Room) {
-    this.broadcastEvent('room:updated', new ResRoomDto(room));
+    this.broadcastEvent('room:updated', new RoomResponseDto(room));
   }
 
   roomDeleted(id: number) {
-    this.broadcastEvent('room:deleted', new ResDeletedRoomDto(id));
+    this.broadcastEvent('room:deleted', new DeletedRoomResponseDto(id));
   }
 }
