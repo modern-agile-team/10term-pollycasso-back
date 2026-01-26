@@ -21,6 +21,7 @@ import {
 } from './constants/waiting.constant';
 import { ChatMessageDto, ChatReceiveChannel } from 'src/chat/dtos/responses/message-response.dto';
 import { ChatValidationService } from 'src/chat/chat-validation.service';
+import { PlayerResponseDto } from './dtos/responses/player-response.dto';
 
 @Injectable()
 export class WaitingService {
@@ -166,7 +167,7 @@ export class WaitingService {
       password?: string;
     },
   ): Promise<{
-    state: WaitingStateResponseDto;
+    players: PlayerResponseDto[];
     systemMessage: ChatMessageDto;
   }> {
     const waiting = await this.loadWaitingEntity(roomId);
@@ -182,12 +183,12 @@ export class WaitingService {
 
     await this.roomWriter.updateRoomWhileWaiting(roomId, settings);
 
-    const state = await this.getState(roomId);
+    const players = await this.getPlayerResponses(roomId);
     const systemMessage = this.chatService.createSystemMessage({
       message: '게임 설정이 변경되었습니다.',
     });
 
-    return { state, systemMessage };
+    return { players, systemMessage };
   }
 
   private async resetTeamsForMode(
@@ -215,7 +216,7 @@ export class WaitingService {
     requesterId: number,
     targetUserId: number,
   ): Promise<{
-    remainingPlayers: WaitingPlayerState[];
+    players: PlayerResponseDto[];
     systemMessage: ChatMessageDto;
   }> {
     const waiting = await this.loadWaitingEntity(roomId);
@@ -230,12 +231,12 @@ export class WaitingService {
 
     await this.waitingStore.leaveRoom(roomId, targetUserId);
 
-    const remainingPlayers = await this.waitingStore.getPlayers(roomId);
+    const playerResponses = await this.getPlayerResponses(roomId);
     const systemMessage = this.chatService.createSystemMessage({
       message: `${kickedPlayer.nickname}님이 강퇴되었습니다.`,
     });
 
-    return { remainingPlayers, systemMessage };
+    return { players: playerResponses, systemMessage };
   }
 
   async leaveRoom(roomId: number, userId: number): Promise<void> {
@@ -344,6 +345,37 @@ export class WaitingService {
     return this.waitingStore.getPlayers(roomId);
   }
 
+  async getPlayerResponses(roomId: number): Promise<PlayerResponseDto[]> {
+    const players = await this.getPlayers(roomId);
+    return players.map(
+      (p) =>
+        new PlayerResponseDto({
+          userId: p.userId,
+          nickname: p.nickname,
+          team: p.team,
+          isReady: p.isReady,
+          level: p.level,
+          status: p.pageStatus,
+          outfit: p.outfit,
+        }),
+    );
+  }
+
+  async getRoomSettings(roomId: number): Promise<{
+    roomTitle: string;
+    gameMode: RoomMode;
+    maxPlayers: number;
+    isPrivate: boolean;
+  }> {
+    const room = await this.findRoomOrThrow(roomId);
+    return {
+      roomTitle: room.name,
+      gameMode: room.mode,
+      maxPlayers: room.maxPlayers,
+      isPrivate: room.isPrivate,
+    };
+  }
+
   async canStartMatch(roomId: number): Promise<boolean> {
     try {
       const waiting = await this.loadWaitingEntity(roomId);
@@ -359,7 +391,7 @@ export class WaitingService {
     userId: number,
   ): Promise<{
     wasLastPlayer: boolean;
-    remainingPlayers: WaitingPlayerState[];
+    players: PlayerResponseDto[];
     systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
@@ -372,7 +404,7 @@ export class WaitingService {
     } catch {
       return {
         wasLastPlayer: false,
-        remainingPlayers: [],
+        players: [],
         systemMessage: null,
         isGameInProgress: false,
       };
@@ -390,7 +422,8 @@ export class WaitingService {
       }
     }
 
-    const remainingPlayers = wasLastPlayer || isGameInProgress ? [] : await this.getPlayers(roomId);
+    const playerResponses =
+      wasLastPlayer || isGameInProgress ? [] : await this.getPlayerResponses(roomId);
 
     const systemMessage =
       !wasLastPlayer && !isGameInProgress && leavingPlayer
@@ -401,7 +434,7 @@ export class WaitingService {
 
     return {
       wasLastPlayer,
-      remainingPlayers,
+      players: playerResponses,
       systemMessage,
       isGameInProgress,
     };
@@ -412,7 +445,7 @@ export class WaitingService {
     userId: number,
   ): Promise<{
     wasLastPlayer: boolean;
-    remainingPlayers: WaitingPlayerState[];
+    players: PlayerResponseDto[];
     systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
@@ -425,7 +458,7 @@ export class WaitingService {
 
     await this.leaveRoom(roomId, userId);
 
-    const remainingPlayers = wasLastPlayer ? [] : await this.getPlayers(roomId);
+    const playerResponses = wasLastPlayer ? [] : await this.getPlayerResponses(roomId);
 
     const systemMessage =
       !wasLastPlayer && !isGameInProgress && leavingPlayer
@@ -436,7 +469,7 @@ export class WaitingService {
 
     return {
       wasLastPlayer,
-      remainingPlayers,
+      players: playerResponses,
       systemMessage,
       isGameInProgress,
     };
