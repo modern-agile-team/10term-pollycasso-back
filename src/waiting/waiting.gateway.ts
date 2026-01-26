@@ -385,9 +385,28 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     const { roomId, userId } = clientData;
+    const result = await this.waitingService.handleChatMessage(
+      roomId,
+      userId,
+      body.message,
+      body.channel,
+      body.targetId,
+    );
 
-    const message = await this.waitingService.handleChatMessage(roomId, userId, body.message);
+    if (result.isDirectMessage) {
+      const roomSockets = await this.server.in(`room:${roomId}`).fetchSockets();
+      const targetSocket = roomSockets.find(
+        (s) => (s.data as ClientData).userId === result.targetUserId,
+      );
 
-    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_MESSAGE, message);
+      if (!targetSocket) {
+        throw wsError(404, WAITING_ERROR_CODES.TARGET_OFFLINE);
+      }
+
+      client.emit(WAITING_EVENTS.ROOM_MESSAGE, result.message);
+      targetSocket.emit(WAITING_EVENTS.ROOM_MESSAGE, result.message);
+    } else {
+      this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_MESSAGE, result.message);
+    }
   }
 }

@@ -3,6 +3,7 @@ import { FriendStatus } from '@prisma/client';
 import { FRIEND_DOMAIN_ERRORS, FRIEND_ERROR_CODES } from './constants/friend.constant';
 import type { IFriendRepository } from './interfaces/friend-repository.interface';
 import { UsersService } from 'src/user/user.service';
+import { Friend } from './friend.entity';
 
 @Injectable()
 export class FriendService {
@@ -11,6 +12,10 @@ export class FriendService {
     private readonly friendRepository: IFriendRepository,
     private readonly userService: UsersService,
   ) {}
+
+  async getFriendship(userId: number, targetUserId: number): Promise<Friend | null> {
+    return this.friendRepository.findFriendship(userId, targetUserId);
+  }
 
   async sendRequest(userId: number, targetUserId: number) {
     const targetUser = await this.userService.findOneById(targetUserId);

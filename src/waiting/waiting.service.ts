@@ -19,7 +19,8 @@ import {
   WAITING_DOMAIN_ERRORS,
   WAITING_ERROR_CODES,
 } from './constants/waiting.constant';
-import { ChatMessageDto } from 'src/chat/dtos/responses/message-response.dto';
+import { ChatMessageDto, ChatReceiveChannel } from 'src/chat/dtos/responses/message-response.dto';
+import { ChatValidationService } from 'src/chat/chat-validation.service';
 
 @Injectable()
 export class WaitingService {
@@ -29,6 +30,7 @@ export class WaitingService {
     private readonly chatService: ChatService,
     private readonly gameStateStore: GameStateStore,
     private readonly eventEmitter: EventEmitter2,
+    private readonly chatValidationService: ChatValidationService,
     @Inject('IRoomReader') private readonly roomReader: IRoomReader,
     @Inject('IRoomWriter') private readonly roomWriter: IRoomWriter,
   ) {}
@@ -361,8 +363,20 @@ export class WaitingService {
     systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
-    const room = await this.findRoomOrThrow(roomId);
-    const isGameInProgress = room.status !== RoomStatus.WAITING;
+    let room: Room | null = null;
+    let isGameInProgress = false;
+
+    try {
+      room = await this.findRoomOrThrow(roomId);
+      isGameInProgress = room.status !== RoomStatus.WAITING;
+    } catch {
+      return {
+        wasLastPlayer: false,
+        remainingPlayers: [],
+        systemMessage: null,
+        isGameInProgress: false,
+      };
+    }
 
     const players = await this.getPlayers(roomId);
     const wasLastPlayer = players.length === 1;
@@ -428,18 +442,62 @@ export class WaitingService {
     };
   }
 
-  async handleChatMessage(roomId: number, userId: number, messageText: string) {
-    const players = await this.getPlayers(roomId);
-    const player = players.find((p) => p.userId === userId);
+  async handleChatMessage(
+    roomId: number,
+    userId: number,
+    messageText: string,
+    channel?: string,
+    targetId?: number,
+  ): Promise<{
+    message: ChatMessageDto;
+    isDirectMessage: boolean;
+    targetUserId?: number;
+  }> {
+    const players = await this.waitingStore.getPlayers(roomId);
+    const sender = players.find((p) => p.userId === userId);
 
-    if (!player) {
-      throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
+    if (!sender) {
+      throw new NotFoundException({
+        code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND,
+      });
     }
 
-    return this.chatService.createGlobalMessage({
+    if (channel === ChatReceiveChannel.DIRECT && targetId) {
+      const targetUserId = Number(targetId);
+
+      await this.chatValidationService.validateDirectMessage(userId, targetUserId);
+
+      const targetPlayer = players.find((p) => p.userId === targetUserId);
+      if (!targetPlayer) {
+        throw new NotFoundException({
+          code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND,
+        });
+      }
+
+      const message = this.chatService.createDirectMessage({
+        senderId: userId.toString(),
+        nickname: sender.nickname,
+        message: messageText,
+        targetId: targetUserId.toString(),
+        targetNickname: targetPlayer.nickname,
+      });
+
+      return {
+        message,
+        isDirectMessage: true,
+        targetUserId,
+      };
+    }
+
+    const message = this.chatService.createGlobalMessage({
       senderId: userId.toString(),
-      nickname: player.nickname,
+      nickname: sender.nickname,
       message: messageText,
     });
+
+    return {
+      message,
+      isDirectMessage: false,
+    };
   }
 }

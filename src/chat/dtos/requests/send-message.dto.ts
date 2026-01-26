@@ -4,9 +4,8 @@ import {
   MaxLength,
   IsNotEmpty,
   IsEnum,
-  IsOptional,
-  IsUUID,
   ValidateIf,
+  IsNumber,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import sanitizeHtml from 'sanitize-html';
@@ -33,9 +32,8 @@ export class SendMessageDto {
   @IsNotEmpty()
   channel: ChatSendChannel;
 
-  @IsOptional()
   @ValidateIf((o: SendMessageDto) => o.channel === ChatSendChannel.DIRECT)
-  @IsUUID('4')
   @IsNotEmpty()
-  targetId?: string;
+  @IsNumber()
+  targetId?: number;
 }
