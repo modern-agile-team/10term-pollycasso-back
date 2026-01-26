@@ -22,6 +22,7 @@ import { UpdateOutfitDto } from './dtos/requests/update-outfit.dto';
 import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
+import { PlayerResponseDto } from './dtos/responses/player-response.dto';
 
 interface JwtPayload {
   sub: string;
@@ -101,20 +102,20 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
   }
 
   async handleDisconnect(client: Socket) {
-    const data = client.data as ClientData;
+    const clientData = this.getClientData(client);
 
-    if (!data?.userId || !data?.roomId) {
+    if (!clientData?.roomId) {
       return;
     }
 
-    const result = await this.waitingService.handleDisconnect(data.roomId, data.userId);
+    const result = await this.waitingService.handleDisconnect(clientData.roomId, clientData.userId);
 
     if (!result.wasLastPlayer && !result.isGameInProgress) {
-      this.emitPlayerListSync(data.roomId, result.remainingPlayers);
+      this.emitPlayerListSync(clientData.roomId, result.remainingPlayers);
 
       if (result.systemMessage) {
         this.server
-          .to(`room:${data.roomId}`)
+          .to(`room:${clientData.roomId}`)
           .emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, result.systemMessage);
       }
     }
@@ -135,7 +136,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     return null;
   }
 
-  private emitPlayerListSync(roomId: number, players: unknown[]) {
+  private emitPlayerListSync(roomId: number, players: PlayerResponseDto[]) {
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_SYNC_PLAYER_LIST, {
       players,
     });
@@ -150,14 +151,15 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     if (clientData.roomId && clientData.roomId !== body.roomId) {
       const previousRoomId = clientData.roomId;
-      const playersBeforeLeave = await this.waitingService.getPlayers(previousRoomId);
 
-      await this.waitingService.leaveRoom(previousRoomId, clientData.userId);
+      const remainingPlayers = await this.waitingService.leaveRoom(
+        previousRoomId,
+        clientData.userId,
+      );
       await client.leave(`room:${previousRoomId}`);
 
-      if (playersBeforeLeave.length > 1) {
-        const players = await this.waitingService.getPlayers(previousRoomId);
-        this.emitPlayerListSync(previousRoomId, players);
+      if (remainingPlayers.length > 0) {
+        this.emitPlayerListSync(previousRoomId, remainingPlayers);
       }
     }
 
@@ -171,7 +173,6 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     await client.join(`room:${body.roomId}`);
 
     this.emitPlayerListSync(body.roomId, state.players);
-
     this.server.to(`room:${body.roomId}`).emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, systemMessage);
 
     client.emit(WAITING_EVENTS.ROOM_JOIN_SUCCESS, state);
@@ -317,7 +318,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     const { roomId, userId } = clientData;
 
-    const players = await this.waitingService.getPlayers(roomId);
+    const players = await this.waitingService.getPlayersDto(roomId);
     const targetPlayer = players.find((p) => p.userId === body.targetUserId);
     if (!targetPlayer) {
       throw wsError(404, WAITING_ERROR_CODES.PLAYER_NOT_FOUND);
