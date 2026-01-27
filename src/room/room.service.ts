@@ -82,12 +82,8 @@ export class RoomService implements IRoomReader, IRoomWriter {
     return updatedRoom;
   }
 
-  async startGame(roomId: number): Promise<void> {
+  async publishRoomUpdated(roomId: number): Promise<void> {
     const room = await this.getOneRoom(roomId);
-
-    room.startGame();
-
-    await this.roomsRepository.updateRoom(roomId, room);
     this.roomsEventPublisher.roomUpdated(room);
   }
 }
