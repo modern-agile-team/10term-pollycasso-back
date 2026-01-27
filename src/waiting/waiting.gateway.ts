@@ -102,20 +102,20 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
   }
 
   async handleDisconnect(client: Socket) {
-    const clientData = this.getClientData(client);
+    const data = this.getClientData(client);
 
-    if (!clientData?.roomId) {
+    if (!data?.userId || !data?.roomId) {
       return;
     }
 
-    const result = await this.waitingService.handleDisconnect(clientData.roomId, clientData.userId);
+    const result = await this.waitingService.handleDisconnect(data.roomId, data.userId);
 
     if (!result.wasLastPlayer && !result.isGameInProgress) {
-      this.emitPlayerListSync(clientData.roomId, result.remainingPlayers);
+      this.emitPlayerListSync(data.roomId, result.players);
 
       if (result.systemMessage) {
         this.server
-          .to(`room:${clientData.roomId}`)
+          .to(`room:${data.roomId}`)
           .emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, result.systemMessage);
       }
     }
@@ -151,15 +151,14 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     if (clientData.roomId && clientData.roomId !== body.roomId) {
       const previousRoomId = clientData.roomId;
+      const playersBeforeLeave = await this.waitingService.getPlayers(previousRoomId);
 
-      const remainingPlayers = await this.waitingService.leaveRoom(
-        previousRoomId,
-        clientData.userId,
-      );
+      await this.waitingService.leaveRoom(previousRoomId, clientData.userId);
       await client.leave(`room:${previousRoomId}`);
 
-      if (remainingPlayers.length > 0) {
-        this.emitPlayerListSync(previousRoomId, remainingPlayers);
+      if (playersBeforeLeave.length > 1) {
+        const players = await this.waitingService.getPlayerResponses(previousRoomId);
+        this.emitPlayerListSync(previousRoomId, players);
       }
     }
 
@@ -172,7 +171,9 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     (client.data as ClientData).roomId = body.roomId;
     await client.join(`room:${body.roomId}`);
 
-    this.emitPlayerListSync(body.roomId, state.players);
+    const players = await this.waitingService.getPlayerResponses(body.roomId);
+    this.emitPlayerListSync(body.roomId, players);
+
     this.server.to(`room:${body.roomId}`).emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, systemMessage);
 
     client.emit(WAITING_EVENTS.ROOM_JOIN_SUCCESS, state);
@@ -266,13 +267,19 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     const { roomId, userId } = clientData;
-    const { state, systemMessage } = await this.waitingService.updateSettings(roomId, userId, body);
+    const { players, systemMessage } = await this.waitingService.updateSettings(
+      roomId,
+      userId,
+      body,
+    );
+
+    const settings = await this.waitingService.getRoomSettings(roomId);
 
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_ROOM, {
-      roomSettings: state.settings,
+      roomSettings: settings,
     });
 
-    this.emitPlayerListSync(roomId, state.players);
+    this.emitPlayerListSync(roomId, players);
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, systemMessage);
   }
 
@@ -284,7 +291,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     const { roomId, userId } = clientData;
-    const { remainingPlayers, systemMessage } = await this.waitingService.kickPlayer(
+    const { players, systemMessage } = await this.waitingService.kickPlayer(
       roomId,
       userId,
       body.targetUserId,
@@ -305,7 +312,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
       targetClient.disconnect();
     }
 
-    this.emitPlayerListSync(roomId, remainingPlayers);
+    this.emitPlayerListSync(roomId, players);
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_SYSTEM_MESSAGE, systemMessage);
   }
 
@@ -318,7 +325,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     const { roomId, userId } = clientData;
 
-    const players = await this.waitingService.getPlayersDto(roomId);
+    const players = await this.waitingService.getPlayers(roomId);
     const targetPlayer = players.find((p) => p.userId === body.targetUserId);
     if (!targetPlayer) {
       throw wsError(404, WAITING_ERROR_CODES.PLAYER_NOT_FOUND);
@@ -365,7 +372,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     await client.leave(`room:${roomId}`);
 
     if (!result.wasLastPlayer) {
-      this.emitPlayerListSync(roomId, result.remainingPlayers);
+      this.emitPlayerListSync(roomId, result.players);
 
       if (result.systemMessage) {
         this.server
@@ -386,9 +393,28 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     const { roomId, userId } = clientData;
+    const result = await this.waitingService.handleChatMessage(
+      roomId,
+      userId,
+      body.message,
+      body.channel,
+      body.targetId,
+    );
 
-    const message = await this.waitingService.handleChatMessage(roomId, userId, body.message);
+    if (result.isDirectMessage) {
+      const roomSockets = await this.server.in(`room:${roomId}`).fetchSockets();
+      const targetSocket = roomSockets.find(
+        (s) => (s.data as ClientData).userId === result.targetUserId,
+      );
 
-    this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_MESSAGE, message);
+      if (!targetSocket) {
+        throw wsError(404, WAITING_ERROR_CODES.TARGET_OFFLINE);
+      }
+
+      client.emit(WAITING_EVENTS.ROOM_MESSAGE, result.message);
+      targetSocket.emit(WAITING_EVENTS.ROOM_MESSAGE, result.message);
+    } else {
+      this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_MESSAGE, result.message);
+    }
   }
 }

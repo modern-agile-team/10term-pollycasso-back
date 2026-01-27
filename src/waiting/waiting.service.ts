@@ -3,7 +3,6 @@ import { Team, RoomMode, RoomStatus } from '@prisma/client';
 import { WaitingStore, WaitingPlayerState } from './waiting.store';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WaitingStateResponseDto } from './dtos/responses/waiting-state-response.dto';
-import { PlayerResponseDto } from './dtos/responses/player-response.dto';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { Waiting } from './entities/waiting.entity';
@@ -20,7 +19,9 @@ import {
   WAITING_DOMAIN_ERRORS,
   WAITING_ERROR_CODES,
 } from './constants/waiting.constant';
-import { ChatMessageDto } from 'src/chat/dtos/responses/message-response.dto';
+import { ChatMessageDto, ChatReceiveChannel } from 'src/chat/dtos/responses/message-response.dto';
+import { ChatValidationService } from 'src/chat/chat-validation.service';
+import { PlayerResponseDto } from './dtos/responses/player-response.dto';
 
 @Injectable()
 export class WaitingService {
@@ -30,6 +31,7 @@ export class WaitingService {
     private readonly chatService: ChatService,
     private readonly gameStateStore: GameStateStore,
     private readonly eventEmitter: EventEmitter2,
+    private readonly chatValidationService: ChatValidationService,
     @Inject('IRoomReader') private readonly roomReader: IRoomReader,
     @Inject('IRoomWriter') private readonly roomWriter: IRoomWriter,
   ) {}
@@ -48,26 +50,6 @@ export class WaitingService {
     } catch {
       throw new NotFoundException({ code: WAITING_ERROR_CODES.ROOM_NOT_FOUND });
     }
-  }
-
-  private convertToDto(players: WaitingPlayerState[]): PlayerResponseDto[] {
-    return players.map(
-      (p) =>
-        new PlayerResponseDto({
-          userId: p.userId,
-          nickname: p.nickname,
-          team: p.team,
-          isReady: p.isReady,
-          level: p.level,
-          status: p.pageStatus,
-          outfit: p.outfit,
-        }),
-    );
-  }
-
-  async getPlayersDto(roomId: number): Promise<PlayerResponseDto[]> {
-    const players = await this.waitingStore.getPlayers(roomId);
-    return this.convertToDto(players);
   }
 
   async joinRoom(
@@ -185,7 +167,7 @@ export class WaitingService {
       password?: string;
     },
   ): Promise<{
-    state: WaitingStateResponseDto;
+    players: PlayerResponseDto[];
     systemMessage: ChatMessageDto;
   }> {
     const waiting = await this.loadWaitingEntity(roomId);
@@ -201,12 +183,12 @@ export class WaitingService {
 
     await this.roomWriter.updateRoomWhileWaiting(roomId, settings);
 
-    const state = await this.getState(roomId);
+    const players = await this.getPlayerResponses(roomId);
     const systemMessage = this.chatService.createSystemMessage({
       message: '게임 설정이 변경되었습니다.',
     });
 
-    return { state, systemMessage };
+    return { players, systemMessage };
   }
 
   private async resetTeamsForMode(
@@ -234,7 +216,7 @@ export class WaitingService {
     requesterId: number,
     targetUserId: number,
   ): Promise<{
-    remainingPlayers: PlayerResponseDto[];
+    players: PlayerResponseDto[];
     systemMessage: ChatMessageDto;
   }> {
     const waiting = await this.loadWaitingEntity(roomId);
@@ -249,27 +231,22 @@ export class WaitingService {
 
     await this.waitingStore.leaveRoom(roomId, targetUserId);
 
-    const remainingPlayers = await this.waitingStore.getPlayers(roomId);
+    const playerResponses = await this.getPlayerResponses(roomId);
     const systemMessage = this.chatService.createSystemMessage({
       message: `${kickedPlayer.nickname}님이 강퇴되었습니다.`,
     });
 
-    return {
-      remainingPlayers: this.convertToDto(remainingPlayers),
-      systemMessage,
-    };
+    return { players: playerResponses, systemMessage };
   }
 
-  async leaveRoom(roomId: number, userId: number): Promise<PlayerResponseDto[]> {
+  async leaveRoom(roomId: number, userId: number): Promise<void> {
     await this.waitingStore.leaveRoom(roomId, userId);
-    const players = await this.waitingStore.getPlayers(roomId);
 
+    const players = await this.waitingStore.getPlayers(roomId);
     if (!players.length) {
       await this.waitingStore.clearRoom(roomId);
       await this.roomWriter.removeRoom(roomId);
     }
-
-    return this.convertToDto(players);
   }
 
   async startGame(roomId: number, requesterId: number): Promise<void> {
@@ -351,8 +328,52 @@ export class WaitingService {
         maxPlayers: room.maxPlayers,
         isPrivate: room.isPrivate,
       },
-      players: this.convertToDto(players),
+      players: players.map((p) => ({
+        userId: p.userId,
+        nickname: p.nickname,
+        team: p.team,
+        isReady: p.isReady,
+        level: p.level,
+        status: p.pageStatus,
+        outfit: p.outfit,
+      })),
     });
+  }
+
+  async getPlayers(roomId: number) {
+    await this.findRoomOrThrow(roomId);
+    return this.waitingStore.getPlayers(roomId);
+  }
+
+  async getPlayerResponses(roomId: number): Promise<PlayerResponseDto[]> {
+    const players = await this.getPlayers(roomId);
+    return players.map(
+      (p) =>
+        new PlayerResponseDto({
+          userId: p.userId,
+          nickname: p.nickname,
+          team: p.team,
+          isReady: p.isReady,
+          level: p.level,
+          status: p.pageStatus,
+          outfit: p.outfit,
+        }),
+    );
+  }
+
+  async getRoomSettings(roomId: number): Promise<{
+    roomTitle: string;
+    gameMode: RoomMode;
+    maxPlayers: number;
+    isPrivate: boolean;
+  }> {
+    const room = await this.findRoomOrThrow(roomId);
+    return {
+      roomTitle: room.name,
+      gameMode: room.mode,
+      maxPlayers: room.maxPlayers,
+      isPrivate: room.isPrivate,
+    };
   }
 
   async canStartMatch(roomId: number): Promise<boolean> {
@@ -370,14 +391,26 @@ export class WaitingService {
     userId: number,
   ): Promise<{
     wasLastPlayer: boolean;
-    remainingPlayers: PlayerResponseDto[];
+    players: PlayerResponseDto[];
     systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
-    const room = await this.findRoomOrThrow(roomId);
-    const isGameInProgress = room.status !== RoomStatus.WAITING;
+    let room: Room | null = null;
+    let isGameInProgress = false;
 
-    const players = await this.waitingStore.getPlayers(roomId);
+    try {
+      room = await this.findRoomOrThrow(roomId);
+      isGameInProgress = room.status !== RoomStatus.WAITING;
+    } catch {
+      return {
+        wasLastPlayer: false,
+        players: [],
+        systemMessage: null,
+        isGameInProgress: false,
+      };
+    }
+
+    const players = await this.getPlayers(roomId);
     const wasLastPlayer = players.length === 1;
     const leavingPlayer = players.find((p) => p.userId === userId);
 
@@ -389,10 +422,8 @@ export class WaitingService {
       }
     }
 
-    const remainingPlayers =
-      wasLastPlayer || isGameInProgress
-        ? []
-        : this.convertToDto(await this.waitingStore.getPlayers(roomId));
+    const playerResponses =
+      wasLastPlayer || isGameInProgress ? [] : await this.getPlayerResponses(roomId);
 
     const systemMessage =
       !wasLastPlayer && !isGameInProgress && leavingPlayer
@@ -403,7 +434,7 @@ export class WaitingService {
 
     return {
       wasLastPlayer,
-      remainingPlayers,
+      players: playerResponses,
       systemMessage,
       isGameInProgress,
     };
@@ -414,22 +445,20 @@ export class WaitingService {
     userId: number,
   ): Promise<{
     wasLastPlayer: boolean;
-    remainingPlayers: PlayerResponseDto[];
+    players: PlayerResponseDto[];
     systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
     const room = await this.findRoomOrThrow(roomId);
     const isGameInProgress = room.status !== RoomStatus.WAITING;
 
-    const players = await this.waitingStore.getPlayers(roomId);
+    const players = await this.getPlayers(roomId);
     const wasLastPlayer = players.length === 1;
     const leavingPlayer = players.find((p) => p.userId === userId);
 
     await this.leaveRoom(roomId, userId);
 
-    const remainingPlayers = wasLastPlayer
-      ? []
-      : this.convertToDto(await this.waitingStore.getPlayers(roomId));
+    const playerResponses = wasLastPlayer ? [] : await this.getPlayerResponses(roomId);
 
     const systemMessage =
       !wasLastPlayer && !isGameInProgress && leavingPlayer
@@ -440,24 +469,68 @@ export class WaitingService {
 
     return {
       wasLastPlayer,
-      remainingPlayers,
+      players: playerResponses,
       systemMessage,
       isGameInProgress,
     };
   }
 
-  async handleChatMessage(roomId: number, userId: number, messageText: string) {
+  async handleChatMessage(
+    roomId: number,
+    userId: number,
+    messageText: string,
+    channel?: string,
+    targetId?: number,
+  ): Promise<{
+    message: ChatMessageDto;
+    isDirectMessage: boolean;
+    targetUserId?: number;
+  }> {
     const players = await this.waitingStore.getPlayers(roomId);
-    const player = players.find((p) => p.userId === userId);
+    const sender = players.find((p) => p.userId === userId);
 
-    if (!player) {
-      throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
+    if (!sender) {
+      throw new NotFoundException({
+        code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND,
+      });
     }
 
-    return this.chatService.createGlobalMessage({
+    if (channel === ChatReceiveChannel.DIRECT && targetId) {
+      const targetUserId = Number(targetId);
+
+      await this.chatValidationService.validateDirectMessage(userId, targetUserId);
+
+      const targetPlayer = players.find((p) => p.userId === targetUserId);
+      if (!targetPlayer) {
+        throw new NotFoundException({
+          code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND,
+        });
+      }
+
+      const message = this.chatService.createDirectMessage({
+        senderId: userId.toString(),
+        nickname: sender.nickname,
+        message: messageText,
+        targetId: targetUserId.toString(),
+        targetNickname: targetPlayer.nickname,
+      });
+
+      return {
+        message,
+        isDirectMessage: true,
+        targetUserId,
+      };
+    }
+
+    const message = this.chatService.createGlobalMessage({
       senderId: userId.toString(),
-      nickname: player.nickname,
+      nickname: sender.nickname,
       message: messageText,
     });
+
+    return {
+      message,
+      isDirectMessage: false,
+    };
   }
 }

@@ -24,7 +24,6 @@ interface JwtPayload {
 interface ClientData {
   userId: number;
   nickname: string;
-  roomId?: number;
 }
 
 @UseFilters(SocketExceptionFilter)
@@ -61,15 +60,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   private getClientData(client: Socket): ClientData | null {
-    if (
-      client.data &&
-      typeof client.data === 'object' &&
-      'userId' in client.data &&
-      'nickname' in client.data
-    ) {
-      return client.data as ClientData;
-    }
-    return null;
+    return client.data && 'userId' in client.data && 'nickname' in client.data
+      ? (client.data as ClientData)
+      : null;
   }
 
   handleConnection(client: Socket) {
@@ -89,12 +82,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
-
-      client.data = {
-        userId: Number(payload.sub),
-        nickname: payload.nickname,
-      };
-
+      client.data = { userId: Number(payload.sub), nickname: payload.nickname };
       void client.join('lobby');
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
@@ -104,7 +92,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           ? CHAT_ERROR_CODES.EXPIRED_ACCESS_TOKEN
           : CHAT_ERROR_CODES.INVALID_ACCESS_TOKEN,
       );
-
       client.emit(CHAT_EVENTS.SYSTEM_NOTIFICATION, error.getError());
       client.disconnect();
     }
@@ -113,33 +100,57 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDisconnect(_client: Socket) {}
 
   @SubscribeMessage(CHAT_EVENTS.LOBBY_SEND)
-  handleMessage(@MessageBody() dto: SendMessageDto, @ConnectedSocket() client: Socket) {
+  async handleMessage(@MessageBody() dto: SendMessageDto, @ConnectedSocket() client: Socket) {
     const clientData = this.getClientData(client);
-
-    if (!clientData) {
-      throw wsError(400, CHAT_ERROR_CODES.CLIENT_STATE_INVALID);
-    }
+    if (!clientData) throw wsError(400, CHAT_ERROR_CODES.CLIENT_STATE_INVALID);
 
     try {
       if (dto.channel === ChatSendChannel.GLOBAL) {
         this.handleGlobalMessage(clientData, dto);
+      } else if (dto.channel === ChatSendChannel.DIRECT) {
+        await this.handleDirectMessage(clientData, dto, client);
       }
-    } catch (_error) {
+    } catch (error) {
+      if (error && typeof error === 'object' && 'getError' in error) throw error;
       throw wsError(500, CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
     }
   }
 
-  private handleGlobalMessage(clientData: ClientData, dto: SendMessageDto) {
-    try {
-      const message = this.chatService.createGlobalMessage({
-        senderId: clientData.userId.toString(),
-        nickname: clientData.nickname,
-        message: dto.message,
-      });
+  private handleGlobalMessage(clientData: ClientData, dto: SendMessageDto): void {
+    const message = this.chatService.handleGlobalMessage({
+      senderId: clientData.userId.toString(),
+      senderNickname: clientData.nickname,
+      message: dto.message,
+    });
 
-      this.server.to('lobby').emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
-    } catch (_error) {
-      throw wsError(500, CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
-    }
+    this.server.to('lobby').emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
+  }
+
+  private async handleDirectMessage(
+    clientData: ClientData,
+    dto: SendMessageDto,
+    senderClient: Socket,
+  ): Promise<void> {
+    if (!dto.targetId) throw wsError(400, CHAT_ERROR_CODES.INVALID_INPUT);
+
+    const targetUserId = Number(dto.targetId);
+
+    const message = await this.chatService.handleDirectMessage({
+      senderId: clientData.userId,
+      senderNickname: clientData.nickname,
+      targetId: targetUserId,
+      message: dto.message,
+    });
+
+    const targetSocketId = await this.findSocketIdByUserId(targetUserId);
+    if (!targetSocketId) throw wsError(404, CHAT_ERROR_CODES.TARGET_OFFLINE);
+
+    senderClient.emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
+    this.server.to(targetSocketId).emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
+  }
+  private async findSocketIdByUserId(userId: number): Promise<string | null> {
+    const sockets = await this.server.in('lobby').fetchSockets();
+    const targetSocket = sockets.find((s) => (s.data as ClientData).userId === userId);
+    return targetSocket?.id ?? null;
   }
 }
