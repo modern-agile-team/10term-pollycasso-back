@@ -13,7 +13,7 @@ export interface IRoomWriter {
     },
   ): Promise<Room>;
 
-  startGame(roomId: number): Promise<void>;
+  publishRoomUpdated(roomId: number): Promise<void>;
 
   removeRoom(roomId: number): Promise<void>;
 }

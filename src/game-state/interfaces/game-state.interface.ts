@@ -28,6 +28,8 @@ export interface GameState {
   endsAt: number | null;
   currentRound: number | null;
   totalRounds: number | null;
+  matchId: number;
+  roomMemberIdByUserId: Record<number, number>;
   currentTheme: string | null;
   recentThemes: string[];
   phaseContext: PhaseContext;

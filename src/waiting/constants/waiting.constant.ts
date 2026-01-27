@@ -23,6 +23,7 @@ export const WAITING_ERROR_CODES = {
   INVALID_TEAM: 'INVALID_TEAM',
   TEAM_IMBALANCE: 'TEAM_IMBALANCE',
   MAX_PLAYERS_LESS_THAN_CURRENT: 'MAX_PLAYERS_LESS_THAN_CURRENT',
+  GAME_START_FAILED: 'GAME_START_FAILED',
   TARGET_OFFLINE: 'TARGET_OFFLINE',
 } as const;
 
@@ -50,6 +51,21 @@ export const WAITING_DOMAIN_ERRORS: Record<string, { field: string; reason: stri
   MAX_PLAYERS_LESS_THAN_CURRENT: {
     field: 'maxPlayers',
     reason: 'Cannot set max players less than current player count',
+  },
+} as const;
+
+export const WAITING_DOMAIN_ERROR_META = {
+  ROOM_NOT_FOUND: {
+    name: 'RoomNotFoundError',
+    message: (roomId: number) => `Room not found: roomId=${roomId}`,
+  },
+  GAME_ALREADY_STARTED: {
+    name: 'RoomAlreadyStartedError',
+    message: (roomId: number) => `Room already started or not in waiting state: roomId=${roomId}`,
+  },
+  GAME_START_NOT_ENOUGH_PLAYERS: {
+    name: 'NoPlayersToStartError',
+    message: () => 'Not enough players to start game',
   },
 } as const;
 
