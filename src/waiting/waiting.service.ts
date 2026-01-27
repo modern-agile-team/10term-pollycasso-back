@@ -5,7 +5,7 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { Team, RoomMode, RoomStatus, Prisma } from '@prisma/client';
+import { Team, RoomMode, RoomStatus } from '@prisma/client';
 import { WaitingStore, WaitingPlayerState } from './waiting.store';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WaitingStateResponseDto } from './dtos/responses/waiting-state-response.dto';
