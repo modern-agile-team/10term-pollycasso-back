@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException, Inject, ConflictException } from '@nestjs/common';
-import { Team, RoomMode, RoomStatus } from '@prisma/client';
+import {
+  Injectable,
+  NotFoundException,
+  Inject,
+  ConflictException,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { Team, RoomMode, RoomStatus, Prisma } from '@prisma/client';
 import { WaitingStore, WaitingPlayerState } from './waiting.store';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WaitingStateResponseDto } from './dtos/responses/waiting-state-response.dto';
@@ -21,6 +27,17 @@ import {
   WAITING_ERROR_CODES,
 } from './constants/waiting.constant';
 import { ChatMessageDto } from 'src/chat/dtos/responses/message-response.dto';
+import {
+  NoPlayersToStartError,
+  RoomAlreadyStartedError,
+  RoomNotFoundError,
+  WaitingRepository,
+} from './waiting.repository';
+
+type StartGameResult = {
+  matchId: number;
+  roomMemberIdByUserId: Record<number, number>;
+};
 
 @Injectable()
 export class WaitingService {
@@ -29,6 +46,7 @@ export class WaitingService {
     private readonly prisma: PrismaService,
     private readonly chatService: ChatService,
     private readonly gameStateStore: GameStateStore,
+    private readonly waitingRepository: WaitingRepository,
     private readonly eventEmitter: EventEmitter2,
     @Inject('IRoomReader') private readonly roomReader: IRoomReader,
     @Inject('IRoomWriter') private readonly roomWriter: IRoomWriter,
@@ -43,11 +61,11 @@ export class WaitingService {
   }
 
   private async findRoomOrThrow(roomId: number) {
-    try {
-      return await this.roomReader.getOneRoom(roomId);
-    } catch {
-      throw new NotFoundException({ code: WAITING_ERROR_CODES.ROOM_NOT_FOUND });
+    const room = await this.roomReader.getOneRoom(roomId);
+    if (!room) {
+      throw new RoomNotFoundError(roomId);
     }
+    return room;
   }
 
   private convertToDto(players: WaitingPlayerState[]): PlayerResponseDto[] {
@@ -272,29 +290,45 @@ export class WaitingService {
     return this.convertToDto(players);
   }
 
-  async startGame(roomId: number, requesterId: number): Promise<void> {
+  async startGame(roomId: number, requesterId: number): Promise<StartGameResult> {
     const waiting = await this.loadWaitingEntity(roomId);
     waiting.validateGameStart(requesterId);
 
-    const wasMarked = await this.waitingStore.markGameStartedAtomic(
-      roomId,
-      WAITING_CONSTANTS.GAME_SESSION_TTL_SECONDS,
-    );
+    let result: StartGameResult;
 
-    if (!wasMarked) {
-      throw new ConflictException({
-        code: WAITING_ERROR_CODES.GAME_ALREADY_STARTED,
+    try {
+      result = await this.waitingRepository.startGameTx({
+        roomId,
+        hostUserId: requesterId,
+        players: waiting.players,
       });
+    } catch (error) {
+      if (error instanceof RoomAlreadyStartedError) {
+        throw new ConflictException({ code: WAITING_ERROR_CODES.GAME_ALREADY_STARTED });
+      }
+      if (error instanceof RoomNotFoundError) {
+        throw new NotFoundException({ code: WAITING_ERROR_CODES.ROOM_NOT_FOUND });
+      }
+      if (error instanceof NoPlayersToStartError) {
+        throw new ConflictException({ code: WAITING_ERROR_CODES.GAME_START_NOT_ENOUGH_PLAYERS });
+      }
+      throw new InternalServerErrorException({ code: WAITING_ERROR_CODES.GAME_START_FAILED });
     }
 
-    await this.roomWriter.startGame(roomId);
+    await this.roomWriter.publishRoomUpdated(roomId);
+
+    return result;
   }
 
   async markRoomAsStarted(roomId: number): Promise<void> {
     await this.waitingStore.setRoomExpiry(roomId, WAITING_CONSTANTS.GAME_SESSION_TTL_SECONDS);
   }
 
-  async initializeGameState(roomId: number): Promise<{
+  async initializeGameState(
+    roomId: number,
+    matchId: number,
+    roomMemberIdByUserId: Record<number, number>,
+  ): Promise<{
     phase: GamePhase;
     endsAt: number;
     phaseContext: null;
@@ -306,6 +340,8 @@ export class WaitingService {
       endsAt: loadingEndTime,
       currentRound: 1,
       totalRounds: WAITING_CONSTANTS.DEFAULT_ROUNDS,
+      matchId,
+      roomMemberIdByUserId,
       currentTheme: null,
       recentThemes: [],
       phaseContext: null,
@@ -330,9 +366,9 @@ export class WaitingService {
       phaseContext: null;
     };
   }> {
-    await this.startGame(roomId, requesterId);
+    const { matchId, roomMemberIdByUserId } = await this.startGame(roomId, requesterId);
     await this.markRoomAsStarted(roomId);
-    const gameState = await this.initializeGameState(roomId);
+    const gameState = await this.initializeGameState(roomId, matchId, roomMemberIdByUserId);
 
     return { gameState };
   }

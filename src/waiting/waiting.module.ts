@@ -8,6 +8,7 @@ import { ChatModule } from 'src/chat/chat.module';
 import { JwtModule } from '@nestjs/jwt';
 import { RoomsModule } from 'src/room/room.module';
 import { GameStateModule } from 'src/game-state/game-state.module';
+import { WaitingRepository } from './waiting.repository';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { GameStateModule } from 'src/game-state/game-state.module';
     }),
   ],
   controllers: [WaitingController],
-  providers: [WaitingService, WaitingGateway, WaitingStore],
+  providers: [WaitingService, WaitingGateway, WaitingStore, WaitingRepository],
   exports: [WaitingService, WaitingStore],
 })
 export class WaitingModule {}
