@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
-import { RoomsService } from './room.service';
-import { RoomsController } from './room.controller';
-import { RoomsRepository } from './room.repository';
-import { RoomsGateway } from './room.gateway';
+import { RoomService } from './room.service';
+import { RoomController } from './room.controller';
+import { RoomRepository } from './room.repository';
+import { RoomGateway } from './room.gateway';
 
 @Module({
-  controllers: [RoomsController],
+  controllers: [RoomController],
   providers: [
-    RoomsService,
-    RoomsGateway,
-    { provide: 'IRoomsRepository', useClass: RoomsRepository },
-    { provide: 'IRoomsEventPublisher', useExisting: RoomsGateway },
-    { provide: 'IRoomReader', useExisting: RoomsService },
-    { provide: 'IRoomWriter', useExisting: RoomsService },
+    RoomService,
+    RoomGateway,
+    { provide: 'IRoomRepository', useClass: RoomRepository },
+    { provide: 'IRoomEventPublisher', useExisting: RoomGateway },
+    { provide: 'IRoomReader', useExisting: RoomService },
+    { provide: 'IRoomWriter', useExisting: RoomService },
   ],
   exports: ['IRoomReader', 'IRoomWriter'],
 })

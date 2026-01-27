@@ -2,7 +2,7 @@ import { RoomMode, RoomStatus } from '@prisma/client';
 import { Room } from '../../entities/room.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class ResRoomDto {
+export class RoomResponseDto {
   @ApiProperty({ description: '방 ID', example: 1 })
   readonly id: number;
   @ApiProperty({ description: '방 이름', example: '테스트용' })

@@ -3,7 +3,6 @@ import { WaitingService } from './waiting.service';
 import { WaitingGateway } from './waiting.gateway';
 import { WaitingController } from './waiting.controller';
 import { WaitingStore } from './waiting.store';
-import { PrismaModule } from 'src/prisma/prisma.module';
 import { ChatModule } from 'src/chat/chat.module';
 import { JwtModule } from '@nestjs/jwt';
 import { RoomsModule } from 'src/room/room.module';
@@ -11,7 +10,6 @@ import { GameStateModule } from 'src/game-state/game-state.module';
 
 @Module({
   imports: [
-    PrismaModule,
     RoomsModule,
     ChatModule,
     GameStateModule,

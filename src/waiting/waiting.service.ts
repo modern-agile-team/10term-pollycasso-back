@@ -10,11 +10,18 @@ import { Room } from 'src/room/entities/room.entity';
 import type { IRoomReader } from 'src/room/interfaces/room-reader.interface';
 import type { IRoomWriter } from 'src/room/interfaces/room-writer.interface';
 import { ChatService } from 'src/chat/chat.service';
+import { GameStateStore } from 'src/game-state/game-state.store';
+import { GamePhase } from 'src/game-state/interfaces/game-state.interface';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { GAME_EVENTS } from 'src/game/constants/game.constant';
 import {
   WAITING_CONSTANTS,
   WAITING_DOMAIN_ERRORS,
   WAITING_ERROR_CODES,
 } from './constants/waiting.constant';
+import { ChatMessageDto, ChatReceiveChannel } from 'src/chat/dtos/responses/message-response.dto';
+import { ChatValidationService } from 'src/chat/chat-validation.service';
+import { PlayerResponseDto } from './dtos/responses/player-response.dto';
 
 @Injectable()
 export class WaitingService {
@@ -22,6 +29,9 @@ export class WaitingService {
     private readonly waitingStore: WaitingStore,
     private readonly prisma: PrismaService,
     private readonly chatService: ChatService,
+    private readonly gameStateStore: GameStateStore,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly chatValidationService: ChatValidationService,
     @Inject('IRoomReader') private readonly roomReader: IRoomReader,
     @Inject('IRoomWriter') private readonly roomWriter: IRoomWriter,
   ) {}
@@ -46,13 +56,20 @@ export class WaitingService {
     roomId: number,
     userId: number,
     password?: string,
-  ): Promise<WaitingStateResponseDto> {
+  ): Promise<{
+    state: WaitingStateResponseDto;
+    systemMessage: ChatMessageDto;
+  }> {
     const waiting = await this.loadWaitingEntity(roomId);
 
     waiting.canJoin(userId);
 
     if (waiting.hasPlayer(userId)) {
-      return this.getState(roomId);
+      const state = await this.getState(roomId);
+      const systemMessage = this.chatService.createSystemMessage({
+        message: `${waiting.players.find((p) => p.userId === userId)?.nickname}님이 입장했습니다.`,
+      });
+      return { state, systemMessage };
     }
 
     if (waiting.requiresPassword()) {
@@ -64,7 +81,12 @@ export class WaitingService {
 
     await this.waitingStore.joinRoom(roomId, player, isHost);
 
-    return this.getState(roomId);
+    const state = await this.getState(roomId);
+    const systemMessage = this.chatService.createSystemMessage({
+      message: `${player.nickname}님이 입장했습니다.`,
+    });
+
+    return { state, systemMessage };
   }
 
   private async validatePassword(room: Room, password?: string): Promise<void> {
@@ -144,7 +166,10 @@ export class WaitingService {
       isPrivate?: boolean;
       password?: string;
     },
-  ): Promise<void> {
+  ): Promise<{
+    players: PlayerResponseDto[];
+    systemMessage: ChatMessageDto;
+  }> {
     const waiting = await this.loadWaitingEntity(roomId);
     waiting.validateSettingsUpdate(requesterId);
 
@@ -157,6 +182,13 @@ export class WaitingService {
     }
 
     await this.roomWriter.updateRoomWhileWaiting(roomId, settings);
+
+    const players = await this.getPlayerResponses(roomId);
+    const systemMessage = this.chatService.createSystemMessage({
+      message: '게임 설정이 변경되었습니다.',
+    });
+
+    return { players, systemMessage };
   }
 
   private async resetTeamsForMode(
@@ -179,10 +211,32 @@ export class WaitingService {
     );
   }
 
-  async kickPlayer(roomId: number, requesterId: number, targetUserId: number): Promise<void> {
+  async kickPlayer(
+    roomId: number,
+    requesterId: number,
+    targetUserId: number,
+  ): Promise<{
+    players: PlayerResponseDto[];
+    systemMessage: ChatMessageDto;
+  }> {
     const waiting = await this.loadWaitingEntity(roomId);
     waiting.validateKick(requesterId, targetUserId);
+
+    const players = await this.waitingStore.getPlayers(roomId);
+    const kickedPlayer = players.find((p) => p.userId === targetUserId);
+
+    if (!kickedPlayer) {
+      throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
+    }
+
     await this.waitingStore.leaveRoom(roomId, targetUserId);
+
+    const playerResponses = await this.getPlayerResponses(roomId);
+    const systemMessage = this.chatService.createSystemMessage({
+      message: `${kickedPlayer.nickname}님이 강퇴되었습니다.`,
+    });
+
+    return { players: playerResponses, systemMessage };
   }
 
   async leaveRoom(roomId: number, userId: number): Promise<void> {
@@ -217,6 +271,49 @@ export class WaitingService {
     await this.waitingStore.setRoomExpiry(roomId, WAITING_CONSTANTS.GAME_SESSION_TTL_SECONDS);
   }
 
+  async initializeGameState(roomId: number): Promise<{
+    phase: GamePhase;
+    endsAt: number;
+    phaseContext: null;
+  }> {
+    const loadingEndTime = Date.now() + WAITING_CONSTANTS.LOADING_PHASE_DURATION_MS;
+
+    await this.gameStateStore.set(roomId, {
+      phase: GamePhase.LOADING,
+      endsAt: loadingEndTime,
+      currentRound: 1,
+      totalRounds: WAITING_CONSTANTS.DEFAULT_ROUNDS,
+      currentTheme: null,
+      recentThemes: [],
+      phaseContext: null,
+    });
+
+    this.eventEmitter.emit(GAME_EVENTS.LOADING_STARTED, { roomId });
+
+    return {
+      phase: GamePhase.LOADING,
+      endsAt: loadingEndTime,
+      phaseContext: null,
+    };
+  }
+
+  async handleGameStart(
+    roomId: number,
+    requesterId: number,
+  ): Promise<{
+    gameState: {
+      phase: GamePhase;
+      endsAt: number;
+      phaseContext: null;
+    };
+  }> {
+    await this.startGame(roomId, requesterId);
+    await this.markRoomAsStarted(roomId);
+    const gameState = await this.initializeGameState(roomId);
+
+    return { gameState };
+  }
+
   async getState(roomId: number): Promise<WaitingStateResponseDto> {
     const room = await this.findRoomOrThrow(roomId);
     const players = await this.waitingStore.getPlayers(roomId);
@@ -248,6 +345,37 @@ export class WaitingService {
     return this.waitingStore.getPlayers(roomId);
   }
 
+  async getPlayerResponses(roomId: number): Promise<PlayerResponseDto[]> {
+    const players = await this.getPlayers(roomId);
+    return players.map(
+      (p) =>
+        new PlayerResponseDto({
+          userId: p.userId,
+          nickname: p.nickname,
+          team: p.team,
+          isReady: p.isReady,
+          level: p.level,
+          status: p.pageStatus,
+          outfit: p.outfit,
+        }),
+    );
+  }
+
+  async getRoomSettings(roomId: number): Promise<{
+    roomTitle: string;
+    gameMode: RoomMode;
+    maxPlayers: number;
+    isPrivate: boolean;
+  }> {
+    const room = await this.findRoomOrThrow(roomId);
+    return {
+      roomTitle: room.name,
+      gameMode: room.mode,
+      maxPlayers: room.maxPlayers,
+      isPrivate: room.isPrivate,
+    };
+  }
+
   async canStartMatch(roomId: number): Promise<boolean> {
     try {
       const waiting = await this.loadWaitingEntity(roomId);
@@ -258,36 +386,29 @@ export class WaitingService {
     }
   }
 
-  async handleGameStart(
-    roomId: number,
-    userId: number,
-  ): Promise<{
-    roomId: number;
-    players: WaitingPlayerState[];
-  }> {
-    await this.startGame(roomId, userId);
-
-    await this.markRoomAsStarted(roomId);
-
-    const players = await this.getPlayers(roomId);
-
-    return {
-      roomId,
-      players,
-    };
-  }
-
   async handleDisconnect(
     roomId: number,
     userId: number,
   ): Promise<{
     wasLastPlayer: boolean;
-    remainingPlayers: WaitingPlayerState[];
-    systemMessage: ReturnType<ChatService['createSystemMessage']> | null;
+    players: PlayerResponseDto[];
+    systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
-    const room = await this.findRoomOrThrow(roomId);
-    const isGameInProgress = room.status !== RoomStatus.WAITING;
+    let room: Room | null = null;
+    let isGameInProgress = false;
+
+    try {
+      room = await this.findRoomOrThrow(roomId);
+      isGameInProgress = room.status !== RoomStatus.WAITING;
+    } catch {
+      return {
+        wasLastPlayer: false,
+        players: [],
+        systemMessage: null,
+        isGameInProgress: false,
+      };
+    }
 
     const players = await this.getPlayers(roomId);
     const wasLastPlayer = players.length === 1;
@@ -301,7 +422,8 @@ export class WaitingService {
       }
     }
 
-    const remainingPlayers = wasLastPlayer || isGameInProgress ? [] : await this.getPlayers(roomId);
+    const playerResponses =
+      wasLastPlayer || isGameInProgress ? [] : await this.getPlayerResponses(roomId);
 
     const systemMessage =
       !wasLastPlayer && !isGameInProgress && leavingPlayer
@@ -312,7 +434,7 @@ export class WaitingService {
 
     return {
       wasLastPlayer,
-      remainingPlayers,
+      players: playerResponses,
       systemMessage,
       isGameInProgress,
     };
@@ -323,8 +445,8 @@ export class WaitingService {
     userId: number,
   ): Promise<{
     wasLastPlayer: boolean;
-    remainingPlayers: WaitingPlayerState[];
-    systemMessage: ReturnType<ChatService['createSystemMessage']> | null;
+    players: PlayerResponseDto[];
+    systemMessage: ChatMessageDto | null;
     isGameInProgress: boolean;
   }> {
     const room = await this.findRoomOrThrow(roomId);
@@ -336,7 +458,7 @@ export class WaitingService {
 
     await this.leaveRoom(roomId, userId);
 
-    const remainingPlayers = wasLastPlayer ? [] : await this.getPlayers(roomId);
+    const playerResponses = wasLastPlayer ? [] : await this.getPlayerResponses(roomId);
 
     const systemMessage =
       !wasLastPlayer && !isGameInProgress && leavingPlayer
@@ -347,24 +469,68 @@ export class WaitingService {
 
     return {
       wasLastPlayer,
-      remainingPlayers,
+      players: playerResponses,
       systemMessage,
       isGameInProgress,
     };
   }
 
-  async handleChatMessage(roomId: number, userId: number, messageText: string) {
-    const players = await this.getPlayers(roomId);
-    const player = players.find((p) => p.userId === userId);
+  async handleChatMessage(
+    roomId: number,
+    userId: number,
+    messageText: string,
+    channel?: string,
+    targetId?: number,
+  ): Promise<{
+    message: ChatMessageDto;
+    isDirectMessage: boolean;
+    targetUserId?: number;
+  }> {
+    const players = await this.waitingStore.getPlayers(roomId);
+    const sender = players.find((p) => p.userId === userId);
 
-    if (!player) {
-      throw new NotFoundException({ code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND });
+    if (!sender) {
+      throw new NotFoundException({
+        code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND,
+      });
     }
 
-    return this.chatService.createLobbyMessage({
+    if (channel === ChatReceiveChannel.DIRECT && targetId) {
+      const targetUserId = Number(targetId);
+
+      await this.chatValidationService.validateDirectMessage(userId, targetUserId);
+
+      const targetPlayer = players.find((p) => p.userId === targetUserId);
+      if (!targetPlayer) {
+        throw new NotFoundException({
+          code: WAITING_ERROR_CODES.PLAYER_NOT_FOUND,
+        });
+      }
+
+      const message = this.chatService.createDirectMessage({
+        senderId: userId.toString(),
+        nickname: sender.nickname,
+        message: messageText,
+        targetId: targetUserId.toString(),
+        targetNickname: targetPlayer.nickname,
+      });
+
+      return {
+        message,
+        isDirectMessage: true,
+        targetUserId,
+      };
+    }
+
+    const message = this.chatService.createGlobalMessage({
       senderId: userId.toString(),
-      nickname: player.nickname,
+      nickname: sender.nickname,
       message: messageText,
     });
+
+    return {
+      message,
+      isDirectMessage: false,
+    };
   }
 }

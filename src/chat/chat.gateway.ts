@@ -7,16 +7,14 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { UsePipes, ValidationPipe, UseFilters, Inject } from '@nestjs/common';
-import type { LoggerService } from '@nestjs/common';
+import { UsePipes, ValidationPipe, UseFilters } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
-import { SendMessageDto } from './dtos/requests/send-message.dto';
-import { CHAT_ERROR_CODES } from './constants/chat.constant';
+import { ChatSendChannel, SendMessageDto } from './dtos/requests/send-message.dto';
+import { CHAT_ERROR_CODES, CHAT_EVENTS } from './constants/chat.constant';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { wsError } from 'src/common/utils/ws-error.util';
-import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 interface JwtPayload {
   sub: string;
@@ -54,26 +52,17 @@ interface ClientData {
   namespace: '/chat',
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  @WebSocketServer()
-  server: Server;
+  @WebSocketServer() server: Server;
 
   constructor(
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
-    @Inject(WINSTON_MODULE_NEST_PROVIDER)
-    private readonly logger: LoggerService,
   ) {}
 
   private getClientData(client: Socket): ClientData | null {
-    if (
-      client.data &&
-      typeof client.data === 'object' &&
-      'userId' in client.data &&
-      'nickname' in client.data
-    ) {
-      return client.data as ClientData;
-    }
-    return null;
+    return client.data && 'userId' in client.data && 'nickname' in client.data
+      ? (client.data as ClientData)
+      : null;
   }
 
   handleConnection(client: Socket) {
@@ -86,59 +75,82 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (!token) {
       const error = wsError(401, CHAT_ERROR_CODES.ACCESS_TOKEN_MISSING);
-      client.emit('system:notification', error.getError());
+      client.emit(CHAT_EVENTS.SYSTEM_NOTIFICATION, error.getError());
       client.disconnect();
       return;
     }
 
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
-
-      client.data = {
-        userId: Number(payload.sub),
-        nickname: payload.nickname,
-      };
-
+      client.data = { userId: Number(payload.sub), nickname: payload.nickname };
       void client.join('lobby');
-      this.logger.log(`User connected: ${payload.nickname}`);
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
-
       const error = wsError(
         401,
         isTokenExpired
           ? CHAT_ERROR_CODES.EXPIRED_ACCESS_TOKEN
           : CHAT_ERROR_CODES.INVALID_ACCESS_TOKEN,
       );
-
-      client.emit('system:notification', error.getError());
+      client.emit(CHAT_EVENTS.SYSTEM_NOTIFICATION, error.getError());
       client.disconnect();
     }
   }
 
-  handleDisconnect(client: Socket) {
-    const data = this.getClientData(client);
-    this.logger.log(`User disconnected: ${data?.nickname ?? 'Unknown'}`);
-  }
+  handleDisconnect(_client: Socket) {}
 
-  @SubscribeMessage('lobby:send')
-  handleLobbyMessage(@MessageBody() data: SendMessageDto, @ConnectedSocket() client: Socket) {
+  @SubscribeMessage(CHAT_EVENTS.LOBBY_SEND)
+  async handleMessage(@MessageBody() dto: SendMessageDto, @ConnectedSocket() client: Socket) {
     const clientData = this.getClientData(client);
-
-    if (!clientData) {
-      throw wsError(400, CHAT_ERROR_CODES.CLIENT_STATE_INVALID);
-    }
+    if (!clientData) throw wsError(400, CHAT_ERROR_CODES.CLIENT_STATE_INVALID);
 
     try {
-      const message = this.chatService.createLobbyMessage({
-        senderId: clientData.userId.toString(),
-        nickname: clientData.nickname,
-        message: data.message,
-      });
-
-      void this.server.to('lobby').emit('lobby:message', message);
-    } catch (_error) {
+      if (dto.channel === ChatSendChannel.GLOBAL) {
+        this.handleGlobalMessage(clientData, dto);
+      } else if (dto.channel === ChatSendChannel.DIRECT) {
+        await this.handleDirectMessage(clientData, dto, client);
+      }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'getError' in error) throw error;
       throw wsError(500, CHAT_ERROR_CODES.MESSAGE_SEND_FAILED);
     }
+  }
+
+  private handleGlobalMessage(clientData: ClientData, dto: SendMessageDto): void {
+    const message = this.chatService.handleGlobalMessage({
+      senderId: clientData.userId.toString(),
+      senderNickname: clientData.nickname,
+      message: dto.message,
+    });
+
+    this.server.to('lobby').emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
+  }
+
+  private async handleDirectMessage(
+    clientData: ClientData,
+    dto: SendMessageDto,
+    senderClient: Socket,
+  ): Promise<void> {
+    if (!dto.targetId) throw wsError(400, CHAT_ERROR_CODES.INVALID_INPUT);
+
+    const targetUserId = Number(dto.targetId);
+
+    const message = await this.chatService.handleDirectMessage({
+      senderId: clientData.userId,
+      senderNickname: clientData.nickname,
+      targetId: targetUserId,
+      message: dto.message,
+    });
+
+    const targetSocketId = await this.findSocketIdByUserId(targetUserId);
+    if (!targetSocketId) throw wsError(404, CHAT_ERROR_CODES.TARGET_OFFLINE);
+
+    senderClient.emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
+    this.server.to(targetSocketId).emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
+  }
+  private async findSocketIdByUserId(userId: number): Promise<string | null> {
+    const sockets = await this.server.in('lobby').fetchSockets();
+    const targetSocket = sockets.find((s) => (s.data as ClientData).userId === userId);
+    return targetSocket?.id ?? null;
   }
 }
