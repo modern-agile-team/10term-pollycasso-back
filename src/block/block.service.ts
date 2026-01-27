@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { BLOCK_DOMAIN_ERRORS, BLOCK_ERROR_CODES } from './constants/block.constant';
 import type { IBlockRepository } from './interfaces/block-repository.interface';
 import { UsersService } from 'src/user/user.service';
+import { Block } from './block.entity';
 
 @Injectable()
 export class BlockService {
@@ -10,6 +11,10 @@ export class BlockService {
     private readonly blockRepository: IBlockRepository,
     private readonly userService: UsersService,
   ) {}
+
+  async isBlocked(userId: number, targetUserId: number): Promise<Block | null> {
+    return this.blockRepository.find(userId, targetUserId);
+  }
 
   async block(userId: number, targetUserId: number) {
     const targetUser = await this.userService.findOneById(targetUserId);
