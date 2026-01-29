@@ -74,7 +74,7 @@ const unauthorizedError = () =>
   });
 
 export const ApiFriend = {
-  getFriendList: () =>
+  getFriendRelations: () =>
     applyDecorators(
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '전체 친구 목록 조회' }),

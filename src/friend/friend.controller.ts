@@ -23,8 +23,8 @@ export class FriendController {
   constructor(private readonly friendService: FriendService) {}
 
   @Get()
-  @ApiFriend.getFriendList()
-  async getFriendList(@Req() req: { user: JwtPayload }) {
+  @ApiFriend.getFriendRelations()
+  async getFriendRelations(@Req() req: { user: JwtPayload }) {
     return await this.friendService.getFriendList(req.user.sub);
   }
 
