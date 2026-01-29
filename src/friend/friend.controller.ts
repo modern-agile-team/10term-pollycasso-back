@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   ParseIntPipe,
@@ -21,6 +22,12 @@ import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 export class FriendController {
   constructor(private readonly friendService: FriendService) {}
 
+  @Get()
+  @ApiFriend.getFriendList()
+  async getFriendList(@Req() req: { user: JwtPayload }) {
+    return await this.friendService.getFriendList(req.user.sub);
+  }
+
   @Post('request')
   @ApiFriend.sendRequest()
   async sendRequest(@Req() req: { user: JwtPayload }, @Body() body: SendFriendRequestDto) {
@@ -34,7 +41,7 @@ export class FriendController {
     @Param('requesterId', ParseIntPipe) requesterId: number,
     @Body() body: RespondFriendRequestDto,
   ) {
-    return await this.friendService.respond(req.user.sub, requesterId, body.accept);
+    return await this.friendService.respondFriendRequest(req.user.sub, requesterId, body.accept);
   }
 
   @Delete('request/:targetUserId')
@@ -54,6 +61,6 @@ export class FriendController {
     @Req() req: { user: JwtPayload },
     @Param('friendUserId', ParseIntPipe) friendUserId: number,
   ) {
-    await this.friendService.remove(req.user.sub, friendUserId);
+    await this.friendService.removeFriend(req.user.sub, friendUserId);
   }
 }

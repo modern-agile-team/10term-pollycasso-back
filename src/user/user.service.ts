@@ -19,6 +19,10 @@ export class UsersService {
     return this.usersRepository.findOneById(id);
   }
 
+  async findOneWithProfile(id: number) {
+    return this.usersRepository.findOneWithProfile(id);
+  }
+
   // 유저 생성
   async createUser(userData: CreateUserDto): Promise<User> {
     return this.createUserWithTag(userData);

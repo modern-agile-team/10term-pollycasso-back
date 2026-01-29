@@ -1,10 +1,14 @@
-import { FriendStatus } from '@prisma/client';
 import { Friend } from '../friend.entity';
+import { FriendStatus } from '@prisma/client';
+import { FriendshipData, UserProfile } from '../types/friend.type';
 
 export interface IFriendRepository {
   findFriendship(userId: number, targetUserId: number): Promise<Friend | null>;
-  create(userId: number, targetUserId: number): Promise<Friend>;
-  updateStatus(id: number, status: FriendStatus): Promise<Friend>;
-  deleteById(id: number): Promise<void>;
-  deleteBidirectional(userId: number, friendId: number): Promise<void>;
+  createFriendship(userId: number, targetUserId: number): Promise<Friend>;
+  updateFriendshipStatus(id: number, status: FriendStatus): Promise<Friend>;
+  deleteFriendshipById(id: number): Promise<void>;
+  findFriendsWithProfiles(userId: number): Promise<{
+    friendships: FriendshipData[];
+    users: UserProfile[];
+  }>;
 }
