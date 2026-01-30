@@ -23,6 +23,7 @@ import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
 import { PlayerResponseDto } from './dtos/responses/player-response.dto';
+import { parseOutfit } from 'src/common/utils/parse-outfit.util';
 
 interface JwtPayload {
   sub: string;
@@ -248,11 +249,23 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     const { roomId, userId } = clientData;
-    await this.waitingService.updateOutfit(roomId, userId, body.outfit);
+
+    const players = await this.waitingService.getPlayers(roomId);
+    const player = players.find((p) => p.userId === userId);
+    if (!player) {
+      throw wsError(404, WAITING_ERROR_CODES.PLAYER_NOT_FOUND);
+    }
+
+    const nextOutfit = parseOutfit({
+      ...player.outfit,
+      ...body.outfit,
+    });
+
+    await this.waitingService.updateOutfit(roomId, userId, nextOutfit);
 
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_PLAYER, {
       userId: userId.toString(),
-      changes: { outfit: body.outfit },
+      changes: { outfit: nextOutfit },
     });
   }
 

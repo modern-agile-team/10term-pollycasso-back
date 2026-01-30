@@ -33,7 +33,13 @@ export class UsersRepository {
 
   async createUser(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({
-      data,
+      data: {
+        ...data,
+        profile: {
+          create: {},
+        },
+      },
+      include: { profile: true },
     });
   }
 

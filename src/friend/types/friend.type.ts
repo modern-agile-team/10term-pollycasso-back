@@ -12,8 +12,7 @@ export interface UserProfile {
   id: number;
   nickname: string;
   profile: {
-    profileImage: string | null;
+    outfit: unknown;
     level: number;
-    isOnline: boolean;
   } | null;
 }

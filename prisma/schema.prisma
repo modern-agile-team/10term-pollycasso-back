@@ -78,18 +78,13 @@ model User {
 }
 
 model UserProfile {
-  userId              Int       @id @map("user_id")
-  profileImage        String?   @map("profile_image")
-  introduce           String?
-  level               Int       @default(1)
-  experience          Int       @default(0)
-  coin                Int       @default(0)
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-  isTutorialCompleted Boolean   @default(false) @map("is_tutorial_completed")
-  lastLoginAt         DateTime? @map("last_login_at")
-  totalAttendance     Int?      @map("total_attendance")
-  isOnline            Boolean   @default(false) @map("is_online")
+  userId     Int      @id @map("user_id")
+  outfit     Json?
+  level      Int      @default(1)
+  experience Int      @default(0)
+  coin       Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

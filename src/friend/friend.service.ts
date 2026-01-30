@@ -6,6 +6,8 @@ import { BlockService } from 'src/block/block.service';
 import { UsersService } from 'src/user/user.service';
 import { Friend } from './friend.entity';
 import { FriendRelation, FriendResponseDto } from './dtos/responses/friend.response.dto';
+import { RedisService } from 'src/redis/redis.service';
+import { parseOutfit } from 'src/common/utils/parse-outfit.util';
 
 @Injectable()
 export class FriendService {
@@ -14,15 +16,23 @@ export class FriendService {
     private readonly friendRepository: IFriendRepository,
     private readonly blockService: BlockService,
     private readonly userService: UsersService,
+    private readonly redisService: RedisService,
   ) {}
 
   async getFriendList(userId: number): Promise<FriendResponseDto[]> {
     const { friendships, users } = await this.friendRepository.findFriendsWithProfiles(userId);
 
+    if (!users.length) return [];
+
     const blockedUsers = await this.blockService.getBlockedUsers(userId);
     const blockedIds = new Set(blockedUsers.map((b) => b.blockedId));
 
     const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const keys = users.map((u) => `user:${u.id}:isOnline`);
+    const onlineStatuses = await this.redisService.mget(keys);
+    const onlineStatusMap = new Map<number, boolean>();
+    users.forEach((u, i) => onlineStatusMap.set(u.id, onlineStatuses[i] === '1'));
 
     const result = friendships
       .map((friendship) => {
@@ -50,9 +60,9 @@ export class FriendService {
         return {
           userId: user.id,
           nickname: user.nickname,
-          outfit: user.profile.profileImage ?? '',
+          outfit: parseOutfit(user.profile.outfit),
           level: user.profile.level,
-          isOnline: user.profile.isOnline,
+          isOnline: onlineStatusMap.get(user.id) ?? false,
           relation,
         };
       })
@@ -84,6 +94,7 @@ export class FriendService {
     });
   }
 
+  // --- 나머지 기존 FriendService 메서드 그대로 ---
   async getFriendship(userId: number, targetUserId: number): Promise<Friend | null> {
     return this.friendRepository.findFriendship(userId, targetUserId);
   }

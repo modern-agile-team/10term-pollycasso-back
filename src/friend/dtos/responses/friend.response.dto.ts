@@ -1,3 +1,5 @@
+import { Outfit } from 'src/common/types/outfit.type';
+
 export enum FriendRelation {
   FRIEND = 'FRIEND',
   REQUEST_RECEIVED = 'REQUEST_RECEIVED',
@@ -8,7 +10,7 @@ export enum FriendRelation {
 export class FriendResponseDto {
   userId: number;
   nickname: string;
-  outfit: string;
+  outfit: Outfit;
   level: number;
   isOnline: boolean;
   relation: FriendRelation;

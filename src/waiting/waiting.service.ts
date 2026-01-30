@@ -39,6 +39,8 @@ type StartGameResult = {
 import { ChatMessageDto, ChatReceiveChannel } from 'src/chat/dtos/responses/message-response.dto';
 import { ChatValidationService } from 'src/chat/chat-validation.service';
 import { PlayerResponseDto } from './dtos/responses/player-response.dto';
+import { parseOutfit } from 'src/common/utils/parse-outfit.util';
+import { Outfit } from 'src/common/types/outfit.type';
 
 @Injectable()
 export class WaitingService {
@@ -142,7 +144,7 @@ export class WaitingService {
       isReady: isHost,
       level,
       pageStatus: PlayerPageStatus.IDLE,
-      outfit: undefined,
+      outfit: parseOutfit(undefined),
     };
   }
 
@@ -164,13 +166,10 @@ export class WaitingService {
     await this.waitingStore.updatePageStatus(roomId, userId, status);
   }
 
-  async updateOutfit(
-    roomId: number,
-    userId: number,
-    outfit: Record<string, unknown>,
-  ): Promise<void> {
+  async updateOutfit(roomId: number, userId: number, outfit: Outfit): Promise<void> {
     const waiting = await this.loadWaitingEntity(roomId);
     waiting.validatePlayerExists(userId);
+
     await this.waitingStore.updateOutfit(roomId, userId, outfit);
   }
 

@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { Team } from '@prisma/client';
 import Redis from 'ioredis';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
+import { Outfit } from 'src/common/types/outfit.type';
+import { parseOutfit } from 'src/common/utils/parse-outfit.util';
 
 export interface WaitingPlayerState {
   userId: number;
@@ -11,7 +13,7 @@ export interface WaitingPlayerState {
   isReady: boolean;
   level: number;
   pageStatus: PlayerPageStatus;
-  outfit?: Record<string, unknown>;
+  outfit: Outfit;
 }
 
 @Injectable()
@@ -40,6 +42,7 @@ export class WaitingStore {
 
   async joinRoom(roomId: number, player: WaitingPlayerState, isHost: boolean) {
     const pipeline = this.redis.pipeline();
+    const outfit = parseOutfit(player.outfit);
 
     pipeline.set(this.getUserRoomKey(player.userId), roomId.toString());
     pipeline.sadd(this.getMembersKey(roomId), player.userId.toString());
@@ -50,7 +53,7 @@ export class WaitingStore {
       isReady: player.isReady ? '1' : '0',
       level: player.level.toString(),
       pageStatus: player.pageStatus,
-      outfit: player.outfit ? JSON.stringify(player.outfit) : '',
+      outfit: JSON.stringify(outfit),
     });
 
     if (isHost) {
@@ -86,7 +89,7 @@ export class WaitingStore {
       isReady: data.isReady === '1',
       level: Number(data.level) || 1,
       pageStatus: (data.pageStatus as PlayerPageStatus) || PlayerPageStatus.IDLE,
-      outfit: data.outfit ? (JSON.parse(data.outfit) as Record<string, unknown>) : undefined,
+      outfit: data.outfit ? parseOutfit(JSON.parse(data.outfit)) : parseOutfit(undefined),
     };
   }
 
@@ -112,7 +115,7 @@ export class WaitingStore {
         isReady: d.isReady === '1',
         level: Number(d.level) || 1,
         pageStatus: (d.pageStatus as PlayerPageStatus) || PlayerPageStatus.IDLE,
-        outfit: d.outfit ? (JSON.parse(d.outfit) as Record<string, unknown>) : undefined,
+        outfit: d.outfit ? parseOutfit(JSON.parse(d.outfit)) : parseOutfit(undefined),
       }));
   }
 
@@ -137,8 +140,9 @@ export class WaitingStore {
     await this.redis.hset(this.getPlayerKey(roomId, userId), 'pageStatus', status);
   }
 
-  async updateOutfit(roomId: number, userId: number, outfit: Record<string, unknown>) {
-    await this.redis.hset(this.getPlayerKey(roomId, userId), 'outfit', JSON.stringify(outfit));
+  async updateOutfit(roomId: number, userId: number, outfit: Outfit) {
+    const safeOutfit = parseOutfit(outfit);
+    await this.redis.hset(this.getPlayerKey(roomId, userId), 'outfit', JSON.stringify(safeOutfit));
   }
 
   async getHostId(roomId: number): Promise<number | null> {
