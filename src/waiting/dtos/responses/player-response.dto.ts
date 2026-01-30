@@ -47,6 +47,6 @@ export class PlayerResponseDto {
     this.isReady = data.isReady;
     this.level = data.level;
     this.status = data.status || PlayerPageStatus.IDLE;
-    this.outfit = data.outfit;
+    this.outfit = data.outfit ?? { bird: 'bird_01' };
   }
 }
