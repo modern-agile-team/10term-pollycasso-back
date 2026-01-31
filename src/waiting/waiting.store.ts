@@ -4,7 +4,7 @@ import { Team } from '@prisma/client';
 import Redis from 'ioredis';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
 import { Outfit } from 'src/common/types/outfit.type';
-import { parseOutfit } from 'src/common/utils/parse-outfit.util';
+import { OutfitVO } from 'src/common/value-objects/outfit.vo';
 
 export interface WaitingPlayerState {
   userId: number;
@@ -14,6 +14,7 @@ export interface WaitingPlayerState {
   level: number;
   pageStatus: PlayerPageStatus;
   outfit: Outfit;
+  joinedAt: number;
 }
 
 @Injectable()
@@ -40,9 +41,9 @@ export class WaitingStore {
     return `waiting:user:${userId}:currentRoom`;
   }
 
-  async joinRoom(roomId: number, player: WaitingPlayerState, isHost: boolean) {
+  async joinRoom(roomId: number, player: WaitingPlayerState) {
     const pipeline = this.redis.pipeline();
-    const outfit = parseOutfit(player.outfit);
+    const outfit = player.outfit;
 
     pipeline.set(this.getUserRoomKey(player.userId), roomId.toString());
     pipeline.sadd(this.getMembersKey(roomId), player.userId.toString());
@@ -54,11 +55,8 @@ export class WaitingStore {
       level: player.level.toString(),
       pageStatus: player.pageStatus,
       outfit: JSON.stringify(outfit),
+      joinedAt: player.joinedAt.toString(),
     });
-
-    if (isHost) {
-      pipeline.set(this.getHostKey(roomId), player.userId.toString());
-    }
 
     await pipeline.exec();
   }
@@ -89,7 +87,8 @@ export class WaitingStore {
       isReady: data.isReady === '1',
       level: Number(data.level) || 1,
       pageStatus: (data.pageStatus as PlayerPageStatus) || PlayerPageStatus.IDLE,
-      outfit: data.outfit ? parseOutfit(JSON.parse(data.outfit)) : parseOutfit(undefined),
+      outfit: OutfitVO.fromJSON(data.outfit).get(),
+      joinedAt: Number(data.joinedAt),
     };
   }
 
@@ -115,7 +114,8 @@ export class WaitingStore {
         isReady: d.isReady === '1',
         level: Number(d.level) || 1,
         pageStatus: (d.pageStatus as PlayerPageStatus) || PlayerPageStatus.IDLE,
-        outfit: d.outfit ? parseOutfit(JSON.parse(d.outfit)) : parseOutfit(undefined),
+        outfit: OutfitVO.fromJSON(d.outfit).get(),
+        joinedAt: Number(d.joinedAt),
       }));
   }
 
@@ -141,8 +141,7 @@ export class WaitingStore {
   }
 
   async updateOutfit(roomId: number, userId: number, outfit: Outfit) {
-    const safeOutfit = parseOutfit(outfit);
-    await this.redis.hset(this.getPlayerKey(roomId, userId), 'outfit', JSON.stringify(safeOutfit));
+    await this.redis.hset(this.getPlayerKey(roomId, userId), 'outfit', JSON.stringify(outfit));
   }
 
   async getHostId(roomId: number): Promise<number | null> {
@@ -189,15 +188,24 @@ export class WaitingStore {
     await pipeline.exec();
   }
 
+  async tryAssignHost(roomId: number, userId: number): Promise<boolean> {
+    const result = await this.redis.set(this.getHostKey(roomId), userId.toString(), 'NX');
+    return result === 'OK';
+  }
+
   private async autoTransferHost(roomId: number) {
     const players = await this.getPlayers(roomId);
-    if (players.length > 0) {
-      const pipeline = this.redis.pipeline();
-      pipeline.set(this.getHostKey(roomId), players[0].userId.toString());
-      pipeline.hset(this.getPlayerKey(roomId, players[0].userId), 'isReady', '1');
-      await pipeline.exec();
-    } else {
-      await this.redis.del(this.getHostKey(roomId));
+
+    if (players.length === 0) {
+      await this.clearRoom(roomId);
+      return;
     }
+
+    const nextHost = players.sort((a, b) => a.joinedAt - b.joinedAt)[0];
+
+    const pipeline = this.redis.pipeline();
+    pipeline.set(this.getHostKey(roomId), nextHost.userId.toString());
+    pipeline.hset(this.getPlayerKey(roomId, nextHost.userId), 'isReady', '1');
+    await pipeline.exec();
   }
 }

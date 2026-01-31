@@ -12,7 +12,7 @@ export const FRIEND_ERROR_CODES = {
 
 export const FRIEND_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
   CANNOT_ADD_SELF: {
-    field: 'targetTag',
+    field: 'targetUserId',
     reason: 'Cannot send friend request to yourself',
   },
   INVALID_REQUEST_STATUS: {
@@ -20,7 +20,7 @@ export const FRIEND_DOMAIN_ERRORS: Record<string, { field: string; reason: strin
     reason: 'Friend request must be in PENDING status',
   },
   NOT_FRIENDS: {
-    field: 'friendTag',
+    field: 'targetUserId',
     reason: 'You are not friends with this user',
   },
   BLOCKED_BY_TARGET: {

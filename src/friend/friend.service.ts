@@ -7,7 +7,8 @@ import { UsersService } from 'src/user/user.service';
 import { Friend } from './friend.entity';
 import { FriendRelation, FriendResponseDto } from './dtos/responses/friend.response.dto';
 import { RedisService } from 'src/redis/redis.service';
-import { parseOutfit } from 'src/common/utils/parse-outfit.util';
+import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
+import { OutfitVO } from 'src/common/value-objects/outfit.vo';
 
 @Injectable()
 export class FriendService {
@@ -57,10 +58,12 @@ export class FriendService {
           return null;
         }
 
+        const outfit = OutfitVO.from(user.profile.outfit);
+
         return {
           userId: user.id,
           nickname: user.nickname,
-          outfit: parseOutfit(user.profile.outfit),
+          outfit: new OutfitDto(outfit.get()),
           level: user.profile.level,
           isOnline: onlineStatusMap.get(user.id) ?? false,
           relation,
@@ -94,7 +97,6 @@ export class FriendService {
     });
   }
 
-  // --- 나머지 기존 FriendService 메서드 그대로 ---
   async getFriendship(userId: number, targetUserId: number): Promise<Friend | null> {
     return this.friendRepository.findFriendship(userId, targetUserId);
   }
