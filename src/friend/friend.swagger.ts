@@ -74,6 +74,37 @@ const unauthorizedError = () =>
   });
 
 export const ApiFriend = {
+  getFriendRelations: () =>
+    applyDecorators(
+      ApiBearerAuth('accessToken'),
+      ApiOperation({ summary: '전체 친구 목록 조회' }),
+      ApiResponse({
+        status: 200,
+        description: '친구 목록 조회 성공',
+        schema: {
+          example: [
+            {
+              userId: 1,
+              nickname: 'Alice',
+              outfit: 'https://example.com/profile1.png',
+              level: 15,
+              isOnline: true,
+              relation: 'FRIEND',
+            },
+            {
+              userId: 2,
+              nickname: 'Bob',
+              outfit: 'https://example.com/profile2.png',
+              level: 12,
+              isOnline: false,
+              relation: 'REQUEST_RECEIVED',
+            },
+          ],
+        },
+      }),
+      unauthorizedError(),
+    ),
+
   sendRequest: () =>
     applyDecorators(
       ApiBearerAuth('accessToken'),

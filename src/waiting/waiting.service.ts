@@ -20,6 +20,12 @@ import { GameStateStore } from 'src/game-state/game-state.store';
 import { GamePhase } from 'src/game-state/interfaces/game-state.interface';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GAME_EVENTS } from 'src/game/constants/game.constant';
+import { ChatMessageDto, ChatReceiveChannel } from 'src/chat/dtos/responses/message-response.dto';
+import { ChatValidationService } from 'src/chat/chat-validation.service';
+import { PlayerResponseDto } from './dtos/responses/player-response.dto';
+import { Outfit } from 'src/common/types/outfit.type';
+import { OutfitVO } from 'src/common/value-objects/outfit.vo';
+import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
 import {
   WAITING_CONSTANTS,
   WAITING_DOMAIN_ERRORS,
@@ -36,9 +42,6 @@ type StartGameResult = {
   matchId: number;
   roomMemberIdByUserId: Record<number, number>;
 };
-import { ChatMessageDto, ChatReceiveChannel } from 'src/chat/dtos/responses/message-response.dto';
-import { ChatValidationService } from 'src/chat/chat-validation.service';
-import { PlayerResponseDto } from './dtos/responses/player-response.dto';
 
 @Injectable()
 export class WaitingService {
@@ -95,9 +98,11 @@ export class WaitingService {
     }
 
     const player = await this.createPlayer(userId, waiting);
-    const isHost = waiting.isEmpty();
-
-    await this.waitingStore.joinRoom(roomId, player, isHost);
+    await this.waitingStore.joinRoom(roomId, player);
+    const isHost = await this.waitingStore.tryAssignHost(roomId, userId);
+    if (isHost) {
+      await this.waitingStore.setReady(roomId, userId, true);
+    }
 
     const state = await this.getState(roomId);
     const systemMessage = this.chatService.createSystemMessage({
@@ -132,17 +137,18 @@ export class WaitingService {
 
     const nickname = user?.nickname ?? 'Unknown';
     const level = user?.profile?.level ?? 1;
-    const isHost = waiting.isEmpty();
     const initialTeam = waiting.getInitialTeam();
+    const outfit = OutfitVO.from(user?.profile?.outfit);
 
     return {
       userId,
       nickname,
       team: initialTeam,
-      isReady: isHost,
+      isReady: false,
       level,
       pageStatus: PlayerPageStatus.IDLE,
-      outfit: undefined,
+      outfit: outfit.get(),
+      joinedAt: Date.now(),
     };
   }
 
@@ -164,13 +170,10 @@ export class WaitingService {
     await this.waitingStore.updatePageStatus(roomId, userId, status);
   }
 
-  async updateOutfit(
-    roomId: number,
-    userId: number,
-    outfit: Record<string, unknown>,
-  ): Promise<void> {
+  async updateOutfit(roomId: number, userId: number, outfit: Outfit): Promise<void> {
     const waiting = await this.loadWaitingEntity(roomId);
     waiting.validatePlayerExists(userId);
+
     await this.waitingStore.updateOutfit(roomId, userId, outfit);
   }
 
@@ -371,7 +374,7 @@ export class WaitingService {
         isReady: p.isReady,
         level: p.level,
         status: p.pageStatus,
-        outfit: p.outfit,
+        outfit: new OutfitDto(p.outfit),
       })),
     });
   }
@@ -392,7 +395,7 @@ export class WaitingService {
           isReady: p.isReady,
           level: p.level,
           status: p.pageStatus,
-          outfit: p.outfit,
+          outfit: new OutfitDto(p.outfit),
         }),
     );
   }

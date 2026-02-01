@@ -22,9 +22,24 @@ export class UsersRepository {
     return this.prisma.user.findUnique({ where: { username } });
   }
 
+  async findOneWithProfile(id: number) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        profile: true,
+      },
+    });
+  }
+
   async createUser(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({
-      data,
+      data: {
+        ...data,
+        profile: {
+          create: {},
+        },
+      },
+      include: { profile: true },
     });
   }
 
