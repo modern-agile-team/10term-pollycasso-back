@@ -15,6 +15,7 @@ import { ChatSendChannel, SendMessageDto } from './dtos/requests/send-message.dt
 import { CHAT_ERROR_CODES, CHAT_EVENTS } from './constants/chat.constant';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { wsError } from 'src/common/utils/ws-error.util';
+import { BlockService } from 'src/block/block.service';
 
 interface JwtPayload {
   sub: string;
@@ -57,6 +58,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
+    private readonly blockService: BlockService,
   ) {}
 
   private getClientData(client: Socket): ClientData | null {
@@ -65,7 +67,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       : null;
   }
 
-  handleConnection(client: Socket) {
+  async handleConnection(client: Socket) {
     const auth = client.handshake.auth ?? {};
     const headers = client.handshake.headers;
 
@@ -83,7 +85,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
       client.data = { userId: Number(payload.sub), nickname: payload.nickname };
-      void client.join('lobby');
+      await client.join('lobby');
     } catch (err: unknown) {
       const isTokenExpired = err instanceof Error && err.name === 'TokenExpiredError';
       const error = wsError(
@@ -106,7 +108,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       if (dto.channel === ChatSendChannel.GLOBAL) {
-        this.handleGlobalMessage(clientData, dto);
+        await this.handleGlobalMessage(clientData, dto);
       } else if (dto.channel === ChatSendChannel.DIRECT) {
         await this.handleDirectMessage(clientData, dto, client);
       }
@@ -116,14 +118,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  private handleGlobalMessage(clientData: ClientData, dto: SendMessageDto): void {
+  private async handleGlobalMessage(clientData: ClientData, dto: SendMessageDto) {
     const message = this.chatService.handleGlobalMessage({
       senderId: clientData.userId.toString(),
       senderNickname: clientData.nickname,
       message: dto.message,
     });
 
-    this.server.to('lobby').emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
+    const sockets = await this.server.in('lobby').fetchSockets();
+    const userIds = sockets.map((s) => (s.data as ClientData)?.userId).filter(Boolean);
+    const allBlocked = await this.blockService.getBlockedUsersForMany(userIds);
+
+    const blockedMap = new Map<number, Set<number>>();
+    for (const { blockerId, blockedId } of allBlocked) {
+      if (!blockedMap.has(blockerId)) blockedMap.set(blockerId, new Set());
+      blockedMap.get(blockerId)!.add(blockedId);
+    }
+
+    for (const socket of sockets) {
+      const data = socket.data as ClientData;
+      if (!data) continue;
+
+      const blockedSet = blockedMap.get(data.userId) ?? new Set();
+      if (blockedSet.has(clientData.userId)) continue;
+
+      socket.emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
+    }
   }
 
   private async handleDirectMessage(
@@ -148,6 +168,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     senderClient.emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
     this.server.to(targetSocketId).emit(CHAT_EVENTS.LOBBY_MESSAGE, message);
   }
+
   private async findSocketIdByUserId(userId: number): Promise<string | null> {
     const sockets = await this.server.in('lobby').fetchSockets();
     const targetSocket = sockets.find((s) => (s.data as ClientData).userId === userId);
