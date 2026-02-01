@@ -38,7 +38,7 @@ export class BlockRepository implements IBlockRepository {
     });
   }
 
-  async findBlockedUsersByBlockers(
+  async findBlockedUsersByBlockerIds(
     blockerIds: number[],
   ): Promise<{ blockerId: number; blockedId: number }[]> {
     return this.prisma.blockList.findMany({

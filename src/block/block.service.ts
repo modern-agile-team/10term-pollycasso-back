@@ -25,10 +25,10 @@ export class BlockService {
     return this.blockRepository.findBlockersByBlocked(userId);
   }
 
-  async getBlockedUsersForMany(
+  async getBlockedUsersByUserIds(
     userIds: number[],
   ): Promise<{ blockerId: number; blockedId: number }[]> {
-    return this.blockRepository.findBlockedUsersByBlockers(userIds);
+    return this.blockRepository.findBlockedUsersByBlockerIds(userIds);
   }
 
   async block(userId: number, targetUserId: number): Promise<Block> {

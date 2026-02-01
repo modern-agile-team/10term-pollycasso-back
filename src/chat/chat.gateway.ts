@@ -127,7 +127,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const sockets = await this.server.in('lobby').fetchSockets();
     const userIds = sockets.map((s) => (s.data as ClientData)?.userId).filter(Boolean);
-    const allBlocked = await this.blockService.getBlockedUsersForMany(userIds);
+    const allBlocked = await this.blockService.getBlockedUsersByUserIds(userIds);
 
     const blockedMap = new Map<number, Set<number>>();
     for (const { blockerId, blockedId } of allBlocked) {

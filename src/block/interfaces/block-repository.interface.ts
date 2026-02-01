@@ -3,7 +3,7 @@ import { Block } from '../block.entity';
 export interface IBlockRepository {
   findBlockRelation(blockerId: number, blockedId: number): Promise<Block | null>;
   findBlockedUsersByBlocker(blockerId: number): Promise<{ blockedId: number }[]>;
-  findBlockedUsersByBlockers(
+  findBlockedUsersByBlockerIds(
     blockerIds: number[],
   ): Promise<{ blockerId: number; blockedId: number }[]>;
   findBlockersByBlocked(blockedId: number): Promise<{ blockerId: number }[]>;
