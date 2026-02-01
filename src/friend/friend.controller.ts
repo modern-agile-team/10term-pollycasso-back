@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { FriendService } from 'src/friend/friend.service';
 import { RespondFriendRequestDto } from './dtos/requests/respond-friend-request.dto';
 import { ApiFriend } from './friend.swagger';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
+import { SearchFriendRequestDto } from './dtos/requests/search-friend-request.dto';
 
 @Controller('friends')
 @UseGuards(AccessTokenGuard)
@@ -26,6 +28,18 @@ export class FriendController {
   @ApiFriend.getFriendRelations()
   async getFriendRelations(@Req() req: { user: JwtPayload }) {
     return await this.friendService.getFriendList(req.user.sub);
+  }
+
+  @Get('search')
+  @ApiFriend.searchFriends()
+  async searchFriends(@Req() req: { user: JwtPayload }, @Query() query: SearchFriendRequestDto) {
+    return this.friendService.searchFriends(req.user.sub, query.keyword);
+  }
+
+  @Get('recommended')
+  @ApiFriend.getRecommendedFriends()
+  async getRecommendedFriends(@Req() req: { user: JwtPayload }) {
+    return await this.friendService.getRecommendedFriends(req.user.sub);
   }
 
   @Post('request')

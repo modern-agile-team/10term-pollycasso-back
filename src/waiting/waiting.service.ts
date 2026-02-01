@@ -4,6 +4,8 @@ import {
   Inject,
   ConflictException,
   InternalServerErrorException,
+  BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Team, RoomMode, RoomStatus } from '@prisma/client';
 import { WaitingStore, WaitingPlayerState } from './waiting.store';
@@ -114,7 +116,7 @@ export class WaitingService {
 
   private async validatePassword(room: Room, password?: string): Promise<void> {
     if (!password) {
-      throw new NotFoundException({
+      throw new BadRequestException({
         code: WAITING_ERROR_CODES.ROOM_PASSWORD_REQUIRED,
         errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.ROOM_PASSWORD_REQUIRED]],
       });
@@ -122,10 +124,7 @@ export class WaitingService {
 
     const isValid = await PasswordEncoderUtil.compare(password, room.hashedPassword!);
     if (!isValid) {
-      throw new NotFoundException({
-        code: WAITING_ERROR_CODES.ROOM_INVALID_PASSWORD,
-        errors: [WAITING_DOMAIN_ERRORS[WAITING_ERROR_CODES.ROOM_INVALID_PASSWORD]],
-      });
+      throw new ForbiddenException({ code: WAITING_ERROR_CODES.ROOM_INVALID_PASSWORD });
     }
   }
 

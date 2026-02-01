@@ -1,6 +1,8 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { StandardErrorResponseDto } from 'src/common/dtos/responses/standard-error-response.dto';
+import { FriendResponseDto } from './dtos/responses/friend.response.dto';
+import { UserSearchResultDto } from './dtos/responses/user-search-result.dto';
 
 const badRequestErrors = () =>
   ApiResponse({
@@ -16,20 +18,41 @@ const badRequestErrors = () =>
           errors: [{ field: 'targetUserId', message: 'Cannot send friend request to yourself' }],
         },
       },
-      invalidRequestStatus: {
-        summary: '요청 상태 오류',
+      cannotCancelReceivedRequest: {
+        summary: '받은 요청 취소 불가',
         value: {
           status: 400,
-          code: 'INVALID_REQUEST_STATUS',
-          errors: [{ field: 'status', message: 'Friend request must be in PENDING status' }],
+          code: 'CANNOT_CANCEL_RECEIVED_REQUEST',
+          errors: [
+            {
+              field: 'targetUserId',
+              message:
+                'You cannot cancel a friend request that you received. Please reject or accept it instead',
+            },
+          ],
         },
       },
-      notFriends: {
-        summary: '친구 관계 없음',
+      cannotRespondOwnRequest: {
+        summary: '자신이 보낸 요청 응답 불가',
         value: {
           status: 400,
-          code: 'NOT_FRIENDS',
-          errors: [{ field: 'friendUserId', message: 'You are not friends with this user' }],
+          code: 'CANNOT_RESPOND_OWN_REQUEST',
+          errors: [
+            {
+              field: 'requesterId',
+              message: 'You cannot respond to a friend request that you sent',
+            },
+          ],
+        },
+      },
+      invalidKeyword: {
+        summary: '검색 키워드 오류',
+        value: {
+          status: 400,
+          code: 'INVALID_KEYWORD',
+          errors: [
+            { field: 'keyword', message: 'Search keyword must be between 1 and 20 characters' },
+          ],
         },
       },
     },
@@ -78,30 +101,29 @@ export const ApiFriend = {
     applyDecorators(
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '전체 친구 목록 조회' }),
+      ApiResponse({ status: 200, description: '친구 목록 조회 성공', type: [FriendResponseDto] }),
+      unauthorizedError(),
+    ),
+
+  searchFriends: () =>
+    applyDecorators(
+      ApiBearerAuth('accessToken'),
+      ApiOperation({ summary: '친구 검색 (닉네임 / 태그)' }),
+      ApiQuery({ name: 'keyword', required: true, description: '검색 키워드 (닉네임 또는 태그)' }),
       ApiResponse({
         status: 200,
-        description: '친구 목록 조회 성공',
-        schema: {
-          example: [
-            {
-              userId: 1,
-              nickname: 'Alice',
-              outfit: 'https://example.com/profile1.png',
-              level: 15,
-              isOnline: true,
-              relation: 'FRIEND',
-            },
-            {
-              userId: 2,
-              nickname: 'Bob',
-              outfit: 'https://example.com/profile2.png',
-              level: 12,
-              isOnline: false,
-              relation: 'REQUEST_RECEIVED',
-            },
-          ],
-        },
+        description: '검색 성공 (이미 친구이거나, 친구 요청 / 대기이거나, 차단인 경우 제외)',
+        type: [UserSearchResultDto],
       }),
+      badRequestErrors(),
+      unauthorizedError(),
+    ),
+
+  getRecommendedFriends: () =>
+    applyDecorators(
+      ApiBearerAuth('accessToken'),
+      ApiOperation({ summary: '추천 친구 목록 조회' }),
+      ApiResponse({ status: 200, description: '추천 친구 조회 성공', type: [UserSearchResultDto] }),
       unauthorizedError(),
     ),
 
@@ -155,10 +177,7 @@ export const ApiFriend = {
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '친구 요청 취소' }),
       ApiParam({ name: 'targetUserId', type: 'number', description: '대상 사용자 ID' }),
-      ApiResponse({
-        status: 204,
-        description: '친구 요청 취소 성공',
-      }),
+      ApiResponse({ status: 204, description: '친구 요청 취소 성공' }),
       badRequestErrors(),
       notFoundErrors(),
       unauthorizedError(),
@@ -169,10 +188,7 @@ export const ApiFriend = {
       ApiBearerAuth('accessToken'),
       ApiOperation({ summary: '친구 삭제' }),
       ApiParam({ name: 'friendUserId', type: 'number', description: '친구 사용자 ID' }),
-      ApiResponse({
-        status: 204,
-        description: '친구 삭제 성공',
-      }),
+      ApiResponse({ status: 204, description: '친구 삭제 성공' }),
       badRequestErrors(),
       notFoundErrors(),
       unauthorizedError(),

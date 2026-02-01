@@ -8,6 +8,8 @@ export const FRIEND_ERROR_CODES = {
   BLOCKING_TARGET: 'BLOCKING_TARGET',
   CANNOT_CANCEL_RECEIVED_REQUEST: 'CANNOT_CANCEL_RECEIVED_REQUEST',
   CANNOT_RESPOND_OWN_REQUEST: 'CANNOT_RESPOND_OWN_REQUEST',
+  INVALID_KEYWORD: 'INVALID_KEYWORD',
+  ALREADY_FRIENDS: 'ALREADY_FRIENDS',
 } as const;
 
 export const FRIEND_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
@@ -15,29 +17,25 @@ export const FRIEND_DOMAIN_ERRORS: Record<string, { field: string; reason: strin
     field: 'targetUserId',
     reason: 'Cannot send friend request to yourself',
   },
-  INVALID_REQUEST_STATUS: {
-    field: 'status',
-    reason: 'Friend request must be in PENDING status',
-  },
-  NOT_FRIENDS: {
-    field: 'targetUserId',
-    reason: 'You are not friends with this user',
-  },
-  BLOCKED_BY_TARGET: {
-    field: 'targetUserId',
-    reason: 'You cannot send a friend request because the user has blocked you',
-  },
-  BLOCKING_TARGET: {
-    field: 'targetUserId',
-    reason: 'You cannot send a friend request to a user you have blocked',
-  },
+
   CANNOT_CANCEL_RECEIVED_REQUEST: {
-    field: 'requestId',
+    field: 'targetUserId',
     reason:
       'You cannot cancel a friend request that you received. Please reject or accept it instead',
   },
+
   CANNOT_RESPOND_OWN_REQUEST: {
-    field: 'requestId',
+    field: 'requesterId',
     reason: 'You cannot respond to a friend request that you sent',
   },
+
+  INVALID_KEYWORD: {
+    field: 'keyword',
+    reason: 'Search keyword must be between 1 and 20 characters',
+  },
 };
+
+export const FRIEND_SEARCH_RULES = {
+  SEARCH_RESULT_LIMIT: 20,
+  RECOMMENDED_FRIENDS_LIMIT: 5,
+} as const;
