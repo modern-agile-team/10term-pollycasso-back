@@ -11,6 +11,7 @@ import { DrawingGateway } from './drawing/drawing.gateway';
 import { GameStateStore } from 'src/game-state/game-state.store';
 import { RedisModule } from 'src/redis/redis.module';
 import { GAME_STATE_STORE } from 'src/game-state/interfaces/game-state.interface';
+import { DrawingPhaseService } from './drawing/drawing.service';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { GAME_STATE_STORE } from 'src/game-state/interfaces/game-state.interface
     TopicGateway,
     TopicService,
     GameSessionService,
+    DrawingPhaseService,
     { provide: GAME_STATE_STORE, useClass: GameStateStore },
     { provide: GAME_EVENT_PUBLISHER, useExisting: GameGateway },
     DrawingGateway,

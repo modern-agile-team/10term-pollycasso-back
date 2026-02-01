@@ -1,6 +1,6 @@
 import { IsArray, IsIn, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { type DrawingTool } from '../interface/drawing.interface';
+import { type DrawingTool } from '../../interface/drawing.interface';
 
 export class DrawLineDto {
   @IsIn(['pencil', 'brush', 'neon', 'bucket', 'eraser'])
@@ -13,7 +13,6 @@ export class DrawLineDto {
   size!: number;
 
   @IsArray()
-  @ValidateNested({ each: true })
   @IsNumber({}, { each: true })
   points!: number[];
 

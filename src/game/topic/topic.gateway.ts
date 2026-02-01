@@ -31,8 +31,7 @@ export class TopicGateway {
     private readonly gameSessionService: GameSessionService,
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
   ) {}
-  @WebSocketServer()
-  server: Server;
+  @WebSocketServer() server: Server;
 
   @SubscribeMessage('game:typing')
   handleTyping(@ConnectedSocket() client: GameSocket, @MessageBody() data: TopicDto) {
@@ -47,9 +46,9 @@ export class TopicGateway {
   async handleFinalize(@ConnectedSocket() client: GameSocket, @MessageBody() data: TopicDto) {
     const { roomId, userId } = client.data;
     if (!roomId) return;
-
+    console.log('[DEBUG] startDrawingPhase called', { roomId, userId, typedValue: data.value });
     try {
-      await this.gameSessionService.startDrawingPhase(roomId, userId, data.value);
+      await this.gameSessionService.startDrawingPhase(roomId, userId, data.value, this.server);
     } catch (e) {
       if (e instanceof Error) {
         console.error(e.message);

@@ -1,5 +1,10 @@
-import { GamePhase, GameState } from 'src/game-state/interfaces/game-state.interface';
+import {
+  DrawingContext,
+  GamePhase,
+  GameState,
+} from 'src/game-state/interfaces/game-state.interface';
 import { GAME_ERRORS } from '../constants/game.constant';
+import { randomUUID } from 'crypto';
 
 export class GameSessionEntity {
   private constructor(private _state: GameState) {}
@@ -42,7 +47,7 @@ export class GameSessionEntity {
     };
   }
 
-  startDrawing(userId: number, theme: string): void {
+  startDrawing(userId: number, theme: string, activeUserIds: number[]): void {
     if (this._state.phase !== GamePhase.THEME_SELECTING) {
       throw new Error(GAME_ERRORS.PHASE_MUST_BE_THEME_SELECTING);
     }
@@ -66,9 +71,16 @@ export class GameSessionEntity {
     this._state.currentTheme = trimmedTheme;
     this._state.endsAt = Date.now() + 92000; // 92초
 
-    this._state.currentRound = 1;
-    this._state.totalRounds = 3;
-    this._state.phaseContext = null;
+    if (!this._state.currentRound) this._state.currentRound = 1;
+    if (!this._state.totalRounds) this._state.totalRounds = 3;
+
+    const drawingContext: DrawingContext = {
+      kind: GamePhase.DRAWING,
+      phaseInstanceId: randomUUID(),
+      activeUserIds: [...activeUserIds],
+      readyUserIds: [],
+    };
+    this._state.phaseContext = drawingContext;
 
     const currentRecent = this._state.recentThemes ?? [];
     this._state.recentThemes = [trimmedTheme, ...currentRecent].slice(0, 3);
