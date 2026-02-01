@@ -39,3 +39,8 @@ export const FRIEND_SEARCH_RULES = {
   SEARCH_RESULT_LIMIT: 20,
   RECOMMENDED_FRIENDS_LIMIT: 5,
 } as const;
+
+export enum FriendSearchType {
+  TAG = 'tag',
+  NICKNAME = 'nickname',
+}

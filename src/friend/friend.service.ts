@@ -11,6 +11,7 @@ import {
   FRIEND_DOMAIN_ERRORS,
   FRIEND_ERROR_CODES,
   FRIEND_SEARCH_RULES,
+  FriendSearchType,
 } from './constants/friend.constant';
 import type { IFriendRepository } from './interfaces/friend-repository.interface';
 import { BlockService } from 'src/block/block.service';
@@ -23,11 +24,11 @@ import { OutfitVO } from 'src/common/value-objects/outfit.vo';
 import { UserSearchResultDto } from './dtos/responses/user-search-result.dto';
 import { UserProfile } from './types/friend.type';
 
-function parseSearchKeyword(keyword: string): { type: 'tag' | 'nickname'; value: string } {
+function parseSearchKeyword(keyword: string): { type: FriendSearchType; value: string } {
   const trimmed = keyword.trim();
   const normalized = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
-  if (/^\d{4}$/.test(normalized)) return { type: 'tag', value: normalized };
-  return { type: 'nickname', value: normalized };
+  if (/^\d{4}$/.test(normalized)) return { type: FriendSearchType.TAG, value: normalized };
+  return { type: FriendSearchType.NICKNAME, value: normalized };
 }
 
 @Injectable()

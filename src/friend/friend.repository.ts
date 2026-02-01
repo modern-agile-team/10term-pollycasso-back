@@ -4,6 +4,7 @@ import { IFriendRepository } from './interfaces/friend-repository.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Friend } from './friend.entity';
 import { Injectable } from '@nestjs/common';
+import { FriendSearchType } from './constants/friend.constant';
 
 @Injectable()
 export class FriendRepository implements IFriendRepository {
@@ -107,12 +108,12 @@ export class FriendRepository implements IFriendRepository {
   }
 
   async searchUsersByKeyword(
-    searchType: 'tag' | 'nickname',
+    searchType: FriendSearchType,
     value: string,
     excludeIds: number[],
     limit: number,
   ): Promise<UserProfile[]> {
-    if (searchType === 'tag') {
+    if (searchType === FriendSearchType.TAG) {
       return await this.prisma.user.findMany({
         where: {
           AND: [{ tag: value }, { id: { notIn: excludeIds } }],
