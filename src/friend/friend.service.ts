@@ -210,11 +210,11 @@ export class FriendService {
 
   async searchFriends(userId: number, keyword: string): Promise<UserSearchResultDto[]> {
     const parsed = parseSearchKeyword(keyword);
-    const relatedIds = await this.friendRepository.getUserRelatedIds(userId);
+    const relatedIds = await this.friendRepository.getRelatedUserIds(userId);
     const blockedIds = (await this.blockService.getBlockedUsers(userId)).map((b) => b.blockedId);
     const excludeIds = [userId, ...relatedIds, ...blockedIds];
 
-    const users = await this.friendRepository.searchUsersByType(
+    const users = await this.friendRepository.searchUsersByKeyword(
       parsed.type,
       parsed.value,
       excludeIds,
@@ -230,11 +230,11 @@ export class FriendService {
   }
 
   async getRecommendedFriends(userId: number): Promise<UserSearchResultDto[]> {
-    const relatedIds = await this.friendRepository.getUserRelatedIds(userId);
+    const relatedIds = await this.friendRepository.getRelatedUserIds(userId);
     const blockedIds = (await this.blockService.getBlockedUsers(userId)).map((b) => b.blockedId);
     const excludeIds = [...relatedIds, ...blockedIds];
 
-    const users = await this.friendRepository.getRandomUsersOptimized(
+    const users = await this.friendRepository.getRandomUsersForRecommendation(
       userId,
       excludeIds,
       FRIEND_SEARCH_RULES.RECOMMENDED_FRIENDS_LIMIT,

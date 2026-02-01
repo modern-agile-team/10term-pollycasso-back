@@ -11,14 +11,14 @@ export interface IFriendRepository {
     friendships: FriendshipData[];
     users: UserProfile[];
   }>;
-  getUserRelatedIds(userId: number): Promise<number[]>;
-  searchUsersByType(
+  getRelatedUserIds(userId: number): Promise<number[]>;
+  searchUsersByKeyword(
     searchType: 'tag' | 'nickname',
     value: string,
     excludeIds: number[],
     limit: number,
   ): Promise<UserProfile[]>;
-  getRandomUsersOptimized(
+  getRandomUsersForRecommendation(
     userId: number,
     excludeIds: number[],
     limit: number,

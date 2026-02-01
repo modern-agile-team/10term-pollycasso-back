@@ -92,7 +92,7 @@ export class FriendRepository implements IFriendRepository {
     await this.prisma.friend.delete({ where: { id } });
   }
 
-  async getUserRelatedIds(userId: number): Promise<number[]> {
+  async getRelatedUserIds(userId: number): Promise<number[]> {
     const friendships = await this.prisma.friend.findMany({
       where: {
         OR: [{ requesterId: userId }, { receiverId: userId }],
@@ -106,7 +106,7 @@ export class FriendRepository implements IFriendRepository {
     return friendships.map((f) => (f.requesterId === userId ? f.receiverId : f.requesterId));
   }
 
-  async searchUsersByType(
+  async searchUsersByKeyword(
     searchType: 'tag' | 'nickname',
     value: string,
     excludeIds: number[],
@@ -134,7 +134,7 @@ export class FriendRepository implements IFriendRepository {
     });
   }
 
-  async getRandomUsersOptimized(
+  async getRandomUsersForRecommendation(
     userId: number,
     excludeIds: number[],
     limit: number,
