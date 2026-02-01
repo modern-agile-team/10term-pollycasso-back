@@ -36,6 +36,12 @@ export class FriendController {
     return this.friendService.searchFriends(req.user.sub, query.keyword);
   }
 
+  @Get('my/search')
+  @ApiFriend.searchMyFriends()
+  async searchMyFriends(@Req() req: { user: JwtPayload }, @Query() query: SearchFriendRequestDto) {
+    return this.friendService.searchFriendsWithinMyFriends(req.user.sub, query.keyword);
+  }
+
   @Get('recommended')
   @ApiFriend.getRecommendedFriends()
   async getRecommendedFriends(@Req() req: { user: JwtPayload }) {

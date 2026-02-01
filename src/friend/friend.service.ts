@@ -230,6 +230,40 @@ export class FriendService {
     );
   }
 
+  async searchFriendsWithinMyFriends(
+    userId: number,
+    keyword: string,
+  ): Promise<UserSearchResultDto[]> {
+    const parsed = parseSearchKeyword(keyword);
+
+    const { friendships, users } = await this.friendRepository.findFriendsWithProfiles(userId);
+    if (!users.length) return [];
+
+    const acceptedFriendIds = friendships
+      .filter((f) => f.status === FriendStatus.ACCEPTED)
+      .map((f) => (f.requesterId === userId ? f.receiverId : f.requesterId));
+
+    const friends = users.filter((u) => acceptedFriendIds.includes(u.id));
+    if (!friends.length) return [];
+
+    let filtered: UserProfile[] = [];
+    if (parsed.type === FriendSearchType.TAG) {
+      filtered = friends.filter((f) => f.tag === parsed.value);
+    } else {
+      filtered = friends.filter((f) =>
+        f.nickname.toLowerCase().includes(parsed.value.toLowerCase()),
+      );
+    }
+
+    if (!filtered.length) return [];
+
+    const result = await this.mapUsersToDto(filtered);
+
+    return result.sort((a, b) =>
+      a.isOnline !== b.isOnline ? (a.isOnline ? -1 : 1) : b.level - a.level,
+    );
+  }
+
   async getRecommendedFriends(userId: number): Promise<UserSearchResultDto[]> {
     const relatedIds = await this.friendRepository.getRelatedUserIds(userId);
     const blockedIds = (await this.blockService.getBlockedUsers(userId)).map((b) => b.blockedId);

@@ -11,6 +11,7 @@ export interface FriendshipData {
 export interface UserProfile {
   id: number;
   nickname: string;
+  tag: string;
   profile: {
     outfit: unknown;
     level: number;

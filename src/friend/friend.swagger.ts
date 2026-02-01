@@ -104,7 +104,6 @@ export const ApiFriend = {
       ApiResponse({ status: 200, description: '친구 목록 조회 성공', type: [FriendResponseDto] }),
       unauthorizedError(),
     ),
-
   searchFriends: () =>
     applyDecorators(
       ApiBearerAuth('accessToken'),
@@ -118,7 +117,19 @@ export const ApiFriend = {
       badRequestErrors(),
       unauthorizedError(),
     ),
-
+  searchMyFriends: () =>
+    applyDecorators(
+      ApiBearerAuth('accessToken'),
+      ApiOperation({ summary: '친구 검색 (닉네임 / 태그)' }),
+      ApiQuery({ name: 'keyword', required: true, description: '검색 키워드 (닉네임 또는 태그)' }),
+      ApiResponse({
+        status: 200,
+        description: '검색 성공 (친구)',
+        type: [UserSearchResultDto],
+      }),
+      badRequestErrors(),
+      unauthorizedError(),
+    ),
   getRecommendedFriends: () =>
     applyDecorators(
       ApiBearerAuth('accessToken'),
@@ -126,7 +137,6 @@ export const ApiFriend = {
       ApiResponse({ status: 200, description: '추천 친구 조회 성공', type: [UserSearchResultDto] }),
       unauthorizedError(),
     ),
-
   sendRequest: () =>
     applyDecorators(
       ApiBearerAuth('accessToken'),
@@ -148,7 +158,6 @@ export const ApiFriend = {
       notFoundErrors(),
       unauthorizedError(),
     ),
-
   respondFriendRequest: () =>
     applyDecorators(
       ApiBearerAuth('accessToken'),
@@ -171,7 +180,6 @@ export const ApiFriend = {
       notFoundErrors(),
       unauthorizedError(),
     ),
-
   cancelFriendRequest: () =>
     applyDecorators(
       ApiBearerAuth('accessToken'),
@@ -182,7 +190,6 @@ export const ApiFriend = {
       notFoundErrors(),
       unauthorizedError(),
     ),
-
   removeFriend: () =>
     applyDecorators(
       ApiBearerAuth('accessToken'),
