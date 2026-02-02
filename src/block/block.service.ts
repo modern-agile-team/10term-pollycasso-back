@@ -25,6 +25,12 @@ export class BlockService {
     return this.blockRepository.findBlockersByBlocked(userId);
   }
 
+  async getBlockedUsersByUserIds(
+    userIds: number[],
+  ): Promise<{ blockerId: number; blockedId: number }[]> {
+    return this.blockRepository.findBlockedUsersByBlockerIds(userIds);
+  }
+
   async block(userId: number, targetUserId: number): Promise<Block> {
     const targetUser = await this.userService.findOneById(targetUserId);
     if (!targetUser) {
