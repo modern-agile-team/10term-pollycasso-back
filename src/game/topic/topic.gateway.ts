@@ -46,7 +46,6 @@ export class TopicGateway {
   async handleFinalize(@ConnectedSocket() client: GameSocket, @MessageBody() data: TopicDto) {
     const { roomId, userId } = client.data;
     if (!roomId) return;
-    console.log('[DEBUG] startDrawingPhase called', { roomId, userId, typedValue: data.value });
     try {
       await this.gameSessionService.startDrawingPhase(roomId, userId, data.value, this.server);
     } catch (e) {

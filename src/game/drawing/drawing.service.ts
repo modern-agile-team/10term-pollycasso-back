@@ -1,5 +1,5 @@
 import { Inject, Injectable, ConflictException } from '@nestjs/common';
-import type { DrawLine } from './interface/drawing.interface';
+import type { DrawData, DrawLine } from './interface/drawing.interface';
 import {
   GAME_STATE_STORE,
   GamePhase,
@@ -9,6 +9,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { DrawingStore } from './drawing.store';
 import { DrawingRepository } from './drawing.repository';
+import { DRAWING_ERRORS } from './constants/drawing.constant';
+import { DrawingPhaseContextEntity } from './entities/drawing.entity';
 
 @Injectable()
 export class DrawingService {
@@ -18,18 +20,16 @@ export class DrawingService {
     private readonly drawingRepository: DrawingRepository,
   ) {}
 
+  // 그리기 입력 수신 및 Redis 누적
   async sendDrawingLine(params: { roomId: number; userId: number; line: DrawLine }): Promise<void> {
     const { roomId, userId, line } = params;
 
     const state = await this.gameStateStore.get(roomId);
-    if (!state) throw new ConflictException('GAME_STATE_NOT_FOUND');
+    if (!state) throw new ConflictException(DRAWING_ERRORS.GAME_STATE_NOT_FOUND);
     this.assertDrawing(state);
 
-    const ctx = this.getDrawingContext(state);
-    if (!ctx.activeUserIds.includes(userId)) {
-      console.error(`User Conflict: sender=${userId}, activeUsers=${ctx.activeUserIds}`);
-      throw new ConflictException('USER_NOT_ACTIVE');
-    }
+    const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
+    ctxEntity.ensureActive(userId);
 
     const round = state.currentRound ?? 1;
 
@@ -42,6 +42,7 @@ export class DrawingService {
     });
   }
 
+  // 제출 처리 및 전원 완료 시 DB 커밋/정리
   async submitDrawing(params: { roomId: number; userId: number }): Promise<{
     shouldAdvance: boolean;
     playerUpdate?: { userId: number; changes: { isReady: true } };
@@ -49,45 +50,45 @@ export class DrawingService {
     const { roomId, userId } = params;
 
     const state = await this.gameStateStore.get(roomId);
-    if (!state) throw new ConflictException('GAME_STATE_NOT_FOUND');
+    if (!state) throw new ConflictException(DRAWING_ERRORS.GAME_STATE_NOT_FOUND);
     this.assertDrawing(state);
 
-    const ctx = this.getDrawingContext(state);
-    if (!ctx.activeUserIds.includes(userId)) {
-      throw new ConflictException('USER_NOT_ACTIVE');
-    }
+    const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
 
-    const wasReady = ctx.readyUserIds.includes(userId);
-    if (!wasReady) ctx.readyUserIds.push(userId);
+    const becameReady = ctxEntity.markReady(userId);
 
-    const patched = await this.gameStateStore.patch(roomId, { phaseContext: ctx as any });
-    if (!patched) throw new ConflictException('GAME_STATE_NOT_FOUND');
+    const patched = await this.gameStateStore.patch(roomId, {
+      phaseContext: ctxEntity.toPlain() as any,
+    });
+    if (!patched) throw new ConflictException(DRAWING_ERRORS.GAME_STATE_NOT_FOUND);
 
-    const shouldAdvance = ctx.readyUserIds.length >= ctx.activeUserIds.length;
+    const shouldAdvance = ctxEntity.shouldAdvance();
 
     if (shouldAdvance) {
       const round = state.currentRound ?? 1;
+      const activeUserIds = ctxEntity.getActiveUserIds();
 
       await this.commitAllActiveUsersToDb({
         roomId,
         round,
         state,
-        activeUserIds: ctx.activeUserIds,
+        activeUserIds,
       });
 
       await this.drawingStore.cleanupStrokes({
         roomId,
         round,
-        userIds: ctx.activeUserIds,
+        userIds: activeUserIds,
       });
     }
 
     return {
       shouldAdvance,
-      playerUpdate: !wasReady ? { userId, changes: { isReady: true } } : undefined,
+      playerUpdate: becameReady ? { userId, changes: { isReady: true } } : undefined,
     };
   }
 
+  // 연결 해제 처리 및 조건 충족 시 DB 커밋/정리
   async handleDisconnect(params: { roomId: number; userId: number }): Promise<{
     shouldAdvance: boolean;
     playerUpdate?: { userId: number; changes: { isConnected: false } };
@@ -101,34 +102,33 @@ export class DrawingService {
       return { shouldAdvance: false };
     }
 
-    const ctx = this.getDrawingContext(state);
+    const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
 
-    const wasActive = ctx.activeUserIds.includes(userId);
-    if (!wasActive) return { shouldAdvance: false };
+    const removed = ctxEntity.removeUser(userId);
+    if (!removed) return { shouldAdvance: false };
 
-    ctx.activeUserIds = ctx.activeUserIds.filter((id) => id !== userId);
-    ctx.readyUserIds = ctx.readyUserIds.filter((id) => id !== userId);
-
-    const patched = await this.gameStateStore.patch(roomId, { phaseContext: ctx as any });
+    const patched = await this.gameStateStore.patch(roomId, {
+      phaseContext: ctxEntity.toPlain() as any,
+    });
     if (!patched) return { shouldAdvance: false };
 
-    const shouldAdvance =
-      ctx.activeUserIds.length > 0 && ctx.readyUserIds.length >= ctx.activeUserIds.length;
+    const shouldAdvance = ctxEntity.shouldAdvance();
 
     if (shouldAdvance) {
       const round = state.currentRound ?? 1;
+      const activeUserIds = ctxEntity.getActiveUserIds();
 
       await this.commitAllActiveUsersToDb({
         roomId,
         round,
         state,
-        activeUserIds: ctx.activeUserIds,
+        activeUserIds,
       });
 
       await this.drawingStore.cleanupStrokes({
         roomId,
         round,
-        userIds: ctx.activeUserIds,
+        userIds: activeUserIds,
       });
     }
 
@@ -138,6 +138,72 @@ export class DrawingService {
     };
   }
 
+  // 타이머 종료 등 강제 전환 시점 커밋
+  async forceCommitForEvaluating(params: {
+    roomId: number;
+    round: number;
+    state: GameState;
+  }): Promise<void> {
+    const { roomId, round, state } = params;
+
+    if (state.phase !== GamePhase.DRAWING) return;
+    if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) return;
+
+    const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
+    const activeUserIds = ctxEntity.getActiveUserIds();
+
+    if (!activeUserIds.length) return;
+
+    await this.commitAllActiveUsersToDb({
+      roomId,
+      round,
+      state,
+      activeUserIds,
+    });
+
+    await this.drawingStore.cleanupStrokes({
+      roomId,
+      round,
+      userIds: activeUserIds,
+    });
+  }
+
+  // DB에서 유저별 DrawData 조회
+  async getDrawingsByUserIdForEvaluating(params: {
+    roomId: number;
+    round: number;
+    state: GameState;
+  }): Promise<Record<number, DrawData>> {
+    const { round, state } = params;
+
+    const matchId = state.matchId;
+    if (typeof matchId !== 'number') throw new ConflictException(DRAWING_ERRORS.MATCH_ID_MISSING);
+
+    const roomMemberMap = (state as any).roomMemberIdByUserId as Record<string, number> | undefined;
+    if (!roomMemberMap) throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_MAP_MISSING);
+
+    const userIdByRoomMemberId = new Map<number, number>();
+    for (const [userIdStr, rmId] of Object.entries(roomMemberMap)) {
+      const userId = Number(userIdStr);
+      const roomMemberId = typeof rmId === 'number' ? rmId : Number(rmId);
+      if (Number.isFinite(userId) && Number.isFinite(roomMemberId)) {
+        userIdByRoomMemberId.set(roomMemberId, userId);
+      }
+    }
+
+    const rows = await this.drawingRepository.findManyByMatchIdAndRound({ matchId, round });
+
+    const out: Record<number, DrawData> = {};
+    for (const row of rows) {
+      const userId = userIdByRoomMemberId.get(row.roomMemberId);
+      if (!userId) continue;
+      out[userId] = row.data as unknown as DrawData;
+    }
+
+    return out;
+  }
+
+  // 활성 유저들의 strokes를 DB로 upsert
   private async commitAllActiveUsersToDb(params: {
     roomId: number;
     round: number;
@@ -147,15 +213,15 @@ export class DrawingService {
     const { roomId, round, state, activeUserIds } = params;
 
     const matchId = state.matchId;
-    if (typeof matchId !== 'number') throw new ConflictException('MATCH_ID_MISSING');
+    if (typeof matchId !== 'number') throw new ConflictException(DRAWING_ERRORS.MATCH_ID_MISSING);
 
     const roomMemberMap = (state as any).roomMemberIdByUserId as Record<string, number> | undefined;
-    if (!roomMemberMap) throw new ConflictException('ROOM_MEMBER_MAP_MISSING');
+    if (!roomMemberMap) throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_MAP_MISSING);
 
     const getRoomMemberId = (uid: number) => {
       const v = roomMemberMap[String(uid)];
       const num = typeof v === 'number' ? v : Number(v);
-      if (!Number.isFinite(num)) throw new ConflictException('ROOM_MEMBER_ID_MISSING');
+      if (!Number.isFinite(num)) throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_ID_MISSING);
       return num;
     };
 
@@ -172,7 +238,7 @@ export class DrawingService {
       const lines = await this.drawingStore.loadStrokes({ roomId, round, userId: uid });
 
       const dataObj = { lines };
-      const dataJson = JSON.parse(JSON.stringify(dataObj)) as unknown as Prisma.InputJsonValue;
+      const dataJson = dataObj as unknown as Prisma.InputJsonValue;
 
       rows.push({
         matchId,
@@ -185,21 +251,13 @@ export class DrawingService {
     await this.drawingRepository.upsertManyDrawings(rows);
   }
 
+  // DRAWING 단계/컨텍스트 검증
   private assertDrawing(state: GameState) {
     if (state.phase !== GamePhase.DRAWING) {
-      throw new ConflictException('NOT_IN_DRAWING_PHASE');
+      throw new ConflictException(DRAWING_ERRORS.NOT_IN_DRAWING_PHASE);
     }
     if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) {
-      throw new ConflictException('DRAWING_CONTEXT_MISSING');
+      throw new ConflictException(DRAWING_ERRORS.DRAWING_CONTEXT_MISSING);
     }
-  }
-
-  private getDrawingContext(state: GameState) {
-    this.assertDrawing(state);
-    return state.phaseContext as any as {
-      kind: GamePhase.DRAWING;
-      activeUserIds: number[];
-      readyUserIds: number[];
-    };
   }
 }

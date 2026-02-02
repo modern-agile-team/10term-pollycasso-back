@@ -38,8 +38,6 @@ export class DrawingGateway {
     const roomId = socket.data.roomId as number;
     const { line } = body;
 
-    console.log(`[DEBUG] userId:${userId} sending line in room:${roomId}`);
-
     await this.drawingService.sendDrawingLine({ roomId, userId, line });
   }
 

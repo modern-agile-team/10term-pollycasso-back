@@ -1,10 +1,10 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { RedisService } from 'src/redis/redis.service';
 import type { DrawLine } from './interface/drawing.interface';
 
 @Injectable()
 export class DrawingStore {
-  constructor(private readonly redis: RedisService) {}
+  constructor(private readonly redisService: RedisService) {}
 
   async appendStroke(params: {
     roomId: number;
@@ -13,7 +13,7 @@ export class DrawingStore {
     line: DrawLine;
     ttlSeconds?: number;
   }): Promise<void> {
-    const { roomId, round, userId, line, ttlSeconds = 3600 } = params;
+    const { roomId, round, userId, line, ttlSeconds } = params;
 
     const client = await this.getRedisClient();
     const key = this.strokeListKey(roomId, round, userId);
@@ -60,8 +60,9 @@ export class DrawingStore {
   }
 
   private async getRedisClient(): Promise<any> {
-    const client: any = (this.redis as any).client ?? (this.redis as any).getClient?.();
-    if (!client) throw new ConflictException('REDIS_CLIENT_NOT_READY');
+    const client: any =
+      (this.redisService as any).client ?? (this.redisService as any).getClient?.();
+    if (!client) throw new InternalServerErrorException();
     return client;
   }
 

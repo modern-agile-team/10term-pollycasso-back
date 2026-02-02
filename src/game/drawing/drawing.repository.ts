@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { type Drawing, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
@@ -37,6 +37,23 @@ export class DrawingRepository {
           },
         });
       }
+    });
+  }
+
+  async findManyByMatchIdAndRound(params: {
+    matchId: number;
+    round: number;
+  }): Promise<Array<Pick<Drawing, 'matchId' | 'roomMemberId' | 'round' | 'data'>>> {
+    const { matchId, round } = params;
+
+    return this.prisma.drawing.findMany({
+      where: { matchId, round },
+      select: {
+        matchId: true,
+        roomMemberId: true,
+        round: true,
+        data: true,
+      },
     });
   }
 }
