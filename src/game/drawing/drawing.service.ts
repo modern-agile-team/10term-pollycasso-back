@@ -6,47 +6,18 @@ import {
   GameState,
   type IGameStateStore,
 } from 'src/game-state/interfaces/game-state.interface';
-import { RedisService } from 'src/redis/redis.service';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { DrawingStore } from './drawing.store';
+import { DrawingRepository } from './drawing.repository';
 
 @Injectable()
-export class DrawingPhaseService {
+export class DrawingService {
   constructor(
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
-    private readonly redis: RedisService,
-    private readonly prisma: PrismaService,
+    private readonly drawingStore: DrawingStore,
+    private readonly drawingRepository: DrawingRepository,
   ) {}
 
-  private strokeListKey(roomId: number, round: number, userId: number) {
-    return `game:drawing:${roomId}:round:${round}:user:${userId}:strokes`;
-  }
-
-  private async getRedisClient(): Promise<any> {
-    const client: any = (this.redis as any).client ?? (this.redis as any).getClient?.();
-    if (!client) throw new ConflictException('REDIS_CLIENT_NOT_READY');
-    return client;
-  }
-
-  private assertDrawing(state: GameState) {
-    if (state.phase !== GamePhase.DRAWING) {
-      throw new ConflictException('NOT_IN_DRAWING_PHASE');
-    }
-    if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) {
-      throw new ConflictException('DRAWING_CONTEXT_MISSING');
-    }
-  }
-
-  private getDrawingContext(state: GameState) {
-    this.assertDrawing(state);
-    return state.phaseContext as any as {
-      kind: GamePhase.DRAWING;
-      activeUserIds: number[];
-      readyUserIds: number[];
-    };
-  }
-
-  // ===== 마우스 업마다 stroke(line) 1개 저장: Redis 누적만 =====
   async sendDrawingLine(params: { roomId: number; userId: number; line: DrawLine }): Promise<void> {
     const { roomId, userId, line } = params;
 
@@ -61,10 +32,16 @@ export class DrawingPhaseService {
     }
 
     const round = state.currentRound ?? 1;
-    await this.appendStroke(roomId, round, userId, line);
+
+    await this.drawingStore.appendStroke({
+      roomId,
+      round,
+      userId,
+      line,
+      ttlSeconds: 3600,
+    });
   }
 
-  // ===== 완료 버튼: ready 처리만. 전원 ready면 DB(JSON) 저장 =====
   async submitDrawing(params: { roomId: number; userId: number }): Promise<{
     shouldAdvance: boolean;
     playerUpdate?: { userId: number; changes: { isReady: true } };
@@ -90,8 +67,19 @@ export class DrawingPhaseService {
 
     if (shouldAdvance) {
       const round = state.currentRound ?? 1;
-      await this.commitAllActiveUsersToDb(roomId, round, state, ctx.activeUserIds);
-      await this.cleanupStrokes(roomId, round, ctx.activeUserIds);
+
+      await this.commitAllActiveUsersToDb({
+        roomId,
+        round,
+        state,
+        activeUserIds: ctx.activeUserIds,
+      });
+
+      await this.drawingStore.cleanupStrokes({
+        roomId,
+        round,
+        userIds: ctx.activeUserIds,
+      });
     }
 
     return {
@@ -129,8 +117,19 @@ export class DrawingPhaseService {
 
     if (shouldAdvance) {
       const round = state.currentRound ?? 1;
-      await this.commitAllActiveUsersToDb(roomId, round, state, ctx.activeUserIds);
-      await this.cleanupStrokes(roomId, round, ctx.activeUserIds);
+
+      await this.commitAllActiveUsersToDb({
+        roomId,
+        round,
+        state,
+        activeUserIds: ctx.activeUserIds,
+      });
+
+      await this.drawingStore.cleanupStrokes({
+        roomId,
+        round,
+        userIds: ctx.activeUserIds,
+      });
     }
 
     return {
@@ -139,46 +138,14 @@ export class DrawingPhaseService {
     };
   }
 
-  // ===== Redis =====
-  private async appendStroke(roomId: number, round: number, userId: number, line: DrawLine) {
-    const client = await this.getRedisClient();
-    const key = this.strokeListKey(roomId, round, userId);
+  private async commitAllActiveUsersToDb(params: {
+    roomId: number;
+    round: number;
+    state: GameState;
+    activeUserIds: number[];
+  }): Promise<void> {
+    const { roomId, round, state, activeUserIds } = params;
 
-    await client.rpush(key, JSON.stringify(line));
-    await client.expire(key, 3600);
-  }
-
-  private async loadStrokes(roomId: number, round: number, userId: number): Promise<DrawLine[]> {
-    const client = await this.getRedisClient();
-    const key = this.strokeListKey(roomId, round, userId);
-
-    const raw: string[] = (await client.lrange(key, 0, -1)) ?? [];
-    const lines: DrawLine[] = raw
-      .map((s) => {
-        try {
-          return JSON.parse(s) as DrawLine;
-        } catch {
-          return null;
-        }
-      })
-      .filter((v): v is DrawLine => !!v);
-
-    return lines;
-  }
-
-  private async cleanupStrokes(roomId: number, round: number, userIds: number[]) {
-    const client = await this.getRedisClient();
-    for (const uid of userIds) {
-      await client.del(this.strokeListKey(roomId, round, uid));
-    }
-  }
-
-  private async commitAllActiveUsersToDb(
-    roomId: number,
-    round: number,
-    state: GameState,
-    activeUserIds: number[],
-  ) {
     const matchId = state.matchId;
     if (typeof matchId !== 'number') throw new ConflictException('MATCH_ID_MISSING');
 
@@ -192,30 +159,47 @@ export class DrawingPhaseService {
       return num;
     };
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const uid of activeUserIds) {
-        const roomMemberId = getRoomMemberId(uid);
-        const lines = await this.loadStrokes(roomId, round, uid);
+    const rows: Array<{
+      matchId: number;
+      roomMemberId: number;
+      round: number;
+      data: Prisma.InputJsonValue;
+    }> = [];
 
-        const dataObj = { lines };
+    for (const uid of activeUserIds) {
+      const roomMemberId = getRoomMemberId(uid);
 
-        const dataJson = JSON.parse(JSON.stringify(dataObj)) as unknown as Prisma.InputJsonValue;
+      const lines = await this.drawingStore.loadStrokes({ roomId, round, userId: uid });
 
-        await tx.drawing.upsert({
-          where: {
-            matchId_roomMemberId_round: { matchId, roomMemberId, round },
-          },
-          create: {
-            matchId,
-            roomMemberId,
-            round,
-            data: dataJson,
-          },
-          update: {
-            data: dataJson,
-          },
-        });
-      }
-    });
+      const dataObj = { lines };
+      const dataJson = JSON.parse(JSON.stringify(dataObj)) as unknown as Prisma.InputJsonValue;
+
+      rows.push({
+        matchId,
+        roomMemberId,
+        round,
+        data: dataJson,
+      });
+    }
+
+    await this.drawingRepository.upsertManyDrawings(rows);
+  }
+
+  private assertDrawing(state: GameState) {
+    if (state.phase !== GamePhase.DRAWING) {
+      throw new ConflictException('NOT_IN_DRAWING_PHASE');
+    }
+    if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) {
+      throw new ConflictException('DRAWING_CONTEXT_MISSING');
+    }
+  }
+
+  private getDrawingContext(state: GameState) {
+    this.assertDrawing(state);
+    return state.phaseContext as any as {
+      kind: GamePhase.DRAWING;
+      activeUserIds: number[];
+      readyUserIds: number[];
+    };
   }
 }

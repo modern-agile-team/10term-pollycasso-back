@@ -7,7 +7,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
-import { DrawingPhaseService } from './drawing.service';
+import { DrawingService } from './drawing.service';
 import { DrawLine } from './interface/drawing.interface';
 import { GameSessionService } from '../session/game-session.service';
 import type { Server, Socket } from 'socket.io';
@@ -24,7 +24,7 @@ export class DrawingGateway {
   @WebSocketServer() server: Server;
 
   constructor(
-    private readonly drawingPhaseService: DrawingPhaseService,
+    private readonly drawingService: DrawingService,
     private readonly gameSessionService: GameSessionService,
   ) {}
 
@@ -40,7 +40,7 @@ export class DrawingGateway {
 
     console.log(`[DEBUG] userId:${userId} sending line in room:${roomId}`);
 
-    await this.drawingPhaseService.sendDrawingLine({ roomId, userId, line });
+    await this.drawingService.sendDrawingLine({ roomId, userId, line });
   }
 
   @SubscribeMessage('game:submitDrawing')
@@ -48,7 +48,7 @@ export class DrawingGateway {
     const userId = socket.data.userId as number;
     const roomId = socket.data.roomId as number;
 
-    const res = await this.drawingPhaseService.submitDrawing({ roomId, userId });
+    const res = await this.drawingService.submitDrawing({ roomId, userId });
 
     if (res.playerUpdate) {
       this.server.to(this.roomSocketRoom(roomId)).emit('room:updatePlayer', res.playerUpdate);
@@ -65,7 +65,7 @@ export class DrawingGateway {
     const userId = socket.data.userId as number;
     const roomId = socket.data.roomId as number;
 
-    const res = await this.drawingPhaseService.handleDisconnect({ roomId, userId });
+    const res = await this.drawingService.handleDisconnect({ roomId, userId });
 
     if (res.playerUpdate) {
       this.server.to(this.roomSocketRoom(roomId)).emit('room:updatePlayer', res.playerUpdate);
