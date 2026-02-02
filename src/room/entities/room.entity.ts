@@ -129,20 +129,14 @@ export class Room {
 
   startGame(): void {
     if (this.props.status !== RoomStatus.WAITING) {
-      throw new ConflictException({
-        code: ROOM_ERROR_CODES.ROOM_NOT_WAITING,
-        errors: [ROOM_DOMAIN_ERRORS[ROOM_ERROR_CODES.ROOM_NOT_WAITING]],
-      });
+      throw new ConflictException({ code: ROOM_ERROR_CODES.ROOM_NOT_WAITING });
     }
     this.props.status = RoomStatus.IN_PROGRESS;
   }
 
   finishGame(): void {
     if (this.props.status !== RoomStatus.IN_PROGRESS) {
-      throw new ConflictException({
-        code: ROOM_ERROR_CODES.ROOM_NOT_IN_PROGRESS,
-        errors: [ROOM_DOMAIN_ERRORS[ROOM_ERROR_CODES.ROOM_NOT_IN_PROGRESS]],
-      });
+      throw new ConflictException({ code: ROOM_ERROR_CODES.ROOM_NOT_IN_PROGRESS });
     }
     this.props.status = RoomStatus.WAITING;
   }

@@ -32,10 +32,6 @@ export const WAITING_DOMAIN_ERRORS: Record<string, { field: string; reason: stri
     field: 'password',
     reason: 'Password is required for private room',
   },
-  ROOM_INVALID_PASSWORD: {
-    field: 'password',
-    reason: 'Password does not match',
-  },
   CANNOT_KICK_SELF: {
     field: 'targetUserId',
     reason: 'Cannot kick yourself',
