@@ -4,11 +4,13 @@ import { DRAWING_ERRORS } from '../constants/drawing.constant.js';
 
 export class DrawingPhaseContextEntity {
   private readonly kind: GamePhase.DRAWING;
+  private readonly phaseInstanceId?: string;
   private activeUserIds: number[];
   private readyUserIds: number[];
 
   private constructor(ctx: DrawingContext) {
     this.kind = ctx.kind;
+    this.phaseInstanceId = (ctx as any).phaseInstanceId;
     this.activeUserIds = Array.isArray(ctx.activeUserIds) ? [...ctx.activeUserIds] : [];
     this.readyUserIds = Array.isArray(ctx.readyUserIds) ? [...ctx.readyUserIds] : [];
   }
@@ -22,6 +24,7 @@ export class DrawingPhaseContextEntity {
 
     return new DrawingPhaseContextEntity({
       kind: GamePhase.DRAWING,
+      phaseInstanceId: ctx.phaseInstanceId,
       activeUserIds: Array.isArray(ctx.activeUserIds) ? ctx.activeUserIds : [],
       readyUserIds: Array.isArray(ctx.readyUserIds) ? ctx.readyUserIds : [],
     });
@@ -61,6 +64,7 @@ export class DrawingPhaseContextEntity {
   toPlain(): DrawingContext {
     return {
       kind: this.kind,
+      phaseInstanceId: this.phaseInstanceId,
       activeUserIds: [...this.activeUserIds],
       readyUserIds: [...this.readyUserIds],
     };
