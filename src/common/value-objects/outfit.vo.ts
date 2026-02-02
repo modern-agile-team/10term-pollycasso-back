@@ -14,7 +14,7 @@ export class OutfitVO {
   private constructor(private readonly value: Outfit) {}
 
   static from(raw: unknown): OutfitVO {
-    if (!raw || typeof raw !== 'object') {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return new OutfitVO(DEFAULT_OUTFIT);
     }
 

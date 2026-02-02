@@ -4,6 +4,7 @@ import { IFriendRepository } from './interfaces/friend-repository.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Friend } from './friend.entity';
 import { Injectable } from '@nestjs/common';
+import { FriendSearchType } from './constants/friend.constant';
 
 @Injectable()
 export class FriendRepository implements IFriendRepository {
@@ -90,5 +91,72 @@ export class FriendRepository implements IFriendRepository {
 
   async deleteFriendshipById(id: number): Promise<void> {
     await this.prisma.friend.delete({ where: { id } });
+  }
+
+  async getRelatedUserIds(userId: number): Promise<number[]> {
+    const friendships = await this.prisma.friend.findMany({
+      where: {
+        OR: [{ requesterId: userId }, { receiverId: userId }],
+      },
+      select: {
+        requesterId: true,
+        receiverId: true,
+      },
+    });
+
+    return friendships.map((f) => (f.requesterId === userId ? f.receiverId : f.requesterId));
+  }
+
+  async searchUsersByKeyword(
+    searchType: FriendSearchType,
+    value: string,
+    excludeIds: number[],
+    limit: number,
+  ): Promise<UserProfile[]> {
+    if (searchType === FriendSearchType.TAG) {
+      return await this.prisma.user.findMany({
+        where: {
+          AND: [{ tag: value }, { id: { notIn: excludeIds } }],
+        },
+        include: { profile: true },
+        take: limit,
+      });
+    }
+
+    return await this.prisma.user.findMany({
+      where: {
+        AND: [
+          { nickname: { contains: value, mode: 'insensitive' } },
+          { id: { notIn: excludeIds } },
+        ],
+      },
+      include: { profile: true },
+      take: limit,
+    });
+  }
+
+  async getRandomUsersForRecommendation(
+    userId: number,
+    excludeIds: number[],
+    limit: number,
+  ): Promise<UserProfile[]> {
+    const allExcludeIds = [userId, ...excludeIds];
+
+    const totalCount = await this.prisma.user.count({
+      where: { id: { notIn: allExcludeIds } },
+    });
+
+    if (totalCount === 0) {
+      return [];
+    }
+
+    const randomOffset = Math.floor(Math.random() * Math.max(totalCount - limit, 0));
+
+    return await this.prisma.user.findMany({
+      where: { id: { notIn: allExcludeIds } },
+      include: { profile: true },
+      skip: randomOffset,
+      take: limit,
+    });
   }
 }
