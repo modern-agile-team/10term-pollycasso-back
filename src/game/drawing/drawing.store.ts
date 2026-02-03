@@ -33,6 +33,7 @@ export class DrawingStore {
     const key = this.strokeListKey(roomId, round, userId);
 
     const raw = (await this.redisService.lrange(key, 0, -1)) ?? [];
+
     return raw
       .map((s) => {
         try {

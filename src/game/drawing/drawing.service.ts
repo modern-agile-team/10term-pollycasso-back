@@ -54,7 +54,6 @@ export class DrawingService {
     this.assertDrawing(state);
 
     const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
-
     const becameReady = ctxEntity.markReady(userId);
 
     const patched = await this.gameStateStore.patch(roomId, {
@@ -63,24 +62,6 @@ export class DrawingService {
     if (!patched) throw new ConflictException(DRAWING_ERRORS.GAME_STATE_NOT_FOUND);
 
     const shouldAdvance = ctxEntity.shouldAdvance();
-
-    if (shouldAdvance) {
-      const round = state.currentRound ?? 1;
-      const activeUserIds = ctxEntity.getActiveUserIds();
-
-      await this.commitAllActiveUsersToDb({
-        roomId,
-        round,
-        state,
-        activeUserIds,
-      });
-
-      await this.drawingStore.cleanupStrokes({
-        roomId,
-        round,
-        userIds: activeUserIds,
-      });
-    }
 
     return {
       shouldAdvance,
@@ -113,24 +94,6 @@ export class DrawingService {
     if (!patched) return { shouldAdvance: false };
 
     const shouldAdvance = ctxEntity.shouldAdvance();
-
-    if (shouldAdvance) {
-      const round = state.currentRound ?? 1;
-      const activeUserIds = ctxEntity.getActiveUserIds();
-
-      await this.commitAllActiveUsersToDb({
-        roomId,
-        round,
-        state,
-        activeUserIds,
-      });
-
-      await this.drawingStore.cleanupStrokes({
-        roomId,
-        round,
-        userIds: activeUserIds,
-      });
-    }
 
     return {
       shouldAdvance,
@@ -234,7 +197,6 @@ export class DrawingService {
 
     for (const uid of activeUserIds) {
       const roomMemberId = getRoomMemberId(uid);
-
       const lines = await this.drawingStore.loadStrokes({ roomId, round, userId: uid });
 
       const dataObj = { lines };

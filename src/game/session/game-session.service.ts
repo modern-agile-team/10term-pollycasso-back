@@ -15,16 +15,8 @@ import {
 } from 'src/game-state/interfaces/game-state.interface';
 import type { DrawData } from '../drawing/interface/drawing.interface';
 import { DrawingService } from '../drawing/drawing.service';
+import { GameSocketData } from '../interfaces/gameSocket.interface';
 
-// [1] 제안하신 타입 정의
-export interface GameSocketData {
-  userId?: number;
-  nickname?: string;
-  roomId?: number | null;
-  isHost?: boolean;
-}
-
-// [2] RemoteSocket 타입 정의
 type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
 const DRAWING_DURATION_MS = 92000; // 92초
@@ -169,10 +161,7 @@ export class GameSessionService {
 
     for (const socket of sockets) {
       const viewerUserId = socket.data.userId;
-
-      if (!viewerUserId) {
-        continue;
-      }
+      if (!viewerUserId) continue;
 
       const otherUserIds = Object.keys(drawingsByUserId)
         .map(Number)
@@ -204,6 +193,7 @@ export class GameSessionService {
       this.timers.delete(roomId);
     }
   }
+
   // 소켓들 가져오기
   private async fetchGameSockets(server: Server, roomId: number): Promise<GameRemoteSocket[]> {
     const sockets = await server.in(this.roomSocketRoom(roomId)).fetchSockets();
