@@ -10,7 +10,7 @@ export class DrawingPhaseContextEntity {
 
   private constructor(ctx: DrawingContext) {
     this.kind = ctx.kind;
-    this.phaseInstanceId = (ctx as any).phaseInstanceId;
+    this.phaseInstanceId = ctx.phaseInstanceId;
     this.activeUserIds = Array.isArray(ctx.activeUserIds) ? [...ctx.activeUserIds] : [];
     this.readyUserIds = Array.isArray(ctx.readyUserIds) ? [...ctx.readyUserIds] : [];
   }
@@ -63,7 +63,7 @@ export class DrawingPhaseContextEntity {
 
   toPlain(): DrawingContext {
     return {
-      kind: this.kind,
+      kind: GamePhase.DRAWING,
       phaseInstanceId: this.phaseInstanceId,
       activeUserIds: [...this.activeUserIds],
       readyUserIds: [...this.readyUserIds],

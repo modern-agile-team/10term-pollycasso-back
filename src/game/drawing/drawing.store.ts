@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { RedisService } from 'src/redis/redis.service';
 import type { DrawLine } from './interface/drawing.interface';
 
@@ -14,12 +14,13 @@ export class DrawingStore {
     ttlSeconds?: number;
   }): Promise<void> {
     const { roomId, round, userId, line, ttlSeconds } = params;
-
-    const client = await this.getRedisClient();
     const key = this.strokeListKey(roomId, round, userId);
 
-    await client.rpush(key, JSON.stringify(line));
-    await client.expire(key, ttlSeconds);
+    await this.redisService.rpush(key, JSON.stringify(line));
+
+    if (typeof ttlSeconds === 'number') {
+      await this.redisService.expire(key, ttlSeconds);
+    }
   }
 
   async loadStrokes(params: {
@@ -29,11 +30,10 @@ export class DrawingStore {
   }): Promise<DrawLine[]> {
     const { roomId, round, userId } = params;
 
-    const client = await this.getRedisClient();
     const key = this.strokeListKey(roomId, round, userId);
 
-    const raw: string[] = (await client.lrange(key, 0, -1)) ?? [];
-    const lines: DrawLine[] = raw
+    const raw = (await this.redisService.lrange(key, 0, -1)) ?? [];
+    return raw
       .map((s) => {
         try {
           return JSON.parse(s) as DrawLine;
@@ -41,9 +41,7 @@ export class DrawingStore {
           return null;
         }
       })
-      .filter((v): v is DrawLine => !!v);
-
-    return lines;
+      .filter((v): v is DrawLine => v !== null);
   }
 
   async cleanupStrokes(params: {
@@ -53,17 +51,9 @@ export class DrawingStore {
   }): Promise<void> {
     const { roomId, round, userIds } = params;
 
-    const client = await this.getRedisClient();
     for (const uid of userIds) {
-      await client.del(this.strokeListKey(roomId, round, uid));
+      await this.redisService.del(this.strokeListKey(roomId, round, uid));
     }
-  }
-
-  private async getRedisClient(): Promise<any> {
-    const client: any =
-      (this.redisService as any).client ?? (this.redisService as any).getClient?.();
-    if (!client) throw new InternalServerErrorException();
-    return client;
   }
 
   private strokeListKey(roomId: number, round: number, userId: number) {

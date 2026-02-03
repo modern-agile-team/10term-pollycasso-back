@@ -1,10 +1,15 @@
-import { Socket } from 'socket.io';
+import { DefaultEventsMap, Socket } from 'socket.io';
 
 export interface GameSocketData {
   userId: number;
   nickname: string;
-  roomId: number | null;
+  roomId: number;
   isHost: boolean;
 }
 
-export type GameSocket = Socket<any, any, any, GameSocketData>;
+export type GameSocket = Socket<
+  DefaultEventsMap,
+  DefaultEventsMap,
+  DefaultEventsMap,
+  GameSocketData
+>;

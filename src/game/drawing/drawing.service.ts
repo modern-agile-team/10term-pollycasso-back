@@ -58,7 +58,7 @@ export class DrawingService {
     const becameReady = ctxEntity.markReady(userId);
 
     const patched = await this.gameStateStore.patch(roomId, {
-      phaseContext: ctxEntity.toPlain() as any,
+      phaseContext: ctxEntity.toPlain(),
     });
     if (!patched) throw new ConflictException(DRAWING_ERRORS.GAME_STATE_NOT_FOUND);
 
@@ -108,7 +108,7 @@ export class DrawingService {
     if (!removed) return { shouldAdvance: false };
 
     const patched = await this.gameStateStore.patch(roomId, {
-      phaseContext: ctxEntity.toPlain() as any,
+      phaseContext: ctxEntity.toPlain(),
     });
     if (!patched) return { shouldAdvance: false };
 
@@ -179,7 +179,7 @@ export class DrawingService {
     const matchId = state.matchId;
     if (typeof matchId !== 'number') throw new ConflictException(DRAWING_ERRORS.MATCH_ID_MISSING);
 
-    const roomMemberMap = (state as any).roomMemberIdByUserId as Record<string, number> | undefined;
+    const roomMemberMap = state.roomMemberIdByUserId;
     if (!roomMemberMap) throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_MAP_MISSING);
 
     const userIdByRoomMemberId = new Map<number, number>();
@@ -215,11 +215,11 @@ export class DrawingService {
     const matchId = state.matchId;
     if (typeof matchId !== 'number') throw new ConflictException(DRAWING_ERRORS.MATCH_ID_MISSING);
 
-    const roomMemberMap = (state as any).roomMemberIdByUserId as Record<string, number> | undefined;
+    const roomMemberMap = state.roomMemberIdByUserId;
     if (!roomMemberMap) throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_MAP_MISSING);
 
     const getRoomMemberId = (uid: number) => {
-      const v = roomMemberMap[String(uid)];
+      const v = roomMemberMap[uid];
       const num = typeof v === 'number' ? v : Number(v);
       if (!Number.isFinite(num)) throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_ID_MISSING);
       return num;

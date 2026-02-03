@@ -8,9 +8,10 @@ import {
 } from '@nestjs/websockets';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { DrawingService } from './drawing.service';
-import { DrawLine } from './interface/drawing.interface';
 import { GameSessionService } from '../session/game-session.service';
-import type { Server, Socket } from 'socket.io';
+import type { Server } from 'socket.io';
+import type { GameSocket } from '../interfaces/gameSocket.interface';
+import { SendDrawingDto } from './dto/requests/send-drawing.dto';
 
 @UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
@@ -33,18 +34,18 @@ export class DrawingGateway {
   }
 
   @SubscribeMessage('game:sendDrawing')
-  async onSendDrawing(@ConnectedSocket() socket: Socket, @MessageBody() body: { line: DrawLine }) {
-    const userId = socket.data.userId as number;
-    const roomId = socket.data.roomId as number;
+  async onSendDrawing(@ConnectedSocket() socket: GameSocket, @MessageBody() body: SendDrawingDto) {
+    const userId = socket.data.userId;
+    const roomId = socket.data.roomId;
     const { line } = body;
 
     await this.drawingService.sendDrawingLine({ roomId, userId, line });
   }
 
   @SubscribeMessage('game:submitDrawing')
-  async onSubmitDrawing(@ConnectedSocket() socket: Socket) {
-    const userId = socket.data.userId as number;
-    const roomId = socket.data.roomId as number;
+  async onSubmitDrawing(@ConnectedSocket() socket: GameSocket) {
+    const userId = socket.data.userId;
+    const roomId = socket.data.roomId;
 
     const res = await this.drawingService.submitDrawing({ roomId, userId });
 
@@ -59,9 +60,9 @@ export class DrawingGateway {
     return { ok: true, shouldAdvance: res.shouldAdvance };
   }
 
-  async handleDisconnect(socket: Socket) {
-    const userId = socket.data.userId as number;
-    const roomId = socket.data.roomId as number;
+  async handleDisconnect(socket: GameSocket) {
+    const userId = socket.data.userId;
+    const roomId = socket.data.roomId;
 
     const res = await this.drawingService.handleDisconnect({ roomId, userId });
 

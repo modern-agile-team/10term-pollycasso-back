@@ -1,4 +1,4 @@
-import { IsArray, IsIn, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsIn, IsNumber, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { type DrawingTool } from '../../interface/drawing.interface';
 
@@ -15,10 +15,6 @@ export class DrawLineDto {
   @IsArray()
   @IsNumber({}, { each: true })
   points!: number[];
-
-  @IsOptional()
-  @IsString()
-  filledImage?: string;
 }
 
 export class SendDrawingDto {

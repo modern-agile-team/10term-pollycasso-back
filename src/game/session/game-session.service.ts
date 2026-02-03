@@ -1,6 +1,6 @@
-import { Inject, Injectable, ConflictException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import type { Server } from 'socket.io';
+import type { DefaultEventsMap, RemoteSocket, Server } from 'socket.io';
 import { GAME_EVENT_PUBLISHER } from '../interfaces/game-event-publisher.interfaces';
 import type { IGameEventPublisher } from '../interfaces/game-event-publisher.interfaces';
 import { TopicService } from '../topic/topic.service';
@@ -8,12 +8,24 @@ import { GameSessionEntity } from '../entities/game-session.entity';
 import { RANDOM_THEMES } from '../topic/constants/topic.constant';
 import { GAME_ERRORS, GAME_EVENTS } from '../constants/game.constant';
 import {
+  EvaluatingContext,
   GAME_STATE_STORE,
   GamePhase,
   type IGameStateStore,
 } from 'src/game-state/interfaces/game-state.interface';
 import type { DrawData } from '../drawing/interface/drawing.interface';
 import { DrawingService } from '../drawing/drawing.service';
+
+// [1] 제안하신 타입 정의
+export interface GameSocketData {
+  userId?: number;
+  nickname?: string;
+  roomId?: number | null;
+  isHost?: boolean;
+}
+
+// [2] RemoteSocket 타입 정의
+type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
 const DRAWING_DURATION_MS = 92000; // 92초
 const EVALUATING_DURATION_MS = 60000; // 60초
@@ -77,11 +89,9 @@ export class GameSessionService {
     const trimmed = (typedValue ?? '').trim();
     const theme = trimmed ? trimmed : entity.pickRandomTheme(RANDOM_THEMES);
 
-    const sockets = await server.in(this.roomSocketRoom(roomId)).fetchSockets();
+    const sockets = await this.fetchGameSockets(server, roomId);
     const connectedUserIds = new Set(
-      sockets
-        .map((s) => s.data?.userId as number | undefined)
-        .filter((id): id is number => typeof id === 'number'),
+      sockets.map((s) => s.data.userId).filter((id): id is number => typeof id === 'number'),
     );
 
     const memberUserIds = Object.keys(state.roomMemberIdByUserId).map(Number);
@@ -135,7 +145,7 @@ export class GameSessionService {
 
     const endsAt = Date.now() + EVALUATING_DURATION_MS;
 
-    const evaluatingContext = {
+    const evaluatingContext: EvaluatingContext = {
       kind: GamePhase.EVALUATING,
       votes: {},
     };
@@ -143,7 +153,7 @@ export class GameSessionService {
     const patched = await this.gameStateStore.patch(roomId, {
       phase: GamePhase.EVALUATING,
       endsAt,
-      phaseContext: evaluatingContext as any,
+      phaseContext: evaluatingContext,
     });
     if (!patched) return;
 
@@ -155,10 +165,10 @@ export class GameSessionService {
       phaseContext: evaluatingContext,
     });
 
-    const sockets = await server.in(this.roomSocketRoom(roomId)).fetchSockets();
+    const sockets = await this.fetchGameSockets(server, roomId);
 
     for (const socket of sockets) {
-      const viewerUserId = socket.data?.userId as number | undefined;
+      const viewerUserId = socket.data.userId;
 
       if (!viewerUserId) {
         continue;
@@ -193,6 +203,11 @@ export class GameSessionService {
       clearTimeout(timer);
       this.timers.delete(roomId);
     }
+  }
+  // 소켓들 가져오기
+  private async fetchGameSockets(server: Server, roomId: number): Promise<GameRemoteSocket[]> {
+    const sockets = await server.in(this.roomSocketRoom(roomId)).fetchSockets();
+    return sockets as unknown as GameRemoteSocket[];
   }
 
   // 배열 셔플

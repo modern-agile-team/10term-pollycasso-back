@@ -24,7 +24,7 @@ export interface DrawingContext {
 
 export interface EvaluatingContext {
   kind: GamePhase.EVALUATING;
-  votes: Record<number, number>;
+  votes: Record<string, number>;
 }
 
 export type PhaseContext = ThemeSelectPhaseContext | DrawingContext | EvaluatingContext | null;

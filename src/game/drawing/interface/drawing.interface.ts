@@ -5,7 +5,6 @@ export interface DrawLine {
   color: string;
   size: number;
   points: number[];
-  filledImage?: string;
 }
 
 export interface DrawData {
