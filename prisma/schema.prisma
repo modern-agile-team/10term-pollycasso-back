@@ -68,8 +68,6 @@ model User {
   roomMembers RoomMember[]
   gameItems UserGameItem[]
   votes       Vote[]
-  friendsSent     Friend[]     @relation("UserFriendSent")
-  friendsReceived Friend[]     @relation("UserFriendReceived")
   blockingUsers   BlockList[]  @relation("BlockedBy")
   blockedByUsers  BlockList[]  @relation("Blocking")
   sentFriendRequests     Friend[]     @relation("FriendRequester")
