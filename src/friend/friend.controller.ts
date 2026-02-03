@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   ParseIntPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,11 +17,36 @@ import { FriendService } from 'src/friend/friend.service';
 import { RespondFriendRequestDto } from './dtos/requests/respond-friend-request.dto';
 import { ApiFriend } from './friend.swagger';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
+import { SearchFriendRequestDto } from './dtos/requests/search-friend-request.dto';
 
 @Controller('friends')
 @UseGuards(AccessTokenGuard)
 export class FriendController {
   constructor(private readonly friendService: FriendService) {}
+
+  @Get()
+  @ApiFriend.getFriendRelations()
+  async getFriendRelations(@Req() req: { user: JwtPayload }) {
+    return await this.friendService.getFriendList(req.user.sub);
+  }
+
+  @Get('search')
+  @ApiFriend.searchFriends()
+  async searchFriends(@Req() req: { user: JwtPayload }, @Query() query: SearchFriendRequestDto) {
+    return this.friendService.searchFriends(req.user.sub, query.keyword);
+  }
+
+  @Get('my/search')
+  @ApiFriend.searchMyFriends()
+  async searchMyFriends(@Req() req: { user: JwtPayload }, @Query() query: SearchFriendRequestDto) {
+    return this.friendService.searchFriendsWithinMyFriends(req.user.sub, query.keyword);
+  }
+
+  @Get('recommended')
+  @ApiFriend.getRecommendedFriends()
+  async getRecommendedFriends(@Req() req: { user: JwtPayload }) {
+    return await this.friendService.getRecommendedFriends(req.user.sub);
+  }
 
   @Post('request')
   @ApiFriend.sendRequest()
@@ -34,7 +61,7 @@ export class FriendController {
     @Param('requesterId', ParseIntPipe) requesterId: number,
     @Body() body: RespondFriendRequestDto,
   ) {
-    return await this.friendService.respond(req.user.sub, requesterId, body.accept);
+    return await this.friendService.respondFriendRequest(req.user.sub, requesterId, body.accept);
   }
 
   @Delete('request/:targetUserId')
@@ -54,6 +81,6 @@ export class FriendController {
     @Req() req: { user: JwtPayload },
     @Param('friendUserId', ParseIntPipe) friendUserId: number,
   ) {
-    await this.friendService.remove(req.user.sub, friendUserId);
+    await this.friendService.removeFriend(req.user.sub, friendUserId);
   }
 }

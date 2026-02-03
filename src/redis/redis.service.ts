@@ -17,6 +17,11 @@ export class RedisService {
     return this.client.get(key);
   }
 
+  async mget(keys: string[]): Promise<(string | null)[]> {
+    if (!keys.length) return [];
+    return this.client.mget(...keys);
+  }
+
   async del(key: string) {
     return this.client.del(key);
   }

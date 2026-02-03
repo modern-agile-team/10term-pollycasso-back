@@ -1,4 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UsersService } from 'src/user/user.service';
 import { SignupRequestDto } from './dtos/requests/signup-request.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
@@ -10,17 +11,19 @@ import { TokenDto } from './dtos/responses/token.dto';
 import { AccessTokenDto } from './dtos/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { AUTH_DOMAIN_ERRORS } from './constants/auth.constant';
-import { ConfigService } from '@nestjs/config';
+import { RedisService } from 'src/redis/redis.service';
 
 @Injectable()
 export class AuthService {
+  private readonly ONLINE_STATUS_TTL = 86400;
+
   constructor(
     private readonly userService: UsersService,
     private readonly tokenService: TokenService,
     private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
-  // 회원가입
   async signup(signupRequestDto: SignupRequestDto): Promise<void> {
     const existingUser = await this.userService.findUserByUsername(signupRequestDto.username);
 
@@ -38,11 +41,8 @@ export class AuthService {
       nickname: signupRequestDto.nickname,
       hashedPassword,
     });
-
-    return;
   }
 
-  // 유저 검증
   async validateUser(username: string, password: string): Promise<UserData | null> {
     const user = await this.userService.findUserByUsername(username);
     if (!user || !user.hashedPassword) return null;
@@ -54,39 +54,36 @@ export class AuthService {
     return result as UserData;
   }
 
-  // 로그인
   async login(userData: UserData): Promise<TokenDto> {
+    await this.setUserOnline(userData.id);
+
     const payload: JwtPayload = {
       sub: userData.id,
       nickname: userData.nickname,
       tag: userData.tag,
     };
+
     const accessToken = this.tokenService.createAccessToken(payload);
     const refreshToken = await this.tokenService.createRefreshToken(payload);
 
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return { accessToken, refreshToken };
   }
 
-  // accessToken 재발급
   refreshAccessOnly(userData: JwtPayload): AccessTokenDto {
     const payload: JwtPayload = {
       sub: userData.sub,
       nickname: userData.nickname,
       tag: userData.tag,
     };
+
     return this.tokenService.refreshAccessOnly(payload);
   }
 
-  // 로그아웃
   async logout(userData: JwtPayload): Promise<void> {
+    await this.setUserOffline(userData.sub);
     await this.tokenService.revokeToken(userData.sub);
-    return;
   }
 
-  // 소셜 로그인
   async socialLogin(socialUser: SocialLoginPayload): Promise<TokenDto> {
     let user = await this.userService.findUserByProvider(
       socialUser.provider,
@@ -97,6 +94,8 @@ export class AuthService {
       user = await this.userService.createSocialUser(socialUser);
     }
 
+    await this.setUserOnline(user.id);
+
     const payload: JwtPayload = {
       sub: user.id,
       nickname: user.nickname,
@@ -106,14 +105,10 @@ export class AuthService {
     const accessToken = this.tokenService.createAccessToken(payload);
     const refreshToken = await this.tokenService.createRefreshToken(payload);
 
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return { accessToken, refreshToken };
   }
 
-  // redirect URL 검증
-  validateRedirectUrl(state: string) {
+  validateRedirectUrl(state: string): string {
     const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
     const fallbackUrl = new URL('/auth/callback', frontendUrl).toString();
 
@@ -121,7 +116,7 @@ export class AuthService {
 
     const allowedOriginsRaw = this.configService.get<string>('ALLOW_REDIRECT_ORIGINS') ?? '';
 
-    const whitelist = new Set(
+    const whitelist = new Set<string>(
       [new URL(frontendUrl).origin, ...allowedOriginsRaw.split(',').map((s) => s.trim())].filter(
         Boolean,
       ),
@@ -136,12 +131,19 @@ export class AuthService {
 
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return fallbackUrl;
       if (!whitelist.has(parsed.origin)) return fallbackUrl;
-
       if (parsed.username || parsed.password) return fallbackUrl;
 
       return parsed.toString();
     } catch {
       return fallbackUrl;
     }
+  }
+
+  private async setUserOnline(userId: number): Promise<void> {
+    await this.redisService.set(`user:${userId}:isOnline`, '1', this.ONLINE_STATUS_TTL);
+  }
+
+  private async setUserOffline(userId: number): Promise<void> {
+    await this.redisService.del(`user:${userId}:isOnline`);
   }
 }

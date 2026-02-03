@@ -23,6 +23,7 @@ import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
 import { PlayerResponseDto } from './dtos/responses/player-response.dto';
+import { OutfitVO } from 'src/common/value-objects/outfit.vo';
 
 interface JwtPayload {
   sub: string;
@@ -151,13 +152,12 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     if (clientData.roomId && clientData.roomId !== body.roomId) {
       const previousRoomId = clientData.roomId;
-      const playersBeforeLeave = await this.waitingService.getPlayers(previousRoomId);
 
       await this.waitingService.leaveRoom(previousRoomId, clientData.userId);
       await client.leave(`room:${previousRoomId}`);
 
-      if (playersBeforeLeave.length > 1) {
-        const players = await this.waitingService.getPlayerResponses(previousRoomId);
+      const players = await this.waitingService.getPlayerResponses(previousRoomId);
+      if (players.length > 0) {
         this.emitPlayerListSync(previousRoomId, players);
       }
     }
@@ -248,11 +248,23 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     const { roomId, userId } = clientData;
-    await this.waitingService.updateOutfit(roomId, userId, body.outfit);
+
+    const players = await this.waitingService.getPlayers(roomId);
+    const player = players.find((p) => p.userId === userId);
+    if (!player) {
+      throw wsError(404, WAITING_ERROR_CODES.PLAYER_NOT_FOUND);
+    }
+
+    const nextOutfit = OutfitVO.from({
+      ...player.outfit,
+      ...body.outfit,
+    }).get();
+
+    await this.waitingService.updateOutfit(roomId, userId, nextOutfit);
 
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_PLAYER, {
       userId: userId.toString(),
-      changes: { outfit: body.outfit },
+      changes: { outfit: nextOutfit },
     });
   }
 

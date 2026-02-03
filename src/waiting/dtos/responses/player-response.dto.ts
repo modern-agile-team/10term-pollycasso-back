@@ -1,6 +1,7 @@
 import { Team } from '@prisma/client';
 import { PlayerPageStatus } from '../requests/update-status.dto';
 import { ApiProperty } from '@nestjs/swagger';
+import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
 
 export class PlayerResponseDto {
   @ApiProperty({ description: '플레이어 ID', example: 1 })
@@ -27,10 +28,10 @@ export class PlayerResponseDto {
 
   @ApiProperty({
     description: '아웃핏 (코디)',
-    example: { bird: 'bird_01', hat: 'hat_01' },
+    type: OutfitDto,
     required: false,
   })
-  outfit?: Record<string, unknown>;
+  outfit?: OutfitDto;
 
   constructor(data: {
     userId: number;
@@ -39,7 +40,7 @@ export class PlayerResponseDto {
     isReady: boolean;
     level: number;
     status?: PlayerPageStatus;
-    outfit?: Record<string, unknown>;
+    outfit?: OutfitDto;
   }) {
     this.userId = data.userId;
     this.nickname = data.nickname;

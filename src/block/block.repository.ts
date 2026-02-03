@@ -7,12 +7,12 @@ import { Block } from './block.entity';
 export class BlockRepository implements IBlockRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async find(userId: number, targetUserId: number): Promise<Block | null> {
+  async findBlockRelation(blockerId: number, blockedId: number): Promise<Block | null> {
     const record = await this.prisma.blockList.findUnique({
       where: {
         blockerId_blockedId: {
-          blockerId: userId,
-          blockedId: targetUserId,
+          blockerId,
+          blockedId,
         },
       },
     });
@@ -27,11 +27,47 @@ export class BlockRepository implements IBlockRepository {
     };
   }
 
-  async create(userId: number, targetUserId: number): Promise<Block> {
+  async findBlockedUsersByBlocker(blockerId: number): Promise<{ blockedId: number }[]> {
+    return this.prisma.blockList.findMany({
+      where: {
+        blockerId,
+      },
+      select: {
+        blockedId: true,
+      },
+    });
+  }
+
+  async findBlockedUsersByBlockerIds(
+    blockerIds: number[],
+  ): Promise<{ blockerId: number; blockedId: number }[]> {
+    return this.prisma.blockList.findMany({
+      where: {
+        blockerId: { in: blockerIds },
+      },
+      select: {
+        blockerId: true,
+        blockedId: true,
+      },
+    });
+  }
+
+  async findBlockersByBlocked(blockedId: number): Promise<{ blockerId: number }[]> {
+    return this.prisma.blockList.findMany({
+      where: {
+        blockedId,
+      },
+      select: {
+        blockerId: true,
+      },
+    });
+  }
+
+  async createBlockRelation(blockerId: number, blockedId: number): Promise<Block> {
     const record = await this.prisma.blockList.create({
       data: {
-        blockerId: userId,
-        blockedId: targetUserId,
+        blockerId,
+        blockedId,
       },
     });
 
@@ -43,12 +79,12 @@ export class BlockRepository implements IBlockRepository {
     };
   }
 
-  async delete(userId: number, targetUserId: number): Promise<void> {
+  async deleteBlockRelation(blockerId: number, blockedId: number): Promise<void> {
     await this.prisma.blockList.delete({
       where: {
         blockerId_blockedId: {
-          blockerId: userId,
-          blockedId: targetUserId,
+          blockerId,
+          blockedId,
         },
       },
     });

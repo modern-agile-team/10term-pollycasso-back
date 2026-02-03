@@ -72,6 +72,8 @@ model User {
   friendsReceived Friend[]     @relation("UserFriendReceived")
   blockingUsers   BlockList[]  @relation("BlockedBy")
   blockedByUsers  BlockList[]  @relation("Blocking")
+  sentFriendRequests     Friend[]     @relation("FriendRequester")
+  receivedFriendRequests Friend[]     @relation("FriendReceiver")
 
   @@unique([provider, providerId])
   @@unique([nickname, tag])
@@ -79,18 +81,13 @@ model User {
 }
 
 model UserProfile {
-  userId              Int       @id @map("user_id")
-  profileImage        String?   @map("profile_image")
-  introduce           String?
-  level               Int       @default(1)
-  experience          Int       @default(0)
-  coin                Int       @default(0)
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-  isTutorialCompleted Boolean   @default(false) @map("is_tutorial_completed")
-  lastLoginAt         DateTime? @map("last_login_at")
-  totalAttendance     Int?      @map("total_attendance")
-  isOnline            Boolean   @default(false) @map("is_online")
+  userId     Int      @id @map("user_id")
+  outfit     Json?
+  level      Int      @default(1)
+  experience Int      @default(0)
+  coin       Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -114,19 +111,18 @@ model UserStats {
 }
 
 model Friend {
-  id           Int          @id @default(autoincrement())
-  userId       Int          @map("user_id")
-  targetUserId Int          @map("target_user_id")
-  status       FriendStatus
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
+  id          Int          @id @default(autoincrement())
+  requesterId Int          @map("requester_id")
+  receiverId  Int          @map("receiver_id")
+  status      FriendStatus
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  user       User @relation("UserFriendSent", fields: [userId], references: [id], onDelete: Cascade)
-  targetUser User @relation("UserFriendReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
+  requester User @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver  User @relation("FriendReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, targetUserId])
-  @@index([userId, status])
-  @@index([targetUserId, status])
+  @@unique([requesterId, receiverId])
+  @@index([receiverId, status])
   @@map("friends")
 }
 
@@ -166,10 +162,10 @@ model Room {
 model RoomMember {
   id     Int  @id @default(autoincrement())
   roomId Int? @map("room_id")
-  userId Int @map("user_id")
+  userId Int  @map("user_id")
 
-  userNickname String  @map("user_nickname") @db.VarChar(30)
-  userLevel    Int     @map("user_level")
+  userNickname String @map("user_nickname") @db.VarChar(30)
+  userLevel    Int    @map("user_level")
 
   role      Role      @default(PLAYER)
   team      Team      @default(NONE)
@@ -200,7 +196,7 @@ model Match {
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
   room         Room?         @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  topicWriter  RoomMember?    @relation(fields: [topicWriterId], references: [id], onDelete: Restrict)
+  topicWriter  RoomMember?   @relation(fields: [topicWriterId], references: [id], onDelete: Restrict)
   matchResults MatchResult[]
   drawings     Drawing[]
 
@@ -208,14 +204,14 @@ model Match {
 }
 
 model MatchResult {
-  id         Int      @id @default(autoincrement())
-  roomMemberId Int    @map("room_member_id")
-  matchId    Int      @map("match_id")
-  result     Result
-  recordedAt DateTime @default(now()) @map("recorded_at")
+  id           Int      @id @default(autoincrement())
+  roomMemberId Int      @map("room_member_id")
+  matchId      Int      @map("match_id")
+  result       Result
+  recordedAt   DateTime @default(now()) @map("recorded_at")
 
   roomMember RoomMember @relation(fields: [roomMemberId], references: [id], onDelete: Restrict)
-  match    Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
   @@unique([roomMemberId, matchId])
   @@index([result])
@@ -230,7 +226,7 @@ model Drawing {
   data         Json @map("data")
   round        Int        @map("round")
 
-  match      Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
   roomMember RoomMember @relation(fields: [roomMemberId], references: [id], onDelete: Restrict)
   votes      Vote[]
 
