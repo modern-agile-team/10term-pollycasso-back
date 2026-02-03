@@ -11,17 +11,15 @@ import { TokenDto } from './dtos/responses/token.dto';
 import { AccessTokenDto } from './dtos/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { AUTH_DOMAIN_ERRORS } from './constants/auth.constant';
-import { RedisService } from 'src/redis/redis.service';
+import { PresenceService } from 'src/presence/presence.service';
 
 @Injectable()
 export class AuthService {
-  private readonly ONLINE_STATUS_TTL = 86400;
-
   constructor(
     private readonly userService: UsersService,
     private readonly tokenService: TokenService,
     private readonly configService: ConfigService,
-    private readonly redisService: RedisService,
+    private readonly presenceService: PresenceService,
   ) {}
 
   async signup(signupRequestDto: SignupRequestDto): Promise<void> {
@@ -45,43 +43,40 @@ export class AuthService {
 
   async validateUser(username: string, password: string): Promise<UserData | null> {
     const user = await this.userService.findUserByUsername(username);
-    if (!user || !user.hashedPassword) return null;
+
+    if (!user || !user.hashedPassword) {
+      return null;
+    }
 
     const isMatch = await PasswordEncoderUtil.compare(password, user.hashedPassword);
-    if (!isMatch) return null;
+
+    if (!isMatch) {
+      return null;
+    }
 
     const { hashedPassword: _, ...result } = user;
     return result as UserData;
   }
 
   async login(userData: UserData): Promise<TokenDto> {
-    await this.setUserOnline(userData.id);
+    await this.presenceService.markOnline(userData.id);
 
-    const payload: JwtPayload = {
-      sub: userData.id,
-      nickname: userData.nickname,
-      tag: userData.tag,
-    };
+    const payload = this.createJwtPayload(userData);
+    const tokens = await this.generateTokens(payload);
 
-    const accessToken = this.tokenService.createAccessToken(payload);
-    const refreshToken = await this.tokenService.createRefreshToken(payload);
-
-    return { accessToken, refreshToken };
+    return tokens;
   }
 
   refreshAccessOnly(userData: JwtPayload): AccessTokenDto {
-    const payload: JwtPayload = {
-      sub: userData.sub,
-      nickname: userData.nickname,
-      tag: userData.tag,
-    };
-
+    const payload = this.createJwtPayloadFromToken(userData);
     return this.tokenService.refreshAccessOnly(payload);
   }
 
   async logout(userData: JwtPayload): Promise<void> {
-    await this.setUserOffline(userData.sub);
-    await this.tokenService.revokeToken(userData.sub);
+    await Promise.all([
+      this.presenceService.markOffline(userData.sub),
+      this.tokenService.revokeToken(userData.sub),
+    ]);
   }
 
   async socialLogin(socialUser: SocialLoginPayload): Promise<TokenDto> {
@@ -93,57 +88,91 @@ export class AuthService {
     if (!user) {
       user = await this.userService.createSocialUser(socialUser);
     }
+    await this.presenceService.markOnline(user.id);
 
-    await this.setUserOnline(user.id);
+    const payload = this.createJwtPayload(user);
+    const tokens = await this.generateTokens(payload);
 
-    const payload: JwtPayload = {
-      sub: user.id,
-      nickname: user.nickname,
-      tag: user.tag,
-    };
-
-    const accessToken = this.tokenService.createAccessToken(payload);
-    const refreshToken = await this.tokenService.createRefreshToken(payload);
-
-    return { accessToken, refreshToken };
+    return tokens;
   }
 
   validateRedirectUrl(state: string): string {
     const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
     const fallbackUrl = new URL('/auth/callback', frontendUrl).toString();
 
-    if (!state) return fallbackUrl;
+    if (!state) {
+      return fallbackUrl;
+    }
 
-    const allowedOriginsRaw = this.configService.get<string>('ALLOW_REDIRECT_ORIGINS') ?? '';
-
-    const whitelist = new Set<string>(
-      [new URL(frontendUrl).origin, ...allowedOriginsRaw.split(',').map((s) => s.trim())].filter(
-        Boolean,
-      ),
-    );
+    const whitelist = this.buildRedirectWhitelist(frontendUrl);
 
     try {
-      if (state.startsWith('/') && !state.startsWith('//')) {
-        return new URL(state, frontendUrl).toString();
-      }
-
-      const parsed = new URL(state);
-
-      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return fallbackUrl;
-      if (!whitelist.has(parsed.origin)) return fallbackUrl;
-      if (parsed.username || parsed.password) return fallbackUrl;
-
-      return parsed.toString();
+      return this.validateAndBuildRedirectUrl(state, frontendUrl, whitelist, fallbackUrl);
     } catch {
       return fallbackUrl;
     }
   }
 
-  private async setUserOnline(userId: number): Promise<void> {
-    await this.redisService.set(`user:${userId}:isOnline`, '1', this.ONLINE_STATUS_TTL);
+  private createJwtPayload(user: UserData): JwtPayload {
+    return {
+      sub: user.id,
+      nickname: user.nickname,
+      tag: user.tag,
+    };
   }
 
-  private async setUserOffline(userId: number): Promise<void> {
-    await this.redisService.del(`user:${userId}:isOnline`);
+  private createJwtPayloadFromToken(userData: JwtPayload): JwtPayload {
+    return {
+      sub: userData.sub,
+      nickname: userData.nickname,
+      tag: userData.tag,
+    };
+  }
+
+  private async generateTokens(payload: JwtPayload): Promise<TokenDto> {
+    const [accessToken, refreshToken] = await Promise.all([
+      Promise.resolve(this.tokenService.createAccessToken(payload)),
+      this.tokenService.createRefreshToken(payload),
+    ]);
+
+    return { accessToken, refreshToken };
+  }
+
+  private buildRedirectWhitelist(frontendUrl: string): Set<string> {
+    const allowedOriginsRaw = this.configService.get<string>('ALLOW_REDIRECT_ORIGINS') ?? '';
+
+    const origins = [
+      new URL(frontendUrl).origin,
+      ...allowedOriginsRaw.split(',').map((s) => s.trim()),
+    ].filter(Boolean);
+
+    return new Set<string>(origins);
+  }
+
+  private validateAndBuildRedirectUrl(
+    state: string,
+    frontendUrl: string,
+    whitelist: Set<string>,
+    fallbackUrl: string,
+  ): string {
+    if (state.startsWith('/') && !state.startsWith('//')) {
+      return new URL(state, frontendUrl).toString();
+    }
+
+    const parsed = new URL(state);
+
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return fallbackUrl;
+    }
+
+    if (!whitelist.has(parsed.origin)) {
+      return fallbackUrl;
+    }
+
+    if (parsed.username || parsed.password) {
+      return fallbackUrl;
+    }
+
+    return parsed.toString();
   }
 }
