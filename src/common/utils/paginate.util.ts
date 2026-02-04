@@ -8,7 +8,7 @@ export function paginate<T extends { id: number }>(
   let nextCursor: number | null = null;
   if (hasNextPage && data.length > 0) {
     const lastId = data[data.length - 1].id;
-    nextCursor = lastId !== null ? lastId : null;
+    nextCursor = lastId;
   }
 
   return { data, hasNextPage, nextCursor };

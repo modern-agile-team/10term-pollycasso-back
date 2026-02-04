@@ -1,8 +1,15 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { BLOCK_DOMAIN_ERRORS, BLOCK_ERROR_CODES } from './constants/block.constant';
 import type { IBlockRepository } from './interfaces/block-repository.interface';
 import { UsersService } from 'src/user/user.service';
 import { Block } from './block.entity';
+import { FriendService } from 'src/friend/friend.service';
 
 @Injectable()
 export class BlockService {
@@ -10,6 +17,8 @@ export class BlockService {
     @Inject('IBlockRepository')
     private readonly blockRepository: IBlockRepository,
     private readonly userService: UsersService,
+    @Inject(forwardRef(() => FriendService))
+    private readonly friendService: FriendService,
   ) {}
 
   async isBlocked(userId: number, targetUserId: number): Promise<boolean> {
@@ -45,9 +54,12 @@ export class BlockService {
     }
 
     const existing = await this.blockRepository.findBlockRelation(userId, targetUserId);
-    if (existing) return existing;
+    if (existing) {
+      throw new BadRequestException({ code: BLOCK_ERROR_CODES.ALREADY_BLOCKED });
+    }
 
-    return await this.blockRepository.createBlockRelation(userId, targetUserId);
+    await this.friendService.removeFriendshipIfExists(userId, targetUserId);
+    return this.blockRepository.createBlockRelation(userId, targetUserId);
   }
 
   async unblock(userId: number, targetUserId: number): Promise<void> {

@@ -18,16 +18,20 @@ import { BlockService } from 'src/block/block.service';
 import { UsersService } from 'src/user/user.service';
 import { Friend } from './friend.entity';
 import { FriendRelation, FriendResponseDto } from './dtos/responses/friend.response.dto';
-import { RedisService } from 'src/redis/redis.service';
 import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
 import { OutfitVO } from 'src/common/value-objects/outfit.vo';
-import { UserSearchResultDto } from './dtos/responses/user-search-result.dto';
-import { UserProfile } from './types/friend.type';
+import { FriendshipData, UserProfile } from './types/friend.type';
+import { PresenceService } from 'src/presence/presence.service';
+import { RecommendedFriendDto } from './dtos/responses/recommended-friend.response.dto';
 
 function parseSearchKeyword(keyword: string): { type: FriendSearchType; value: string } {
   const trimmed = keyword.trim();
   const normalized = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
-  if (/^\d{4}$/.test(normalized)) return { type: FriendSearchType.TAG, value: normalized };
+
+  if (/^\d{4}$/.test(normalized)) {
+    return { type: FriendSearchType.TAG, value: normalized };
+  }
+
   return { type: FriendSearchType.NICKNAME, value: normalized };
 }
 
@@ -37,22 +41,211 @@ export class FriendService {
     @Inject('IFriendRepository') private readonly friendRepository: IFriendRepository,
     private readonly blockService: BlockService,
     private readonly userService: UsersService,
-    private readonly redisService: RedisService,
+    private readonly presenceService: PresenceService,
   ) {}
+
+  async getFriendList(userId: number): Promise<FriendResponseDto[]> {
+    const [{ friendships, users }, blockedUserProfiles] = await Promise.all([
+      this.friendRepository.findFriendsWithProfiles(userId),
+      this.friendRepository.findBlockedUsersWithProfiles(userId),
+    ]);
+
+    const allUsers = [...users, ...blockedUserProfiles];
+
+    if (!allUsers.length) {
+      return [];
+    }
+
+    const blockedIds = new Set(blockedUserProfiles.map((u) => u.id));
+    const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(
+      allUsers.map((u) => u.id),
+    );
+
+    const userMap = new Map(allUsers.map((u) => [u.id, u]));
+    const friends = this.mapFriendships(friendships, userId, userMap, blockedIds, onlineStatusMap);
+
+    const friendUserIds = new Set(friends.map((f) => f.userId));
+    blockedUserProfiles.forEach((blockedUser) => {
+      if (!friendUserIds.has(blockedUser.id)) {
+        friends.push({
+          userId: blockedUser.id,
+          nickname: blockedUser.nickname,
+          outfit: this.createOutfitDto(blockedUser.profile?.outfit),
+          level: blockedUser.profile?.level ?? 1,
+          isOnline: onlineStatusMap.get(blockedUser.id) ?? false,
+          relation: FriendRelation.BLOCKED,
+        });
+      }
+    });
+
+    return this.sortFriendList(friends);
+  }
+
+  async getFriendship(userId: number, targetUserId: number): Promise<Friend | null> {
+    return this.friendRepository.findFriendship(userId, targetUserId);
+  }
+
+  async sendRequest(userId: number, targetUserId: number): Promise<Friend> {
+    this.validateSelfRequest(userId, targetUserId);
+
+    const targetUser = await this.userService.findOneById(targetUserId);
+    if (!targetUser) {
+      throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
+    }
+
+    await this.validateBlockStatus(userId, targetUserId);
+    await this.validateExistingFriendship(userId, targetUserId);
+
+    return this.friendRepository.createFriendship(userId, targetUserId);
+  }
+
+  async cancelRequest(userId: number, targetUserId: number): Promise<void> {
+    const request = await this.getFriendshipOrThrow(userId, targetUserId);
+    if (request.status !== FriendStatus.PENDING) {
+      throw new ConflictException({ code: FRIEND_ERROR_CODES.REQUEST_ALREADY_PROCESSED });
+    }
+
+    this.validateRequester(
+      request.requesterId,
+      userId,
+      FRIEND_ERROR_CODES.CANNOT_CANCEL_RECEIVED_REQUEST,
+    );
+
+    await this.friendRepository.deleteFriendshipById(request.id);
+  }
+
+  async respondFriendRequest(
+    userId: number,
+    requesterId: number,
+    accept: boolean,
+  ): Promise<Friend | void> {
+    const request = await this.getFriendshipOrThrow(requesterId, userId);
+    if (request.status !== FriendStatus.PENDING) {
+      throw new ConflictException({ code: FRIEND_ERROR_CODES.REQUEST_ALREADY_PROCESSED });
+    }
+
+    this.validateRequester(
+      request.requesterId,
+      requesterId,
+      FRIEND_ERROR_CODES.CANNOT_RESPOND_OWN_REQUEST,
+    );
+
+    if (!accept) {
+      await this.friendRepository.deleteFriendshipById(request.id);
+      return;
+    }
+
+    const result = await this.friendRepository.updateFriendshipStatus(
+      request.id,
+      FriendStatus.ACCEPTED,
+    );
+    return result;
+  }
+
+  async removeFriend(userId: number, friendUserId: number): Promise<void> {
+    const friendship = await this.getFriendshipOrThrow(userId, friendUserId);
+    if (friendship.status !== FriendStatus.ACCEPTED) {
+      throw new ConflictException({ code: FRIEND_ERROR_CODES.NOT_A_FRIEND });
+    }
+
+    await this.friendRepository.deleteFriendshipById(friendship.id);
+  }
+
+  async searchFriends(userId: number, keyword: string): Promise<FriendResponseDto[]> {
+    const parsed = parseSearchKeyword(keyword);
+    const excludeIds = await this.getExcludedUserIds(userId);
+
+    const { data: users } = await this.friendRepository.searchUsersByKeyword(
+      parsed.type,
+      parsed.value,
+      excludeIds,
+      FRIEND_SEARCH_RULES.SEARCH_RESULT_LIMIT,
+    );
+
+    if (!users.length) {
+      return [];
+    }
+
+    const results = await this.mapUsersToDto(users);
+    return this.sortByOnlineAndLevel(results);
+  }
+
+  async searchFriendsWithinMyFriends(
+    userId: number,
+    keyword: string,
+  ): Promise<FriendResponseDto[]> {
+    const parsed = parseSearchKeyword(keyword);
+    const { friendships, users } = await this.friendRepository.findFriendsWithProfiles(userId);
+
+    if (!users.length) {
+      return [];
+    }
+
+    const acceptedFriendIds = this.getAcceptedFriendIds(friendships, userId);
+    const friends = users.filter((u) => acceptedFriendIds.includes(u.id));
+
+    if (!friends.length) {
+      return [];
+    }
+
+    const filtered = this.filterUsersByKeyword(friends, parsed);
+
+    if (!filtered.length) {
+      return [];
+    }
+
+    const results = await this.mapUsersToDto(filtered);
+    return this.sortByOnlineAndLevel(results);
+  }
+
+  async getRecommendedFriends(userId: number): Promise<RecommendedFriendDto[]> {
+    const excludeIds = await this.getExcludedUserIds(userId, false);
+
+    const { data: users } = await this.friendRepository.getRandomUsersForRecommendation(
+      userId,
+      excludeIds,
+      FRIEND_SEARCH_RULES.RECOMMENDED_FRIENDS_LIMIT,
+    );
+
+    if (!users.length) {
+      return [];
+    }
+
+    const results = await this.mapUsersToRecommendedDto(users);
+    return this.sortByOnlineAndLevel(results);
+  }
+
+  async removeFriendshipIfExists(userId: number, targetUserId: number): Promise<void> {
+    await this.friendRepository.deleteFriendshipIfExists(userId, targetUserId);
+  }
 
   private createOutfitDto(rawOutfit: unknown): OutfitDto {
     return new OutfitDto(OutfitVO.from(rawOutfit).get());
   }
 
-  private async mapUsersToDto(users: UserProfile[]): Promise<UserSearchResultDto[]> {
-    const userIds = users.map((u) => u.id);
-    const keys = userIds.map((id) => `user:${id}:isOnline`);
-    const onlineStatuses = await this.redisService.mget(keys);
-    const onlineStatusMap = new Map<number, boolean>();
-    userIds.forEach((id, i) => onlineStatusMap.set(id, onlineStatuses[i] === '1'));
+  private async mapUsersToDto(
+    users: UserProfile[],
+    relation: FriendRelation = FriendRelation.FRIEND,
+  ): Promise<FriendResponseDto[]> {
+    const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
 
     return users.map((user) => {
-      return new UserSearchResultDto({
+      return new FriendResponseDto({
+        userId: user.id,
+        nickname: user.nickname,
+        outfit: this.createOutfitDto(user.profile?.outfit),
+        level: user.profile?.level ?? 1,
+        isOnline: onlineStatusMap.get(user.id) ?? false,
+        relation,
+      });
+    });
+  }
+
+  private async mapUsersToRecommendedDto(users: UserProfile[]): Promise<RecommendedFriendDto[]> {
+    const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
+
+    return users.map((user) => {
+      return new RecommendedFriendDto({
         userId: user.id,
         nickname: user.nickname,
         outfit: this.createOutfitDto(user.profile?.outfit),
@@ -60,6 +253,63 @@ export class FriendService {
         isOnline: onlineStatusMap.get(user.id) ?? false,
       });
     });
+  }
+
+  private mapFriendships(
+    friendships: FriendshipData[],
+    userId: number,
+    userMap: Map<number, UserProfile>,
+    blockedIds: Set<number>,
+    onlineStatusMap: Map<number, boolean>,
+  ): FriendResponseDto[] {
+    return friendships
+      .map((f) => {
+        const targetId = f.requesterId === userId ? f.receiverId : f.requesterId;
+        const user = userMap.get(targetId);
+
+        if (!user || !user.profile) {
+          return null;
+        }
+
+        const relation = this.determineFriendRelation(f, userId, targetId, blockedIds);
+
+        if (!relation) {
+          return null;
+        }
+
+        return {
+          userId: user.id,
+          nickname: user.nickname,
+          outfit: this.createOutfitDto(user.profile.outfit),
+          level: user.profile.level,
+          isOnline: onlineStatusMap.get(user.id) ?? false,
+          relation,
+        };
+      })
+      .filter((v): v is FriendResponseDto => v !== null);
+  }
+
+  private determineFriendRelation(
+    friendship: FriendshipData,
+    userId: number,
+    targetId: number,
+    blockedIds: Set<number>,
+  ): FriendRelation | null {
+    if (blockedIds.has(targetId)) {
+      return FriendRelation.BLOCKED;
+    }
+
+    if (friendship.status === FriendStatus.ACCEPTED) {
+      return FriendRelation.FRIEND;
+    }
+
+    if (friendship.status === FriendStatus.PENDING) {
+      return friendship.requesterId === userId
+        ? FriendRelation.REQUEST_SENT
+        : FriendRelation.REQUEST_RECEIVED;
+    }
+
+    return null;
   }
 
   private sortFriendList(friends: FriendResponseDto[]): FriendResponseDto[] {
@@ -72,214 +322,119 @@ export class FriendService {
 
     return friends.sort((a, b) => {
       const diff = order[a.relation] - order[b.relation];
-      if (diff !== 0) return diff;
+
+      if (diff !== 0) {
+        return diff;
+      }
 
       if (a.relation === FriendRelation.FRIEND) {
-        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        if (a.isOnline !== b.isOnline) {
+          return a.isOnline ? -1 : 1;
+        }
         return a.nickname.localeCompare(b.nickname, 'ko-KR');
       }
+
       return 0;
     });
   }
 
-  async getFriendList(userId: number): Promise<FriendResponseDto[]> {
-    const { friendships, users } = await this.friendRepository.findFriendsWithProfiles(userId);
-    if (!users.length) return [];
-
-    const blockedIds = new Set(
-      (await this.blockService.getBlockedUsers(userId)).map((b) => b.blockedId),
-    );
-    const userMap = new Map(users.map((u) => [u.id, u]));
-    const keys = users.map((u) => `user:${u.id}:isOnline`);
-    const onlineStatuses = await this.redisService.mget(keys);
-    const onlineStatusMap = new Map<number, boolean>();
-    users.forEach((u, i) => onlineStatusMap.set(u.id, onlineStatuses[i] === '1'));
-
-    const friends = friendships
-      .map((f) => {
-        const targetId = f.requesterId === userId ? f.receiverId : f.requesterId;
-        const user = userMap.get(targetId);
-        if (!user || !user.profile) return null;
-
-        let relation: FriendRelation;
-        if (blockedIds.has(targetId)) relation = FriendRelation.BLOCKED;
-        else if (f.status === FriendStatus.ACCEPTED) relation = FriendRelation.FRIEND;
-        else if (f.status === FriendStatus.PENDING)
-          relation =
-            f.requesterId === userId
-              ? FriendRelation.REQUEST_SENT
-              : FriendRelation.REQUEST_RECEIVED;
-        else return null;
-
-        return {
-          userId: user.id,
-          nickname: user.nickname,
-          outfit: this.createOutfitDto(user.profile.outfit),
-          level: user.profile.level,
-          isOnline: onlineStatusMap.get(user.id) ?? false,
-          relation,
-        };
-      })
-      .filter((v): v is FriendResponseDto => v !== null);
-
-    return this.sortFriendList(friends);
+  private sortByOnlineAndLevel<T extends { isOnline: boolean; level?: number }>(results: T[]): T[] {
+    return results.sort((a, b) => {
+      if (a.isOnline !== b.isOnline) {
+        return a.isOnline ? -1 : 1;
+      }
+      return (b.level ?? 0) - (a.level ?? 0);
+    });
   }
 
-  async getFriendship(userId: number, targetUserId: number): Promise<Friend | null> {
-    return this.friendRepository.findFriendship(userId, targetUserId);
+  private getAcceptedFriendIds(friendships: FriendshipData[], userId: number): number[] {
+    return friendships
+      .filter((f) => f.status === FriendStatus.ACCEPTED)
+      .map((f) => (f.requesterId === userId ? f.receiverId : f.requesterId));
   }
 
-  async sendRequest(userId: number, targetUserId: number): Promise<Friend> {
-    if (userId === targetUserId)
-      throw new BadRequestException({
-        code: FRIEND_ERROR_CODES.CANNOT_ADD_SELF,
-        errors: [FRIEND_DOMAIN_ERRORS[FRIEND_ERROR_CODES.CANNOT_ADD_SELF]],
-      });
-
-    const targetUser = await this.userService.findOneById(targetUserId);
-    if (!targetUser) throw new NotFoundException({ code: FRIEND_ERROR_CODES.USER_NOT_FOUND });
-
-    if (await this.blockService.isBlocked(targetUserId, userId))
-      throw new ForbiddenException({ code: FRIEND_ERROR_CODES.BLOCKED_BY_TARGET });
-
-    if (await this.blockService.isBlocked(userId, targetUserId))
-      throw new ForbiddenException({ code: FRIEND_ERROR_CODES.BLOCKING_TARGET });
-
-    const existing = await this.friendRepository.findFriendship(userId, targetUserId);
-    if (existing) {
-      if (existing.status === FriendStatus.PENDING) {
-        throw new ConflictException({ code: FRIEND_ERROR_CODES.INVALID_REQUEST_STATUS });
-      }
-      if (existing.status === FriendStatus.ACCEPTED) {
-        throw new ConflictException({ code: FRIEND_ERROR_CODES.ALREADY_FRIENDS });
-      }
+  private filterUsersByKeyword(
+    users: UserProfile[],
+    parsed: { type: FriendSearchType; value: string },
+  ): UserProfile[] {
+    if (parsed.type === FriendSearchType.TAG) {
+      return users.filter((f) => f.tag === parsed.value);
     }
 
-    return await this.friendRepository.createFriendship(userId, targetUserId);
+    return users.filter((f) => f.nickname.toLowerCase().includes(parsed.value.toLowerCase()));
   }
 
-  async cancelRequest(userId: number, targetUserId: number): Promise<void> {
-    const request = await this.friendRepository.findFriendship(userId, targetUserId);
-    if (!request) throw new NotFoundException({ code: FRIEND_ERROR_CODES.REQUEST_NOT_FOUND });
+  private async getExcludedUserIds(userId: number, includeUserId = true): Promise<number[]> {
+    const [relatedIds, blockedUsers] = await Promise.all([
+      this.friendRepository.getRelatedUserIds(userId),
+      this.blockService.getBlockedUsers(userId),
+    ]);
 
-    if (request.status !== FriendStatus.PENDING)
-      throw new ConflictException({ code: FRIEND_ERROR_CODES.INVALID_REQUEST_STATUS });
+    const blockedIds = blockedUsers.map((b) => b.blockedId);
+    const excludeIds = includeUserId
+      ? [userId, ...relatedIds, ...blockedIds]
+      : [...relatedIds, ...blockedIds];
 
-    if (request.requesterId !== userId)
-      throw new BadRequestException({
-        code: FRIEND_ERROR_CODES.CANNOT_CANCEL_RECEIVED_REQUEST,
-        errors: [FRIEND_DOMAIN_ERRORS[FRIEND_ERROR_CODES.CANNOT_CANCEL_RECEIVED_REQUEST]],
-      });
-
-    await this.friendRepository.deleteFriendshipById(request.id);
+    return excludeIds;
   }
 
-  async respondFriendRequest(
-    userId: number,
-    requesterId: number,
-    accept: boolean,
-  ): Promise<Friend | void> {
-    const request = await this.friendRepository.findFriendship(requesterId, userId);
-    if (!request) throw new NotFoundException({ code: FRIEND_ERROR_CODES.REQUEST_NOT_FOUND });
-
-    if (request.status !== FriendStatus.PENDING)
-      throw new ConflictException({ code: FRIEND_ERROR_CODES.INVALID_REQUEST_STATUS });
-
-    if (request.requesterId !== requesterId)
+  private validateSelfRequest(userId: number, targetUserId: number): void {
+    if (userId === targetUserId) {
       throw new BadRequestException({
-        code: FRIEND_ERROR_CODES.CANNOT_RESPOND_OWN_REQUEST,
-        errors: [FRIEND_DOMAIN_ERRORS[FRIEND_ERROR_CODES.CANNOT_RESPOND_OWN_REQUEST]],
+        code: FRIEND_ERROR_CODES.CANNOT_REQUEST_SELF,
+        errors: [FRIEND_DOMAIN_ERRORS[FRIEND_ERROR_CODES.CANNOT_REQUEST_SELF]],
       });
+    }
+  }
 
-    if (!accept) {
-      await this.friendRepository.deleteFriendshipById(request.id);
+  private async validateBlockStatus(userId: number, targetUserId: number): Promise<void> {
+    const [isBlockedByTarget, isBlockingTarget] = await Promise.all([
+      this.blockService.isBlocked(targetUserId, userId),
+      this.blockService.isBlocked(userId, targetUserId),
+    ]);
+
+    if (isBlockedByTarget) {
+      throw new ForbiddenException({ code: FRIEND_ERROR_CODES.BLOCKED_BY_TARGET });
+    }
+
+    if (isBlockingTarget) {
+      throw new ForbiddenException({ code: FRIEND_ERROR_CODES.BLOCKING_TARGET });
+    }
+  }
+
+  private async validateExistingFriendship(userId: number, targetUserId: number): Promise<void> {
+    const existing = await this.friendRepository.findFriendship(userId, targetUserId);
+
+    if (!existing) {
       return;
     }
 
-    return await this.friendRepository.updateFriendshipStatus(request.id, FriendStatus.ACCEPTED);
-  }
-
-  async removeFriend(userId: number, friendUserId: number): Promise<void> {
-    const friendship = await this.friendRepository.findFriendship(userId, friendUserId);
-    if (!friendship) throw new NotFoundException({ code: FRIEND_ERROR_CODES.REQUEST_NOT_FOUND });
-
-    if (friendship.status !== FriendStatus.ACCEPTED)
-      throw new ConflictException({ code: FRIEND_ERROR_CODES.NOT_FRIENDS });
-
-    await this.friendRepository.deleteFriendshipById(friendship.id);
-  }
-
-  async searchFriends(userId: number, keyword: string): Promise<UserSearchResultDto[]> {
-    const parsed = parseSearchKeyword(keyword);
-    const relatedIds = await this.friendRepository.getRelatedUserIds(userId);
-    const blockedIds = (await this.blockService.getBlockedUsers(userId)).map((b) => b.blockedId);
-    const excludeIds = [userId, ...relatedIds, ...blockedIds];
-
-    const users = await this.friendRepository.searchUsersByKeyword(
-      parsed.type,
-      parsed.value,
-      excludeIds,
-      FRIEND_SEARCH_RULES.SEARCH_RESULT_LIMIT,
-    );
-    if (!users.length) return [];
-
-    const result = await this.mapUsersToDto(users);
-
-    return result.sort((a, b) =>
-      a.isOnline !== b.isOnline ? (a.isOnline ? -1 : 1) : b.level - a.level,
-    );
-  }
-
-  async searchFriendsWithinMyFriends(
-    userId: number,
-    keyword: string,
-  ): Promise<UserSearchResultDto[]> {
-    const parsed = parseSearchKeyword(keyword);
-
-    const { friendships, users } = await this.friendRepository.findFriendsWithProfiles(userId);
-    if (!users.length) return [];
-
-    const acceptedFriendIds = friendships
-      .filter((f) => f.status === FriendStatus.ACCEPTED)
-      .map((f) => (f.requesterId === userId ? f.receiverId : f.requesterId));
-
-    const friends = users.filter((u) => acceptedFriendIds.includes(u.id));
-    if (!friends.length) return [];
-
-    let filtered: UserProfile[] = [];
-    if (parsed.type === FriendSearchType.TAG) {
-      filtered = friends.filter((f) => f.tag === parsed.value);
-    } else {
-      filtered = friends.filter((f) =>
-        f.nickname.toLowerCase().includes(parsed.value.toLowerCase()),
-      );
+    if (existing.status === FriendStatus.PENDING) {
+      throw new ConflictException({ code: FRIEND_ERROR_CODES.ALREADY_SENT_REQUEST });
     }
 
-    if (!filtered.length) return [];
-
-    const result = await this.mapUsersToDto(filtered);
-
-    return result.sort((a, b) =>
-      a.isOnline !== b.isOnline ? (a.isOnline ? -1 : 1) : b.level - a.level,
-    );
+    if (existing.status === FriendStatus.ACCEPTED) {
+      throw new ConflictException({ code: FRIEND_ERROR_CODES.ALREADY_FRIEND });
+    }
   }
 
-  async getRecommendedFriends(userId: number): Promise<UserSearchResultDto[]> {
-    const relatedIds = await this.friendRepository.getRelatedUserIds(userId);
-    const blockedIds = (await this.blockService.getBlockedUsers(userId)).map((b) => b.blockedId);
-    const excludeIds = [...relatedIds, ...blockedIds];
+  private async getFriendshipOrThrow(userId: number, targetUserId: number): Promise<Friend> {
+    const friendship = await this.friendRepository.findFriendship(userId, targetUserId);
 
-    const users = await this.friendRepository.getRandomUsersForRecommendation(
-      userId,
-      excludeIds,
-      FRIEND_SEARCH_RULES.RECOMMENDED_FRIENDS_LIMIT,
-    );
-    if (!users.length) return [];
+    if (!friendship) {
+      throw new NotFoundException({ code: FRIEND_ERROR_CODES.REQUEST_NOT_FOUND });
+    }
 
-    const result = await this.mapUsersToDto(users);
+    return friendship;
+  }
 
-    return result.sort((a, b) =>
-      a.isOnline !== b.isOnline ? (a.isOnline ? -1 : 1) : b.level - a.level,
-    );
+  private validateRequester(
+    actualRequesterId: number,
+    expectedRequesterId: number,
+    errorCode: string,
+  ): void {
+    if (actualRequesterId !== expectedRequesterId) {
+      throw new BadRequestException({ code: errorCode });
+    }
   }
 }
