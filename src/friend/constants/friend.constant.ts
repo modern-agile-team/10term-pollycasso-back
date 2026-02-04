@@ -30,7 +30,7 @@ export const FRIEND_EVENTS = {
   GET_LIST: 'friends:getList',
   GET_RECOMMENDED_LIST: 'friends:getRecommendedList',
   SEARCH: 'friends:search',
-  SEARCH_WITHIN_RELATION: 'friends:searchWithinRelation',
+  SEARCH_USERS_WITH_RELATION: 'friends:searchUsersWithRelation',
   REQUEST_SEND: 'friends:requestSend',
   REQUEST_ACCEPT: 'friends:requestAccept',
   BLOCK: 'friends:block',

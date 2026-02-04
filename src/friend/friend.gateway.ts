@@ -147,7 +147,7 @@ export class FriendGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit(FRIEND_EVENTS.SEARCH, results);
   }
 
-  @SubscribeMessage(FRIEND_EVENTS.SEARCH_WITHIN_RELATION)
+  @SubscribeMessage(FRIEND_EVENTS.SEARCH_USERS_WITH_RELATION)
   async searchFriendsWithRelation(
     @MessageBody() body: SearchFriendRequestDto,
     @ConnectedSocket() client: FriendSocket,
@@ -157,7 +157,7 @@ export class FriendGateway implements OnGatewayConnection, OnGatewayDisconnect {
       clientData.userId,
       body.keyword,
     );
-    client.emit(FRIEND_EVENTS.SEARCH_WITHIN_RELATION, results);
+    client.emit(FRIEND_EVENTS.SEARCH_USERS_WITH_RELATION, results);
   }
 
   @SubscribeMessage(FRIEND_EVENTS.REQUEST_SEND)

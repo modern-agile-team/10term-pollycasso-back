@@ -172,17 +172,21 @@ export class FriendService {
 
   async searchFriendsWithRelation(userId: number, keyword: string): Promise<FriendResponseDto[]> {
     const parsed = parseSearchKeyword(keyword);
-    const { friendships, users } = await this.friendRepository.findFriendsWithProfiles(userId);
+    const [{ friendships, users }, blockedUserProfiles] = await Promise.all([
+      this.friendRepository.findFriendsWithProfiles(userId),
+      this.friendRepository.findBlockedUsersWithProfiles(userId),
+    ]);
 
-    if (!users.length) {
-      return [];
-    }
+    const blockedIds = new Set(blockedUserProfiles.map((u) => u.id));
 
     const relatedUserIds = friendships.map((f) =>
       f.requesterId === userId ? f.receiverId : f.requesterId,
     );
 
-    const relatedUsers = users.filter((u) => relatedUserIds.includes(u.id));
+    const allRelatedUserIds = new Set([...relatedUserIds, ...blockedIds]);
+    const allRelatedUsers = [...users, ...blockedUserProfiles];
+
+    const relatedUsers = allRelatedUsers.filter((u) => allRelatedUserIds.has(u.id));
 
     if (!relatedUsers.length) {
       return [];
@@ -194,7 +198,7 @@ export class FriendService {
       return [];
     }
 
-    const results = await this.mapUsersWithRelation(filtered, friendships, userId);
+    const results = await this.mapUsersWithRelation(filtered, friendships, userId, blockedIds);
     return this.sortByOnlineAndLevel(results);
   }
 
@@ -227,6 +231,7 @@ export class FriendService {
     users: UserProfile[],
     friendships: FriendshipData[],
     userId: number,
+    blockedIds: Set<number> = new Set(),
   ): Promise<FriendResponseDto[]> {
     const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
 
@@ -236,19 +241,44 @@ export class FriendService {
       friendshipMap.set(targetId, f);
     });
 
-    return users.map((user) => {
-      const friendship = friendshipMap.get(user.id);
-      const relation = this.determineFriendRelation(friendship!, userId, user.id, new Set());
+    return users
+      .map((user) => {
+        if (!user.profile) {
+          return null;
+        }
 
-      return new FriendResponseDto({
-        userId: user.id,
-        nickname: user.nickname,
-        outfit: this.createOutfitDto(user.profile?.outfit),
-        level: user.profile?.level ?? 1,
-        isOnline: onlineStatusMap.get(user.id) ?? false,
-        relation: relation!,
-      });
-    });
+        const friendship = friendshipMap.get(user.id);
+
+        if (!friendship) {
+          if (blockedIds.has(user.id)) {
+            return new FriendResponseDto({
+              userId: user.id,
+              nickname: user.nickname,
+              outfit: this.createOutfitDto(user.profile.outfit),
+              level: user.profile.level ?? 1,
+              isOnline: onlineStatusMap.get(user.id) ?? false,
+              relation: FriendRelation.BLOCKED,
+            });
+          }
+          return null;
+        }
+
+        const relation = this.determineFriendRelation(friendship, userId, user.id, blockedIds);
+
+        if (!relation) {
+          return null;
+        }
+
+        return new FriendResponseDto({
+          userId: user.id,
+          nickname: user.nickname,
+          outfit: this.createOutfitDto(user.profile.outfit),
+          level: user.profile.level ?? 1,
+          isOnline: onlineStatusMap.get(user.id) ?? false,
+          relation: relation,
+        });
+      })
+      .filter((user): user is FriendResponseDto => user !== null);
   }
 
   private async mapUsersToSearchDto(users: UserProfile[]): Promise<SearchFriendResponseDto[]> {
