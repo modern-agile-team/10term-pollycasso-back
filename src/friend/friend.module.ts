@@ -7,6 +7,7 @@ import { RedisModule } from 'src/redis/redis.module';
 import { FriendGateway } from './friend.gateway';
 import { PresenceModule } from 'src/presence/presence.module';
 import { JwtModule } from '@nestjs/jwt';
+import { FriendMapper } from './entities/mappers/friend.mapper';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { JwtModule } from '@nestjs/jwt';
   providers: [
     FriendService,
     FriendGateway,
+    FriendMapper,
     { provide: 'IFriendRepository', useClass: FriendRepository },
   ],
   exports: [FriendService, 'IFriendRepository', FriendGateway],

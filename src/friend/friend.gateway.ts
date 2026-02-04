@@ -147,17 +147,17 @@ export class FriendGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit(FRIEND_EVENTS.SEARCH, results);
   }
 
-  @SubscribeMessage(FRIEND_EVENTS.SEARCH_WITHIN_FRIENDS)
-  async searchWithinFriends(
+  @SubscribeMessage(FRIEND_EVENTS.SEARCH_USERS_WITH_RELATION)
+  async searchFriendsWithRelation(
     @MessageBody() body: SearchFriendRequestDto,
     @ConnectedSocket() client: FriendSocket,
   ): Promise<void> {
     const clientData = this.getClientData(client);
-    const results = await this.friendService.searchFriendsWithinMyFriends(
+    const results = await this.friendService.searchFriendsWithRelation(
       clientData.userId,
       body.keyword,
     );
-    client.emit(FRIEND_EVENTS.SEARCH_WITHIN_FRIENDS, results);
+    client.emit(FRIEND_EVENTS.SEARCH_USERS_WITH_RELATION, results);
   }
 
   @SubscribeMessage(FRIEND_EVENTS.REQUEST_SEND)
@@ -191,7 +191,7 @@ export class FriendGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ): Promise<void> {
     const clientData = this.getClientData(client);
     await this.friendService.respondFriendRequest(clientData.userId, body.requesterId, true);
-    client.emit(FRIEND_EVENTS.REQUEST_ACCEPT, { success: true });
+    client.emit(FRIEND_EVENTS.REQUEST_ACCEPT);
 
     const [userOnline, requesterOnline] = await Promise.all([
       this.presenceService.isOnline(clientData.userId),

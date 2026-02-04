@@ -1,6 +1,6 @@
 import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
 
-export class RecommendedFriendDto {
+export class SearchFriendResponseDto {
   userId: number;
   nickname: string;
   outfit: OutfitDto;

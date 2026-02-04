@@ -1,4 +1,4 @@
-import { Friend } from '../friend.entity';
+import { Friend } from '../entities/friend.entity';
 import { FriendStatus } from '@prisma/client';
 import { FriendshipData, UserProfile } from '../types/friend.type';
 import { FriendSearchType } from '../constants/friend.constant';
