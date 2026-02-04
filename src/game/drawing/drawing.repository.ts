@@ -17,26 +17,28 @@ export class DrawingRepository {
     if (!rows.length) return;
 
     await this.prisma.$transaction(async (tx) => {
-      for (const row of rows) {
-        await tx.drawing.upsert({
-          where: {
-            matchId_roomMemberId_round: {
+      await Promise.all(
+        rows.map((row) =>
+          tx.drawing.upsert({
+            where: {
+              matchId_roomMemberId_round: {
+                matchId: row.matchId,
+                roomMemberId: row.roomMemberId,
+                round: row.round,
+              },
+            },
+            create: {
               matchId: row.matchId,
               roomMemberId: row.roomMemberId,
               round: row.round,
+              data: row.data,
             },
-          },
-          create: {
-            matchId: row.matchId,
-            roomMemberId: row.roomMemberId,
-            round: row.round,
-            data: row.data,
-          },
-          update: {
-            data: row.data,
-          },
-        });
-      }
+            update: {
+              data: row.data,
+            },
+          }),
+        ),
+      );
     });
   }
 
