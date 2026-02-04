@@ -22,6 +22,14 @@ export class GameSessionEntity {
     return this._state.currentTheme;
   }
 
+  get currentPhaseInstanceId(): string {
+    const ctx = this._state.phaseContext;
+    if (ctx?.kind !== GamePhase.DRAWING || !ctx.phaseInstanceId) {
+      throw new Error(GAME_ERRORS.CONTEXT_INVALID);
+    }
+    return ctx.phaseInstanceId;
+  }
+
   getConfirmedTheme(): string {
     const theme = this._state.currentTheme;
     if (!theme) {
@@ -96,5 +104,13 @@ export class GameSessionEntity {
     const selected = finalPool[idx];
 
     return selected;
+  }
+
+  isDrawing(): boolean {
+    return this._state.phase === GamePhase.DRAWING;
+  }
+
+  getDrawingPhaseInstanceId(): string {
+    return this.currentPhaseInstanceId;
   }
 }

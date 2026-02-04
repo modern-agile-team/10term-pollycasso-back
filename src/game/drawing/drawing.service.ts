@@ -11,6 +11,7 @@ import { DrawingStore } from './drawing.store';
 import { DrawingRepository } from './drawing.repository';
 import { DRAWING_ERRORS } from './constants/drawing.constant';
 import { DrawingPhaseContextEntity } from './entities/drawing.entity';
+import { GameItemService } from '../item/game-item.service';
 
 @Injectable()
 export class DrawingService {
@@ -18,6 +19,7 @@ export class DrawingService {
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
     private readonly drawingStore: DrawingStore,
     private readonly drawingRepository: DrawingRepository,
+    private readonly gameItemService: GameItemService,
   ) {}
 
   // 그리기 입력 수신 및 Redis 누적
@@ -166,6 +168,19 @@ export class DrawingService {
     return out;
   }
 
+  async startDrawing(params: { gameId: string; roundId: string; participantUserIds: number[] }) {
+    const key = this.phaseKey(params.gameId, params.roundId);
+
+    for (const userId of params.participantUserIds) {
+      await this.gameItemService.initInventory(key, userId);
+    }
+  }
+
+  async endDrawing(params: { gameId: string; roundId: string }) {
+    const key = this.phaseKey(params.gameId, params.roundId);
+    await this.gameItemService.commitInventory(key);
+  }
+
   // 활성 유저들의 strokes를 DB로 upsert
   private async commitAllActiveUsersToDb(params: {
     roomId: number;
@@ -221,5 +236,9 @@ export class DrawingService {
     if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) {
       throw new ConflictException(DRAWING_ERRORS.DRAWING_CONTEXT_MISSING);
     }
+  }
+
+  private phaseKey(gameId: string, roundId: string) {
+    return `${gameId}:${roundId}`;
   }
 }
