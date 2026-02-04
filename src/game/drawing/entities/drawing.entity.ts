@@ -1,5 +1,9 @@
 import { ConflictException } from '@nestjs/common';
-import { DrawingContext, GamePhase } from 'src/game-state/interfaces/game-state.interface';
+import {
+  DrawingContext,
+  GamePhase,
+  PhaseContext,
+} from 'src/game-state/interfaces/game-state.interface';
 import { DRAWING_ERRORS } from '../constants/drawing.constant.js';
 
 export class DrawingPhaseContextEntity {
@@ -15,12 +19,12 @@ export class DrawingPhaseContextEntity {
     this.readyUserIds = Array.isArray(ctx.readyUserIds) ? [...ctx.readyUserIds] : [];
   }
 
-  static from(statePhaseContext: unknown): DrawingPhaseContextEntity {
-    const ctx = statePhaseContext as DrawingContext;
-
-    if (!ctx || ctx.kind !== GamePhase.DRAWING) {
+  static fromPhaseContext(phaseContext: PhaseContext): DrawingPhaseContextEntity {
+    if (!phaseContext || phaseContext.kind !== GamePhase.DRAWING) {
       throw new ConflictException(DRAWING_ERRORS.DRAWING_CONTEXT_MISSING);
     }
+
+    const ctx = phaseContext;
 
     return new DrawingPhaseContextEntity({
       kind: GamePhase.DRAWING,
@@ -28,6 +32,14 @@ export class DrawingPhaseContextEntity {
       activeUserIds: Array.isArray(ctx.activeUserIds) ? ctx.activeUserIds : [],
       readyUserIds: Array.isArray(ctx.readyUserIds) ? ctx.readyUserIds : [],
     });
+  }
+
+  get isReadyToAdvance(): boolean {
+    return this.activeUserIds.length > 0 && this.readyUserIds.length >= this.activeUserIds.length;
+  }
+
+  get activeUserIdsView(): number[] {
+    return [...this.activeUserIds];
   }
 
   ensureActive(userId: number): void {
@@ -51,14 +63,6 @@ export class DrawingPhaseContextEntity {
     this.activeUserIds = this.activeUserIds.filter((id) => id !== userId);
     this.readyUserIds = this.readyUserIds.filter((id) => id !== userId);
     return true;
-  }
-
-  shouldAdvance(): boolean {
-    return this.activeUserIds.length > 0 && this.readyUserIds.length >= this.activeUserIds.length;
-  }
-
-  getActiveUserIds(): number[] {
-    return [...this.activeUserIds];
   }
 
   toPlain(): DrawingContext {

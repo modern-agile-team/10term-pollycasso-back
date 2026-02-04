@@ -218,8 +218,8 @@ model MatchResult {
 }
 
 model Drawing {
-  id         Int    @id @default(autoincrement())
-  matchId    Int    @map("match_id")
+  id           Int    @id @default(autoincrement())
+  matchId      Int    @map("match_id")
   roomMemberId Int   @map("room_member_id")
   data         Json @map("data")
   round        Int        @map("round")

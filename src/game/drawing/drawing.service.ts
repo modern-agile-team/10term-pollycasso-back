@@ -26,9 +26,8 @@ export class DrawingService {
 
     const state = await this.gameStateStore.get(roomId);
     if (!state) throw new ConflictException(DRAWING_ERRORS.GAME_STATE_NOT_FOUND);
-    this.assertDrawing(state);
 
-    const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
+    const ctxEntity = DrawingPhaseContextEntity.fromPhaseContext(state.phaseContext);
     ctxEntity.ensureActive(userId);
 
     const round = state.currentRound ?? 1;
@@ -51,9 +50,8 @@ export class DrawingService {
 
     const state = await this.gameStateStore.get(roomId);
     if (!state) throw new ConflictException(DRAWING_ERRORS.GAME_STATE_NOT_FOUND);
-    this.assertDrawing(state);
 
-    const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
+    const ctxEntity = DrawingPhaseContextEntity.fromPhaseContext(state.phaseContext);
     const becameReady = ctxEntity.markReady(userId);
 
     const patched = await this.gameStateStore.patch(roomId, {
@@ -61,7 +59,7 @@ export class DrawingService {
     });
     if (!patched) throw new ConflictException(DRAWING_ERRORS.GAME_STATE_NOT_FOUND);
 
-    const shouldAdvance = ctxEntity.shouldAdvance();
+    const shouldAdvance = ctxEntity.isReadyToAdvance;
 
     return {
       shouldAdvance,
@@ -83,7 +81,7 @@ export class DrawingService {
       return { shouldAdvance: false };
     }
 
-    const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
+    const ctxEntity = DrawingPhaseContextEntity.fromPhaseContext(state.phaseContext);
 
     const removed = ctxEntity.removeUser(userId);
     if (!removed) return { shouldAdvance: false };
@@ -93,7 +91,7 @@ export class DrawingService {
     });
     if (!patched) return { shouldAdvance: false };
 
-    const shouldAdvance = ctxEntity.shouldAdvance();
+    const shouldAdvance = ctxEntity.isReadyToAdvance;
 
     return {
       shouldAdvance,
@@ -112,8 +110,8 @@ export class DrawingService {
     if (state.phase !== GamePhase.DRAWING) return;
     if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) return;
 
-    const ctxEntity = DrawingPhaseContextEntity.from(state.phaseContext);
-    const activeUserIds = ctxEntity.getActiveUserIds();
+    const ctxEntity = DrawingPhaseContextEntity.fromPhaseContext(state.phaseContext);
+    const activeUserIds = ctxEntity.activeUserIdsView;
 
     if (!activeUserIds.length) return;
 
@@ -146,12 +144,21 @@ export class DrawingService {
     if (!roomMemberMap) throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_MAP_MISSING);
 
     const userIdByRoomMemberId = new Map<number, number>();
+
     for (const [userIdStr, rmId] of Object.entries(roomMemberMap)) {
       const userId = Number(userIdStr);
       const roomMemberId = typeof rmId === 'number' ? rmId : Number(rmId);
-      if (Number.isFinite(userId) && Number.isFinite(roomMemberId)) {
-        userIdByRoomMemberId.set(roomMemberId, userId);
+
+      if (!Number.isFinite(userId) || !Number.isFinite(roomMemberId)) {
+        throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_MAP_INVALID);
       }
+
+      const prevUserId = userIdByRoomMemberId.get(roomMemberId);
+      if (prevUserId !== undefined && prevUserId !== userId) {
+        throw new ConflictException(DRAWING_ERRORS.ROOM_MEMBER_ID_DUPLICATED);
+      }
+
+      userIdByRoomMemberId.set(roomMemberId, userId);
     }
 
     const rows = await this.drawingRepository.findManyByMatchIdAndRound({ matchId, round });
@@ -188,38 +195,23 @@ export class DrawingService {
       return num;
     };
 
-    const rows: Array<{
-      matchId: number;
-      roomMemberId: number;
-      round: number;
-      data: Prisma.InputJsonValue;
-    }> = [];
+    const rows = await Promise.all(
+      activeUserIds.map(async (uid) => {
+        const roomMemberId = getRoomMemberId(uid);
+        const lines = await this.drawingStore.loadStrokes({ roomId, round, userId: uid });
 
-    for (const uid of activeUserIds) {
-      const roomMemberId = getRoomMemberId(uid);
-      const lines = await this.drawingStore.loadStrokes({ roomId, round, userId: uid });
+        const dataObj = { lines };
+        const dataJson = dataObj as unknown as Prisma.InputJsonValue;
 
-      const dataObj = { lines };
-      const dataJson = dataObj as unknown as Prisma.InputJsonValue;
-
-      rows.push({
-        matchId,
-        roomMemberId,
-        round,
-        data: dataJson,
-      });
-    }
+        return {
+          matchId,
+          roomMemberId,
+          round,
+          data: dataJson,
+        };
+      }),
+    );
 
     await this.drawingRepository.upsertManyDrawings(rows);
-  }
-
-  // DRAWING 단계/컨텍스트 검증
-  private assertDrawing(state: GameState) {
-    if (state.phase !== GamePhase.DRAWING) {
-      throw new ConflictException(DRAWING_ERRORS.NOT_IN_DRAWING_PHASE);
-    }
-    if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) {
-      throw new ConflictException(DRAWING_ERRORS.DRAWING_CONTEXT_MISSING);
-    }
   }
 }
