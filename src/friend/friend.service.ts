@@ -16,13 +16,12 @@ import {
 import type { IFriendRepository } from './interfaces/friend-repository.interface';
 import { BlockService } from 'src/block/block.service';
 import { UsersService } from 'src/user/user.service';
-import { Friend } from './friend.entity';
 import { FriendRelation, FriendResponseDto } from './dtos/responses/friend.response.dto';
-import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
-import { OutfitVO } from 'src/common/value-objects/outfit.vo';
-import { FriendshipData, UserProfile } from './types/friend.type';
-import { PresenceService } from 'src/presence/presence.service';
 import { SearchFriendResponseDto } from './dtos/responses/search-friend.response.dto';
+import { PresenceService } from 'src/presence/presence.service';
+import { UserProfile } from './types/friend.type';
+import { FriendMapper } from './entities/mappers/friend.mapper';
+import { Friend } from './entities/friend.entity';
 
 function parseSearchKeyword(keyword: string): { type: FriendSearchType; value: string } {
   const trimmed = keyword.trim();
@@ -39,6 +38,7 @@ function parseSearchKeyword(keyword: string): { type: FriendSearchType; value: s
 export class FriendService {
   constructor(
     @Inject('IFriendRepository') private readonly friendRepository: IFriendRepository,
+    private readonly friendMapper: FriendMapper,
     private readonly blockService: BlockService,
     private readonly userService: UsersService,
     private readonly presenceService: PresenceService,
@@ -62,23 +62,23 @@ export class FriendService {
     );
 
     const userMap = new Map(allUsers.map((u) => [u.id, u]));
-    const friends = this.mapFriendships(friendships, userId, userMap, blockedIds, onlineStatusMap);
+
+    const friends = this.friendMapper.mapFriendships(
+      friendships,
+      userId,
+      userMap,
+      blockedIds,
+      onlineStatusMap,
+    );
 
     const friendUserIds = new Set(friends.map((f) => f.userId));
-    blockedUserProfiles.forEach((blockedUser) => {
-      if (!friendUserIds.has(blockedUser.id)) {
-        friends.push({
-          userId: blockedUser.id,
-          nickname: blockedUser.nickname,
-          outfit: this.createOutfitDto(blockedUser.profile?.outfit),
-          level: blockedUser.profile?.level ?? 1,
-          isOnline: onlineStatusMap.get(blockedUser.id) ?? false,
-          relation: FriendRelation.BLOCKED,
-        });
-      }
-    });
+    const blockedDtos = blockedUserProfiles
+      .filter((u) => !friendUserIds.has(u.id))
+      .map((u) =>
+        this.friendMapper.createFriendResponseDto(u, FriendRelation.BLOCKED, onlineStatusMap),
+      );
 
-    return this.sortFriendList(friends);
+    return this.sortFriendList([...friends, ...blockedDtos]);
   }
 
   async getFriendship(userId: number, targetUserId: number): Promise<Friend | null> {
@@ -166,7 +166,8 @@ export class FriendService {
       return [];
     }
 
-    const results = await this.mapUsersToSearchDto(users);
+    const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
+    const results = this.friendMapper.mapUsersToSearchDto(users, onlineStatusMap);
     return this.sortByOnlineAndLevel(results);
   }
 
@@ -198,7 +199,18 @@ export class FriendService {
       return [];
     }
 
-    const results = await this.mapUsersWithRelation(filtered, friendships, userId, blockedIds);
+    const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(
+      filtered.map((u) => u.id),
+    );
+
+    const results = this.friendMapper.mapUsersWithRelation(
+      filtered,
+      friendships,
+      userId,
+      blockedIds,
+      onlineStatusMap,
+    );
+
     return this.sortByOnlineAndLevel(results);
   }
 
@@ -215,141 +227,13 @@ export class FriendService {
       return [];
     }
 
-    const results = await this.mapUsersToSearchDto(users);
+    const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
+    const results = this.friendMapper.mapUsersToSearchDto(users, onlineStatusMap);
     return this.sortByOnlineAndLevel(results);
   }
 
   async removeFriendshipIfExists(userId: number, targetUserId: number): Promise<void> {
     await this.friendRepository.deleteFriendshipIfExists(userId, targetUserId);
-  }
-
-  private createOutfitDto(rawOutfit: unknown): OutfitDto {
-    return new OutfitDto(OutfitVO.from(rawOutfit).get());
-  }
-
-  private async mapUsersWithRelation(
-    users: UserProfile[],
-    friendships: FriendshipData[],
-    userId: number,
-    blockedIds: Set<number> = new Set(),
-  ): Promise<FriendResponseDto[]> {
-    const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
-
-    const friendshipMap = new Map<number, FriendshipData>();
-    friendships.forEach((f) => {
-      const targetId = f.requesterId === userId ? f.receiverId : f.requesterId;
-      friendshipMap.set(targetId, f);
-    });
-
-    return users
-      .map((user) => {
-        if (!user.profile) {
-          return null;
-        }
-
-        const friendship = friendshipMap.get(user.id);
-
-        if (!friendship) {
-          if (blockedIds.has(user.id)) {
-            return new FriendResponseDto({
-              userId: user.id,
-              nickname: user.nickname,
-              outfit: this.createOutfitDto(user.profile.outfit),
-              level: user.profile.level ?? 1,
-              isOnline: onlineStatusMap.get(user.id) ?? false,
-              relation: FriendRelation.BLOCKED,
-            });
-          }
-          return null;
-        }
-
-        const relation = this.determineFriendRelation(friendship, userId, user.id, blockedIds);
-
-        if (!relation) {
-          return null;
-        }
-
-        return new FriendResponseDto({
-          userId: user.id,
-          nickname: user.nickname,
-          outfit: this.createOutfitDto(user.profile.outfit),
-          level: user.profile.level ?? 1,
-          isOnline: onlineStatusMap.get(user.id) ?? false,
-          relation: relation,
-        });
-      })
-      .filter((user): user is FriendResponseDto => user !== null);
-  }
-
-  private async mapUsersToSearchDto(users: UserProfile[]): Promise<SearchFriendResponseDto[]> {
-    const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
-
-    return users.map((user) => {
-      return new SearchFriendResponseDto({
-        userId: user.id,
-        nickname: user.nickname,
-        outfit: this.createOutfitDto(user.profile?.outfit),
-        level: user.profile?.level ?? 1,
-        isOnline: onlineStatusMap.get(user.id) ?? false,
-      });
-    });
-  }
-
-  private mapFriendships(
-    friendships: FriendshipData[],
-    userId: number,
-    userMap: Map<number, UserProfile>,
-    blockedIds: Set<number>,
-    onlineStatusMap: Map<number, boolean>,
-  ): FriendResponseDto[] {
-    return friendships
-      .map((f) => {
-        const targetId = f.requesterId === userId ? f.receiverId : f.requesterId;
-        const user = userMap.get(targetId);
-
-        if (!user || !user.profile) {
-          return null;
-        }
-
-        const relation = this.determineFriendRelation(f, userId, targetId, blockedIds);
-
-        if (!relation) {
-          return null;
-        }
-
-        return {
-          userId: user.id,
-          nickname: user.nickname,
-          outfit: this.createOutfitDto(user.profile.outfit),
-          level: user.profile.level,
-          isOnline: onlineStatusMap.get(user.id) ?? false,
-          relation,
-        };
-      })
-      .filter((v): v is FriendResponseDto => v !== null);
-  }
-
-  private determineFriendRelation(
-    friendship: FriendshipData,
-    userId: number,
-    targetId: number,
-    blockedIds: Set<number>,
-  ): FriendRelation | null {
-    if (blockedIds.has(targetId)) {
-      return FriendRelation.BLOCKED;
-    }
-
-    if (friendship.status === FriendStatus.ACCEPTED) {
-      return FriendRelation.FRIEND;
-    }
-
-    if (friendship.status === FriendStatus.PENDING) {
-      return friendship.requesterId === userId
-        ? FriendRelation.REQUEST_SENT
-        : FriendRelation.REQUEST_RECEIVED;
-    }
-
-    return null;
   }
 
   private sortFriendList(friends: FriendResponseDto[]): FriendResponseDto[] {
