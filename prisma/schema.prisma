@@ -249,11 +249,15 @@ model Vote {
 
 model GameItem {
   id          Int           @id @default(autoincrement())
+  code        String        @unique @db.VarChar(20)
   name        String        @db.VarChar(50)
   price       Int
   description String        @db.Text
-  effect      String        @db.VarChar(50)
+  effect      String        @db.Text
   imagePath   String?       @db.VarChar(255) @map("image_path")
+
+  durationMs Int @map("duration_ms")
+  cooldownMs Int @map("cooldown_ms")
 
   userItems   UserGameItem[]
 

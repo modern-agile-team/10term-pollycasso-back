@@ -15,6 +15,7 @@ import { GameStateModule } from './game-state/game-state.module';
 import { FriendModule } from './friend/friend.module';
 import { BlockModule } from './block/block.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ItemModule } from './item/item.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     GameModule,
     FriendModule,
     BlockModule,
+    ItemModule,
   ],
   controllers: [AppController],
   providers: [AppService],

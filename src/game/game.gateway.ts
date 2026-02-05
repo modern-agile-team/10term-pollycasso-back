@@ -65,6 +65,10 @@ export class GameGateway implements IGameEventPublisher {
         isHost: false,
       };
 
+      client.data = data;
+
+      await client.join(`user:${userId}`);
+
       const roomId = await this.waitingState.getCurrentRoom(userId);
 
       if (roomId) {
@@ -75,8 +79,6 @@ export class GameGateway implements IGameEventPublisher {
 
         await client.join(`game:room:${roomId}`);
       }
-
-      client.data = data;
 
       this.logger.log(
         `Connected userId=${userId}, roomId=${data.roomId ?? 'none'}, host=${data.isHost}`,

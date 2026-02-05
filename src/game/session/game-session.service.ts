@@ -8,6 +8,7 @@ import { GameSessionEntity } from '../entities/game-session.entity';
 import { RANDOM_THEMES } from '../topic/constants/topic.constant';
 import { GAME_ERRORS, GAME_EVENTS } from '../constants/game.constant';
 import {
+  DrawingContext,
   EvaluatingContext,
   GAME_STATE_STORE,
   GamePhase,
@@ -94,6 +95,14 @@ export class GameSessionService {
     const nextState = entity.state;
     await this.gameStateStore.set(roomId, nextState);
 
+    const roundId = entity.currentPhaseInstanceId;
+
+    await this.drawingService.startDrawing({
+      gameId: roomId.toString(),
+      roundId: roundId,
+      participantUserIds: activeUserIds,
+    });
+
     this.eventPublisher.emitThemeConfirmed(roomId, entity.getConfirmedTheme());
     this.eventPublisher.broadcastGameState(roomId, nextState);
 
@@ -122,13 +131,19 @@ export class GameSessionService {
     if (!state || state.phase !== GamePhase.DRAWING) return;
     if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) return;
 
-    const drawingCtx = state.phaseContext;
+    const entity = GameSessionEntity.restore(state);
+    const roundId = entity.currentPhaseInstanceId;
 
-    if (expectedPhaseInstanceId && drawingCtx.phaseInstanceId !== expectedPhaseInstanceId) {
+    if (expectedPhaseInstanceId && roundId !== expectedPhaseInstanceId) {
       return;
     }
 
     const round = state.currentRound ?? 1;
+
+    await this.drawingService.endDrawing({
+      gameId: roomId.toString(),
+      roundId: roundId,
+    });
 
     await this.drawingService.forceCommitForEvaluating({ roomId, round, state });
 
@@ -176,6 +191,22 @@ export class GameSessionService {
 
       socket.emit('game:startEvaluation', { drawings });
     }
+  }
+
+  async getDrawingPhaseKeyOrThrow(roomId: number): Promise<string> {
+    const state = await this.gameStateStore.get(roomId);
+    if (!state) {
+      throw new Error(GAME_ERRORS.CONTEXT_INVALID);
+    }
+
+    const entity = GameSessionEntity.restore(state);
+
+    if (state.phase !== GamePhase.DRAWING) {
+      throw new Error(GAME_ERRORS.CONTEXT_INVALID);
+    }
+
+    const roundId = entity.currentPhaseInstanceId;
+    return `${roomId}:${roundId}`;
   }
 
   // Room Name 생성
