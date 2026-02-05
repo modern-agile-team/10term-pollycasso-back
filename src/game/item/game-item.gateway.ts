@@ -62,12 +62,11 @@ export class GameItemGateway {
         itemId,
       });
 
-      this.server.to(String(attackerUserId)).emit('game:itemNotification', result.notification);
-      this.server.to(String(targetUserId)).emit('game:itemNotification', result.notification);
-      this.server.to(String(targetUserId)).emit('game:applyEffect', result.applyEffect);
-      this.server.to(String(attackerUserId)).emit('game:inventoryUpdate', result.inventoryUpdate);
+      this.server.to(`game:room:${roomId}`).emit('game:itemNotification', result.notification);
+      this.server.to(`user:${targetUserId}`).emit('game:applyEffect', result.applyEffect);
+      this.server.to(`user:${attackerUserId}`).emit('game:inventoryUpdate', result.inventoryUpdate);
     } catch (e) {
-      this.server.to(String(attackerUserId)).emit('system:notification', e);
+      this.server.to(`user:${attackerUserId}`).emit('system:notification', e);
     }
   }
 }
