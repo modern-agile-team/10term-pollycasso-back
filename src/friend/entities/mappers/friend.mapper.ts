@@ -16,6 +16,7 @@ export class FriendMapper {
     return new FriendResponseDto({
       userId: user.id,
       nickname: user.nickname,
+      tag: user.tag,
       outfit: this.createOutfitDto(user.profile?.outfit),
       level: user.profile?.level ?? 1,
       isOnline: onlineStatusMap.get(user.id) ?? false,
@@ -30,6 +31,7 @@ export class FriendMapper {
     return new SearchFriendResponseDto({
       userId: user.id,
       nickname: user.nickname,
+      tag: user.tag,
       outfit: this.createOutfitDto(user.profile?.outfit),
       level: user.profile?.level ?? 1,
       isOnline: onlineStatusMap.get(user.id) ?? false,
