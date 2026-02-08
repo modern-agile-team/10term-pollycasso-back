@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ItemInventoryService } from '../../item/services/item-inventory.service';
 import { ItemSpecCacheService } from '../../item/services/item-spec-cache.service';
 import { CooldownStore } from './stores/cooldown.store';
@@ -6,7 +6,7 @@ import { GameInventoryStore } from './stores/game-inventory.store';
 import { UseItemResult, GameItemSpec } from './interfaces/game-item.interface';
 import { GameItemUsage } from './domain/game-item-usage.domain';
 import { WaitingStore } from 'src/waiting/waiting.store';
-import { ITEM_ERRORS } from './constant/game-item.constant';
+import { ITEM_ERROR_CODES } from './constant/game-item.constant';
 
 @Injectable()
 export class GameItemService {
@@ -35,7 +35,7 @@ export class GameItemService {
     const targetNickname = await this.waitingStore.getNickname(params.roomId, params.targetUserId);
 
     if (!targetNickname) {
-      throw { ...ITEM_ERRORS.TARGET_NOT_IN_ROOM };
+      throw new BadRequestException({ code: ITEM_ERROR_CODES.TARGET_NOT_IN_ROOM });
     }
 
     return this.useItem({

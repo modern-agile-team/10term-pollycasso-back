@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserGameItemRepository {
@@ -12,7 +13,12 @@ export class UserGameItemRepository {
     });
   }
 
-  async decrementQuantityTx(tx: any, userId: number, gameItemId: number, used: number) {
+  async decrementQuantityTx(
+    tx: Prisma.TransactionClient,
+    userId: number,
+    gameItemId: number,
+    used: number,
+  ) {
     const current = await tx.userGameItem.findUnique({
       where: { userId_gameItemId: { userId, gameItemId } },
       select: { quantity: true },

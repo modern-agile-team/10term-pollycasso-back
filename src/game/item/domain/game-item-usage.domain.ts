@@ -1,5 +1,6 @@
-import { ITEM_ERRORS } from '../constant/game-item.constant';
+import { ITEM_DOMAIN_ERRORS, ITEM_ERROR_CODES } from '../constant/game-item.constant';
 import { GameItemSpec, UseItemResult } from '../interfaces/game-item.interface';
+import { ConflictException, HttpException, HttpStatus } from '@nestjs/common';
 
 export class GameItemUsage {
   static decide(params: {
@@ -28,9 +29,17 @@ export class GameItemUsage {
       spec,
     } = params;
 
-    if (remaining <= 0) throw { ...ITEM_ERRORS.NOT_ENOUGH };
-    if (cooldownEndsAt > now) throw { ...ITEM_ERRORS.COOLDOWN_REMAINING };
-    if (!spec) throw { ...ITEM_ERRORS.NOT_ENOUGH };
+    if (remaining <= 0) throw new ConflictException({ code: ITEM_ERROR_CODES.NOT_ENOUGH });
+    if (cooldownEndsAt > now) {
+      throw new HttpException(
+        {
+          code: ITEM_ERROR_CODES.COOLDOWN_REMAINING,
+          errors: [ITEM_DOMAIN_ERRORS.COOLDOWN_REMAINING],
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    if (!spec) throw new ConflictException({ code: ITEM_ERROR_CODES.SPEC_NOT_FOUND });
 
     const newRemaining = remaining - 1;
     const newCooldownEndsAt = now + spec.cooldownMs;

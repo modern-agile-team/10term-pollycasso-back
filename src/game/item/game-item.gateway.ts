@@ -10,8 +10,12 @@ import { GameItemService } from './game-item.service';
 import { UseItemDto } from './dto/requests/use-Item.dto';
 import { GameSessionService } from '../session/game-session.service';
 import type { GameSocket } from '../interfaces/gameSocket.interface';
-import { ITEM_ERRORS } from './constant/game-item.constant';
+import { ITEM_ERROR_CODES } from './constant/game-item.constant';
+import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
+import { UseFilters } from '@nestjs/common';
+import { wsError } from 'src/common/utils/ws-error.util';
 
+@UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
   cors: {
     origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [],
@@ -45,27 +49,20 @@ export class GameItemGateway {
     try {
       phaseKey = await this.gameSessionService.getDrawingPhaseKeyOrThrow(roomId);
     } catch {
-      this.server
-        .to(`user:${attackerUserId}`)
-        .emit('system:notification', { ...ITEM_ERRORS.NOT_ALLOWED_PHASE });
-      return;
+      throw wsError(409, ITEM_ERROR_CODES.NOT_ALLOWED_PHASE);
     }
 
-    try {
-      const result = await this.gameItemService.useItemInRoom({
-        roomId,
-        phaseKey,
-        attackerUserId,
-        attackerNickname,
-        targetUserId,
-        itemId,
-      });
+    const result = await this.gameItemService.useItemInRoom({
+      roomId,
+      phaseKey,
+      attackerUserId,
+      attackerNickname,
+      targetUserId,
+      itemId,
+    });
 
-      this.server.to(`game:room:${roomId}`).emit('game:itemNotification', result.notification);
-      this.server.to(`user:${targetUserId}`).emit('game:applyEffect', result.applyEffect);
-      this.server.to(`user:${attackerUserId}`).emit('game:inventoryUpdate', result.inventoryUpdate);
-    } catch (e) {
-      this.server.to(`user:${attackerUserId}`).emit('system:notification', e);
-    }
+    this.server.to(`game:room:${roomId}`).emit('game:itemNotification', result.notification);
+    this.server.to(`user:${targetUserId}`).emit('game:applyEffect', result.applyEffect);
+    this.server.to(`user:${attackerUserId}`).emit('game:inventoryUpdate', result.inventoryUpdate);
   }
 }

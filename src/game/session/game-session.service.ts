@@ -8,7 +8,6 @@ import { GameSessionEntity } from '../entities/game-session.entity';
 import { RANDOM_THEMES } from '../topic/constants/topic.constant';
 import { GAME_ERRORS, GAME_EVENTS } from '../constants/game.constant';
 import {
-  DrawingContext,
   EvaluatingContext,
   GAME_STATE_STORE,
   GamePhase,
@@ -17,6 +16,7 @@ import {
 import type { DrawData } from '../drawing/interface/drawing.interface';
 import { DrawingService } from '../drawing/drawing.service';
 import { GameSocketData } from '../interfaces/gameSocket.interface';
+import { wsError } from 'src/common/utils/ws-error.util';
 
 type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
@@ -73,7 +73,9 @@ export class GameSessionService {
   // 주제 확정 및 DRAWING 시작
   async startDrawingPhase(roomId: number, userId: number, typedValue: string, server: Server) {
     const state = await this.gameStateStore.get(roomId);
-    if (!state) return null;
+    if (!state) {
+      throw wsError(404, GAME_ERRORS.CONTEXT_INVALID);
+    }
 
     this.clearTimer(roomId);
 
@@ -196,13 +198,13 @@ export class GameSessionService {
   async getDrawingPhaseKeyOrThrow(roomId: number): Promise<string> {
     const state = await this.gameStateStore.get(roomId);
     if (!state) {
-      throw new Error(GAME_ERRORS.CONTEXT_INVALID);
+      throw wsError(400, GAME_ERRORS.CONTEXT_INVALID);
     }
 
     const entity = GameSessionEntity.restore(state);
 
     if (state.phase !== GamePhase.DRAWING) {
-      throw new Error(GAME_ERRORS.CONTEXT_INVALID);
+      throw wsError(400, GAME_ERRORS.CONTEXT_INVALID);
     }
 
     const roundId = entity.currentPhaseInstanceId;

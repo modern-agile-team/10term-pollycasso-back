@@ -1,22 +1,18 @@
-export const ITEM_ERRORS = {
-  NOT_ENOUGH: {
-    status: 409,
-    code: 'ITEM_NOT_ENOUGH',
-    errors: [{ field: 'itemId', reason: ['아이템이 부족합니다.'] }],
-  },
+export const ITEM_ERROR_CODES = {
+  NOT_ENOUGH: 'ITEM_NOT_ENOUGH',
+  COOLDOWN_REMAINING: 'ITEM_COOLDOWN_REMAINING',
+  NOT_ALLOWED_PHASE: 'ITEM_NOT_ALLOWED_PHASE',
+  SPEC_NOT_FOUND: 'ITEM_SPEC_NOT_FOUND',
+  TARGET_NOT_IN_ROOM: 'ITEM_TARGET_NOT_IN_ROOM',
+} as const;
+
+export const ITEM_DOMAIN_ERRORS = {
   COOLDOWN_REMAINING: {
-    status: 429,
-    code: 'ITEM_COOLDOWN_REMAINING',
-    errors: [{ field: 'cooldown', reason: ['쿨타임이 남았습니다'] }],
+    field: 'cooldown',
+    reason: 'Cooldown time is still remaining.',
   },
   NOT_ALLOWED_PHASE: {
-    status: 403,
-    code: 'ITEM_NOT_ALLOWED_PHASE',
-    errors: [{ field: 'phase', reason: ['현재 단계에서는 아이템을 사용할 수 없습니다.'] }],
-  },
-  TARGET_NOT_IN_ROOM: {
-    status: 403,
-    code: 'ITEM_TARGET_NOT_IN_ROOM',
-    errors: [{ field: 'targetUserId', reason: ['대상이 현재 방에 없습니다.'] }],
+    field: 'phase',
+    reason: 'You cannot use an item in the current phase.',
   },
 } as const;
