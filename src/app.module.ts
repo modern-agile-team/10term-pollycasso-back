@@ -15,11 +15,8 @@ import { GameStateModule } from './game-state/game-state.module';
 import { FriendModule } from './friend/friend.module';
 import { BlockModule } from './block/block.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-<<<<<<< HEAD
 import { ShopModule } from './shop/shop.module';
-=======
 import { ItemModule } from './item/item.module';
->>>>>>> d68f187b002f204f6df18964a40cb085db3cb0b8
 
 @Module({
   imports: [
@@ -39,11 +36,8 @@ import { ItemModule } from './item/item.module';
     GameModule,
     FriendModule,
     BlockModule,
-<<<<<<< HEAD
     ShopModule,
-=======
     ItemModule,
->>>>>>> d68f187b002f204f6df18964a40cb085db3cb0b8
   ],
   controllers: [AppController],
   providers: [AppService],
