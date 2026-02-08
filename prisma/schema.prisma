@@ -52,6 +52,16 @@ enum FriendStatus {
   ACCEPTED
 }
 
+enum CosmeticSubCategory {
+  BIRD
+  ACC
+  HAT
+  TOP
+  BOTTOM
+  SHOES
+  EFFECT
+}
+
 model User {
   id             Int       @id @default(autoincrement())
   username       String?   @unique @db.VarChar(20)
@@ -66,11 +76,12 @@ model User {
   profile                UserProfile?
   stats                  UserStats?
   roomMembers            RoomMember[]
+  cosmeticItems          UserCosmeticItem[]
   votes                  Vote[]
-  sentFriendRequests     Friend[]     @relation("FriendRequester")
-  receivedFriendRequests Friend[]     @relation("FriendReceiver")
-  blockingUsers          BlockList[]  @relation("BlockedBy")
-  blockedByUsers         BlockList[]  @relation("Blocking")
+  sentFriendRequests     Friend[]           @relation("FriendRequester")
+  receivedFriendRequests Friend[]           @relation("FriendReceiver")
+  blockingUsers          BlockList[]        @relation("BlockedBy")
+  blockedByUsers         BlockList[]        @relation("Blocking")
 
   @@unique([provider, providerId])
   @@unique([nickname, tag])
@@ -243,4 +254,33 @@ model Vote {
   @@unique([drawingId, voterId])
   @@index([rating])
   @@map("votes")
+}
+
+model CosmeticItem {
+  id          Int                 @id @default(autoincrement())
+  name        String              @db.VarChar(50)
+  price       Int
+  description String              @db.Text
+  subCategory CosmeticSubCategory @map("sub_category")
+  level       Int
+  imagePath   String              @map("image_path") @db.VarChar(255)
+
+  userItems UserCosmeticItem[]
+
+  @@index([subCategory])
+  @@index([level])
+  @@map("cosmetic_items")
+}
+
+model UserCosmeticItem {
+  id             Int                  @id @default(autoincrement())
+  userId         Int                  @map("user_id")
+  cosmeticItemId Int                  @map("cosmetic_item_id")
+  equipSlot      CosmeticSubCategory? @map("equip_slot")
+
+  user         User         @relation(fields: [userId], references: [id])
+  cosmeticItem CosmeticItem @relation(fields: [cosmeticItemId], references: [id])
+
+  @@unique([userId, cosmeticItemId])
+  @@unique([userId, equipSlot])
 }
