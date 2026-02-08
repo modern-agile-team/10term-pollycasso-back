@@ -208,4 +208,10 @@ export class WaitingStore {
     pipeline.hset(this.getPlayerKey(roomId, nextHost.userId), 'isReady', '1');
     await pipeline.exec();
   }
+
+  async getNickname(roomId: number, userId: number): Promise<string | null> {
+    const key = this.getPlayerKey(roomId, userId);
+    const nickname = await this.redis.hget(key, 'nickname');
+    return nickname ?? null;
+  }
 }

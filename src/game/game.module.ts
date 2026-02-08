@@ -7,15 +7,25 @@ import { JwtModule } from '@nestjs/jwt';
 import { GAME_EVENT_PUBLISHER } from './interfaces/game-event-publisher.interfaces';
 import { GameSessionService } from './session/game-session.service';
 import { WaitingModule } from 'src/waiting/waiting.module';
+import { DrawingGateway } from './drawing/drawing.gateway';
 import { GameStateStore } from 'src/game-state/game-state.store';
 import { RedisModule } from 'src/redis/redis.module';
 import { GAME_STATE_STORE } from 'src/game-state/interfaces/game-state.interface';
+import { DrawingService } from './drawing/drawing.service';
+import { DrawingRepository } from './drawing/drawing.repository';
+import { DrawingStore } from './drawing/drawing.store';
+import { GameInventoryStore } from './item/stores/game-inventory.store';
+import { CooldownStore } from './item/stores/cooldown.store';
+import { GameItemService } from './item/game-item.service';
+import { GameItemGateway } from './item/game-item.gateway';
+import { ItemModule } from 'src/item/item.module';
 
 @Module({
   imports: [
     WaitingModule,
     ChatModule,
     RedisModule,
+    ItemModule,
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRATION },
@@ -27,8 +37,16 @@ import { GAME_STATE_STORE } from 'src/game-state/interfaces/game-state.interface
     TopicGateway,
     TopicService,
     GameSessionService,
+    DrawingService,
     { provide: GAME_STATE_STORE, useClass: GameStateStore },
     { provide: GAME_EVENT_PUBLISHER, useExisting: GameGateway },
+    DrawingGateway,
+    DrawingStore,
+    DrawingRepository,
+    GameItemGateway,
+    GameItemService,
+    CooldownStore,
+    GameInventoryStore,
   ],
   exports: [],
 })

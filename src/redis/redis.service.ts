@@ -25,4 +25,16 @@ export class RedisService {
   async del(key: string) {
     return this.client.del(key);
   }
+
+  async rpush(key: string, value: string) {
+    return this.client.rpush(key, value);
+  }
+
+  async lrange(key: string, start: number, stop: number) {
+    return this.client.lrange(key, start, stop);
+  }
+
+  async expire(key: string, ttlSeconds: number) {
+    return this.client.expire(key, ttlSeconds);
+  }
 }

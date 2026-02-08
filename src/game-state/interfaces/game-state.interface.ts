@@ -15,13 +15,19 @@ export interface ThemeSelectPhaseContext {
   selectorId: number;
   selectorNickname?: string;
 }
+export interface DrawingContext {
+  kind: GamePhase.DRAWING;
+  activeUserIds: number[];
+  readyUserIds: number[];
+  phaseInstanceId?: string;
+}
 
 export interface EvaluatingContext {
   kind: GamePhase.EVALUATING;
-  votes: Record<number, number>;
+  votes: Record<string, number>;
 }
 
-export type PhaseContext = ThemeSelectPhaseContext | EvaluatingContext | null;
+export type PhaseContext = ThemeSelectPhaseContext | DrawingContext | EvaluatingContext | null;
 
 export interface GameState {
   phase: GamePhase;
