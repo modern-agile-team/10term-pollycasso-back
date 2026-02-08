@@ -283,4 +283,5 @@ model UserCosmeticItem {
 
   @@unique([userId, cosmeticItemId])
   @@unique([userId, equipSlot])
+  @@map("user_cosmetic_items")
 }
