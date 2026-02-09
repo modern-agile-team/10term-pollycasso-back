@@ -10,6 +10,7 @@ export enum FriendRelation {
 export class FriendResponseDto {
   userId: number;
   nickname: string;
+  tag: string;
   outfit: OutfitDto;
   level: number;
   isOnline: boolean;
@@ -18,6 +19,7 @@ export class FriendResponseDto {
   constructor(data: {
     userId: number;
     nickname: string;
+    tag: string;
     outfit: OutfitDto;
     level: number;
     isOnline: boolean;
@@ -25,6 +27,7 @@ export class FriendResponseDto {
   }) {
     this.userId = data.userId;
     this.nickname = data.nickname;
+    this.tag = data.tag;
     this.outfit = data.outfit;
     this.level = data.level;
     this.isOnline = data.isOnline;
