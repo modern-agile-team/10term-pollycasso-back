@@ -15,6 +15,7 @@ import { GameStateModule } from './game-state/game-state.module';
 import { FriendModule } from './friend/friend.module';
 import { BlockModule } from './block/block.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ShopModule } from './shop/shop.module';
 import { ItemModule } from './item/item.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { ItemModule } from './item/item.module';
     GameModule,
     FriendModule,
     BlockModule,
+    ShopModule,
     ItemModule,
   ],
   controllers: [AppController],

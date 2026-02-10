@@ -52,6 +52,16 @@ enum FriendStatus {
   ACCEPTED
 }
 
+enum CosmeticSubCategory {
+  BIRD
+  ACC
+  HAT
+  TOP
+  BOTTOM
+  SHOES
+  EFFECT
+}
+
 model User {
   id             Int       @id @default(autoincrement())
   username       String?   @unique @db.VarChar(20)
@@ -63,15 +73,16 @@ model User {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  profile     UserProfile?
-  stats       UserStats?
-  roomMembers RoomMember[]
-  gameItems UserGameItem[]
-  votes       Vote[]
-  blockingUsers   BlockList[]  @relation("BlockedBy")
-  blockedByUsers  BlockList[]  @relation("Blocking")
-  sentFriendRequests     Friend[]     @relation("FriendRequester")
-  receivedFriendRequests Friend[]     @relation("FriendReceiver")
+  profile                UserProfile?
+  stats                  UserStats?
+  roomMembers            RoomMember[]
+  cosmeticItems          UserCosmeticItem[]
+  gameItems              UserGameItem[]
+  votes                  Vote[]
+  sentFriendRequests     Friend[]           @relation("FriendRequester")
+  receivedFriendRequests Friend[]           @relation("FriendReceiver")
+  blockingUsers          BlockList[]        @relation("BlockedBy")
+  blockedByUsers         BlockList[]        @relation("Blocking")
 
   @@unique([provider, providerId])
   @@unique([nickname, tag])
@@ -218,11 +229,11 @@ model MatchResult {
 }
 
 model Drawing {
-  id           Int    @id @default(autoincrement())
-  matchId      Int    @map("match_id")
-  roomMemberId Int   @map("room_member_id")
+  id           Int  @id @default(autoincrement())
+  matchId      Int  @map("match_id")
+  roomMemberId Int  @map("room_member_id")
   data         Json @map("data")
-  round        Int        @map("round")
+  round        Int  @map("round")
 
   match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
   roomMember RoomMember @relation(fields: [roomMemberId], references: [id], onDelete: Restrict)
@@ -247,31 +258,60 @@ model Vote {
   @@map("votes")
 }
 
-model GameItem {
-  id          Int           @id @default(autoincrement())
-  code        String        @unique @db.VarChar(20)
-  name        String        @db.VarChar(50)
+model CosmeticItem {
+  id          Int                 @id @default(autoincrement())
+  name        String              @db.VarChar(50)
   price       Int
-  description String        @db.Text
-  effect      String        @db.Text
-  imagePath   String?       @db.VarChar(255) @map("image_path")
+  description String              @db.Text
+  subCategory CosmeticSubCategory @map("sub_category")
+  level       Int
+  imagePath   String              @map("image_path") @db.VarChar(255)
 
-  durationMs Int @map("duration_ms")
-  cooldownMs Int @map("cooldown_ms")
+  userItems UserCosmeticItem[]
 
-  userItems   UserGameItem[]
+  @@index([subCategory])
+  @@index([level])
+  @@map("cosmetic_items")
+}
+
+model UserCosmeticItem {
+  id             Int                  @id @default(autoincrement())
+  userId         Int                  @map("user_id")
+  cosmeticItemId Int                  @map("cosmetic_item_id")
+  equipSlot      CosmeticSubCategory? @map("equip_slot")
+
+  user         User         @relation(fields: [userId], references: [id])
+  cosmeticItem CosmeticItem @relation(fields: [cosmeticItemId], references: [id])
+
+  @@unique([userId, cosmeticItemId])
+  @@unique([userId, equipSlot])
+  @@map("user_cosmetic_items")
+}
+
+model GameItem {
+  id          Int     @id @default(autoincrement())
+  code        String  @unique @db.VarChar(20)
+  name        String  @db.VarChar(50)
+  price       Int
+  description String  @db.Text
+  effect      String  @db.Text
+  imagePath   String? @map("image_path") @db.VarChar(255)
+  durationMs  Int     @map("duration_ms")
+  cooldownMs  Int     @map("cooldown_ms")
+
+  userItems UserGameItem[]
 
   @@map("game_items")
 }
 
 model UserGameItem {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @map("user_id")
-  gameItemId Int      @map("game_item_id")
-  quantity   Int      @default(1)
+  id         Int @id @default(autoincrement())
+  userId     Int @map("user_id")
+  gameItemId Int @map("game_item_id")
+  quantity   Int @default(1)
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gameItem   GameItem @relation(fields: [gameItemId], references: [id])
+  gameItem GameItem @relation(fields: [gameItemId], references: [id])
 
   @@unique([userId, gameItemId])
   @@map("user_game_items")
