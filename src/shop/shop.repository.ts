@@ -13,9 +13,13 @@ export class ShopRepository implements IShopRepository {
     });
   }
 
-  async findItemsByIds(ids: number[]): Promise<CosmeticItem[]> {
+  async findItemsByIds(ids: Set<number>): Promise<CosmeticItem[]> {
+    if (ids.size === 0) {
+      return [];
+    }
+
     return this.prisma.cosmeticItem.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: Array.from(ids) } },
     });
   }
 
@@ -52,11 +56,9 @@ export class ShopRepository implements IShopRepository {
     };
   }
 
-  async purchaseItems(
-    userId: number,
-    items: Pick<CosmeticItem, 'id' | 'price'>[],
-    totalPrice: number,
-  ): Promise<void> {
+  async purchaseItems(userId: number, items: CosmeticItem[]): Promise<void> {
+    const totalPrice = items.reduce((sum, item) => sum + item.price, 0);
+
     await this.prisma.$transaction(async (tx) => {
       await tx.userProfile.update({
         where: { userId },

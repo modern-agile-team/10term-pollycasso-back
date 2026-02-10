@@ -1,17 +1,16 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { SHOP_DOMAIN_ERRORS, SHOP_ERROR_CODES } from './constants/shop.constant';
 import type { IShopRepository } from './interfaces/shop-repository.interface';
 import { ShopItemsResponseDto } from './dtos/responses/shop-items.response.dto';
 import { ShopItemResponseDto } from './dtos/responses/shop-item.response.dto';
 import { InventoryIdsResponseDto } from './dtos/responses/inventory-ids.response.dto';
 import { PurchaseResultResponseDto } from './dtos/responses/purchase-result.response.dto';
+import { SHOP_DOMAIN_ERRORS, SHOP_ERROR_CODES } from './constants/shop.constant';
 
 @Injectable()
 export class ShopService {
@@ -26,8 +25,10 @@ export class ShopService {
       this.shopRepository.findOwnedItemIds(userId),
     ]);
 
+    const ownedIdsSet = new Set(ownedIds);
+
     return new ShopItemsResponseDto(
-      items.map((item) => new ShopItemResponseDto(item, ownedIds.includes(item.id))),
+      items.map((item) => new ShopItemResponseDto(item, ownedIdsSet.has(item.id))),
     );
   }
 
@@ -37,23 +38,25 @@ export class ShopService {
   }
 
   async purchaseItems(userId: number, itemIds: number[]): Promise<PurchaseResultResponseDto> {
-    if (!itemIds.length) {
-      throw new BadRequestException();
-    }
+    const requestedItemIdSet = new Set(itemIds);
 
     const user = await this.shopRepository.findUserWithProfile(userId);
     if (!user) {
       throw new NotFoundException();
     }
 
-    const items = await this.shopRepository.findItemsByIds(itemIds);
-    if (items.length !== itemIds.length) {
-      throw new NotFoundException({ code: SHOP_ERROR_CODES.ITEM_NOT_FOUND });
+    const items = await this.shopRepository.findItemsByIds(requestedItemIdSet);
+
+    if (items.length !== requestedItemIdSet.size) {
+      throw new NotFoundException({
+        code: SHOP_ERROR_CODES.ITEM_NOT_FOUND,
+      });
     }
 
     const ownedIds = await this.shopRepository.findOwnedItemIds(userId);
-    const alreadyOwned = itemIds.find((id) => ownedIds.includes(id));
-    if (alreadyOwned) {
+    const ownedItemIdSet = new Set(ownedIds);
+
+    if ([...requestedItemIdSet].some((id) => ownedItemIdSet.has(id))) {
       throw new ConflictException({
         code: SHOP_ERROR_CODES.ALREADY_OWNED_ITEM,
         errors: [SHOP_DOMAIN_ERRORS.ALREADY_OWNED_ITEM],
@@ -69,6 +72,7 @@ export class ShopService {
     }
 
     const totalPrice = items.reduce((sum, item) => sum + item.price, 0);
+
     if (user.coins < totalPrice) {
       throw new ForbiddenException({
         code: SHOP_ERROR_CODES.INSUFFICIENT_BALANCE,
@@ -76,13 +80,11 @@ export class ShopService {
       });
     }
 
-    await this.shopRepository.purchaseItems(userId, items, totalPrice);
-
-    const updatedUser = await this.shopRepository.findUserWithProfile(userId);
+    await this.shopRepository.purchaseItems(userId, items);
 
     return new PurchaseResultResponseDto({
-      purchasedItemIds: itemIds,
-      remainingCoin: updatedUser!.coins,
+      purchasedItemIds: [...requestedItemIdSet],
+      remainingCoin: user.coins - totalPrice,
     });
   }
 }

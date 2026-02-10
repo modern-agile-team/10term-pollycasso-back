@@ -18,4 +18,4 @@ export const SHOP_DOMAIN_ERRORS = {
     field: 'itemId',
     reason: 'You already own this item',
   },
-};
+} as const;
