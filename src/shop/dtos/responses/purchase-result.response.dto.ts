@@ -1,11 +1,15 @@
 export class PurchaseResultResponseDto {
-  isSuccess: boolean;
-  purchasedItemIds: number[];
+  purchasedCosmeticItemIds: number[];
+  purchasedGameItemIds: number[];
   remainingCoin: number;
 
-  constructor(payload: { purchasedItemIds: number[]; remainingCoin: number }) {
-    this.isSuccess = true;
-    this.purchasedItemIds = payload.purchasedItemIds;
-    this.remainingCoin = payload.remainingCoin;
+  constructor(params: {
+    purchasedCosmeticItemIds: number[];
+    purchasedGameItemIds: number[];
+    remainingCoin: number;
+  }) {
+    this.purchasedCosmeticItemIds = params.purchasedCosmeticItemIds;
+    this.purchasedGameItemIds = params.purchasedGameItemIds;
+    this.remainingCoin = params.remainingCoin;
   }
 }

@@ -3,9 +3,10 @@ export const SHOP_ERROR_CODES = {
   INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
   LEVEL_TOO_LOW: 'LEVEL_TOO_LOW',
   ALREADY_OWNED_ITEM: 'ALREADY_OWNED_ITEM',
+  EMPTY_PURCHASE_REQUEST: 'EMPTY_PURCHASE_REQUEST',
 } as const;
 
-export const SHOP_DOMAIN_ERRORS = {
+export const SHOP_DOMAIN_ERRORS: Record<string, { field: string; reason: string }> = {
   INSUFFICIENT_BALANCE: {
     field: 'coins',
     reason: 'You do not have enough coins to purchase this item',
@@ -16,6 +17,6 @@ export const SHOP_DOMAIN_ERRORS = {
   },
   ALREADY_OWNED_ITEM: {
     field: 'itemId',
-    reason: 'You already own this item',
+    reason: 'This cosmetic item is already owned',
   },
 } as const;
