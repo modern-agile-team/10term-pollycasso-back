@@ -20,14 +20,14 @@ export class PurchaseGameItemDto {
 export class PurchaseItemsRequestDto {
   @IsOptional()
   @IsArray()
-  @ArrayUnique()
+  @ArrayUnique((o: PurchaseCosmeticItemDto) => o.itemId)
   @ValidateNested({ each: true })
   @Type(() => PurchaseCosmeticItemDto)
   cosmeticItems?: PurchaseCosmeticItemDto[];
 
   @IsOptional()
   @IsArray()
-  @ArrayUnique()
+  @ArrayUnique((o: PurchaseGameItemDto) => o.itemId)
   @ValidateNested({ each: true })
   @Type(() => PurchaseGameItemDto)
   gameItems?: PurchaseGameItemDto[];
