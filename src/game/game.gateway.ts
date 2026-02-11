@@ -7,15 +7,17 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { IGameEventPublisher } from './interfaces/game-event-publisher.interfaces';
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
 import { wsError } from 'src/common/utils/ws-error.util';
-import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Logger, UseFilters, UsePipes, ValidationPipe } from '@nestjs/common';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { WAITING_ERROR_CODES } from 'src/waiting/constants/waiting.constant';
 import { WaitingStore } from 'src/waiting/waiting.store';
 import { GameJoinDto } from './dto/requests/game-join.dto';
 import { GAME_ERRORS, GAME_EVENTS } from './constants/game.constant';
+import type { GameSocket } from './interfaces/gameSocket.interface';
+import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 
 @UsePipes(
   new ValidationPipe({
@@ -34,6 +36,7 @@ import { GAME_ERRORS, GAME_EVENTS } from './constants/game.constant';
     },
   }),
 )
+@UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
   cors: {
     origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [],
@@ -50,7 +53,7 @@ export class GameGateway implements IGameEventPublisher, OnGatewayConnection {
     private readonly jwtService: JwtService,
   ) {}
 
-  async handleConnection(client: Socket) {
+  async handleConnection(client: GameSocket) {
     const auth = client.handshake.auth ?? {};
     const headers = client.handshake.headers;
 
@@ -70,7 +73,7 @@ export class GameGateway implements IGameEventPublisher, OnGatewayConnection {
       client.data = {
         userId,
         nickname: payload.nickname,
-        roomId: null as number | null,
+        roomId: null,
         isHost: false,
       };
 
@@ -84,13 +87,13 @@ export class GameGateway implements IGameEventPublisher, OnGatewayConnection {
       this.logger.log(
         `Connected userId=${userId}, roomId=${client.data.roomId ?? 'none'}, host=${client.data.isHost}`,
       );
-    } catch (e) {
+    } catch {
       client.disconnect();
     }
   }
 
   @SubscribeMessage('game:join')
-  async onGameJoin(@ConnectedSocket() client: Socket, @MessageBody() body: GameJoinDto) {
+  async onGameJoin(@ConnectedSocket() client: GameSocket, @MessageBody() body: GameJoinDto) {
     const roomId = body.roomId;
     if (!roomId || Number.isNaN(roomId)) {
       const error = wsError(400, GAME_ERRORS.GAME_INVALID_ROOM_ID);
@@ -125,7 +128,7 @@ export class GameGateway implements IGameEventPublisher, OnGatewayConnection {
     this.server.to(`game:room:${roomId}`).emit(GAME_EVENTS.GAME_THEME_CONFIRMED, { currentTheme });
   }
 
-  private async joinGameRoomInternal(client: Socket, roomId: number, emitAck: boolean) {
+  private async joinGameRoomInternal(client: GameSocket, roomId: number, emitAck: boolean) {
     const userId = client.data.userId;
 
     const prevRoomId = client.data.roomId;

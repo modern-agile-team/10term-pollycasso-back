@@ -12,6 +12,7 @@ import { GameSessionService } from '../session/game-session.service';
 import type { Server } from 'socket.io';
 import type { GameSocket } from '../interfaces/gameSocket.interface';
 import { SendDrawingDto } from './dto/requests/send-drawing.dto';
+import { requireRoomId, requireUserId } from '../utils/game-ws.util';
 
 @UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
@@ -35,8 +36,8 @@ export class DrawingGateway {
 
   @SubscribeMessage('game:sendDrawing')
   async onSendDrawing(@ConnectedSocket() socket: GameSocket, @MessageBody() body: SendDrawingDto) {
-    const userId = socket.data.userId;
-    const roomId = socket.data.roomId;
+    const userId = requireUserId(socket);
+    const roomId = requireRoomId(socket);
     const { line } = body;
 
     await this.drawingService.sendDrawingLine({ roomId, userId, line });
@@ -44,8 +45,8 @@ export class DrawingGateway {
 
   @SubscribeMessage('game:submitDrawing')
   async onSubmitDrawing(@ConnectedSocket() socket: GameSocket) {
-    const userId = socket.data.userId;
-    const roomId = socket.data.roomId;
+    const userId = requireUserId(socket);
+    const roomId = requireRoomId(socket);
 
     const res = await this.drawingService.submitDrawing({ roomId, userId });
 
@@ -61,8 +62,8 @@ export class DrawingGateway {
   }
 
   async handleDisconnect(socket: GameSocket) {
-    const userId = socket.data.userId;
-    const roomId = socket.data.roomId;
+    const userId = requireUserId(socket);
+    const roomId = requireRoomId(socket);
 
     const res = await this.drawingService.handleDisconnect({ roomId, userId });
 
