@@ -17,6 +17,7 @@ import {
   GameState,
   type IGameStateStore,
 } from 'src/game-state/interfaces/game-state.interface';
+import { requireRoomId, requireUserId } from '../utils/game-ws.util';
 
 @UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
@@ -35,17 +36,15 @@ export class TopicGateway {
 
   @SubscribeMessage('game:typing')
   handleTyping(@ConnectedSocket() client: GameSocket, @MessageBody() data: TopicDto) {
-    const { roomId } = client.data;
-
-    if (!roomId) return;
+    const roomId = requireRoomId(client);
 
     client.to(`game:room:${roomId}`).emit('game:shareTyping', { value: data.value });
   }
 
   @SubscribeMessage('game:finalize')
   async handleFinalize(@ConnectedSocket() client: GameSocket, @MessageBody() data: TopicDto) {
-    const { roomId, userId } = client.data;
-    if (!roomId) return;
+    const userId = requireUserId(client);
+    const roomId = requireRoomId(client);
     try {
       await this.gameSessionService.startDrawingPhase(roomId, userId, data.value, this.server);
     } catch (e) {
@@ -68,9 +67,7 @@ export class TopicGateway {
       currentTheme?: string | null;
     },
   ) {
-    const { roomId } = client.data;
-    if (!roomId) return;
-
+    const roomId = requireRoomId(client);
     const endsAt = data.endsInMs != null ? Date.now() + data.endsInMs : null;
 
     const patch: Partial<GameState> = {

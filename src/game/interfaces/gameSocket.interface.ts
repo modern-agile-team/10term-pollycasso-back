@@ -3,7 +3,7 @@ import { DefaultEventsMap, Socket } from 'socket.io';
 export interface GameSocketData {
   userId: number;
   nickname: string;
-  roomId: number;
+  roomId: number | null;
   isHost: boolean;
 }
 
