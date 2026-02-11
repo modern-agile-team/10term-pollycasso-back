@@ -293,6 +293,7 @@ model GameItem {
   code        String  @unique @db.VarChar(20)
   name        String  @db.VarChar(50)
   price       Int
+  level       Int
   description String  @db.Text
   effect      String  @db.Text
   imagePath   String? @map("image_path") @db.VarChar(255)
@@ -301,6 +302,7 @@ model GameItem {
 
   userItems UserGameItem[]
 
+  @@index([level])
   @@map("game_items")
 }
 
