@@ -58,13 +58,15 @@ export class ShopService {
     userId: number,
     request: PurchaseItemsRequestDto,
   ): Promise<PurchaseResultResponseDto> {
-    const cosmeticItemIds = request.cosmeticItems?.map((i) => i.itemId) ?? [];
+    const cosmeticItemIds = request.cosmeticItems ?? [];
     const gameItemQuantityMap = new Map(
       request.gameItems?.map((i) => [i.itemId, i.quantity]) ?? [],
     );
 
     if (!cosmeticItemIds.length && gameItemQuantityMap.size === 0) {
-      throw new BadRequestException({ code: SHOP_ERROR_CODES.EMPTY_PURCHASE_REQUEST });
+      throw new BadRequestException({
+        code: SHOP_ERROR_CODES.EMPTY_PURCHASE_REQUEST,
+      });
     }
 
     const user = await this.shopRepository.findUserWithProfile(userId);

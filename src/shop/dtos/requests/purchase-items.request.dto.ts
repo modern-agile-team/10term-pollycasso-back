@@ -1,12 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsOptional, IsNumber, Min, ValidateNested, ArrayUnique } from 'class-validator';
 
-export class PurchaseCosmeticItemDto {
-  @IsNumber()
-  @Min(1)
-  itemId: number;
-}
-
 export class PurchaseGameItemDto {
   @IsNumber()
   @Min(1)
@@ -20,14 +14,14 @@ export class PurchaseGameItemDto {
 export class PurchaseItemsRequestDto {
   @IsOptional()
   @IsArray()
-  @ArrayUnique((o: PurchaseCosmeticItemDto) => o.itemId)
-  @ValidateNested({ each: true })
-  @Type(() => PurchaseCosmeticItemDto)
-  cosmeticItems?: PurchaseCosmeticItemDto[];
+  @ArrayUnique()
+  @IsNumber({}, { each: true })
+  @Min(1, { each: true })
+  cosmeticItems?: number[];
 
   @IsOptional()
   @IsArray()
-  @ArrayUnique((o: PurchaseGameItemDto) => o.itemId)
+  @ArrayUnique()
   @ValidateNested({ each: true })
   @Type(() => PurchaseGameItemDto)
   gameItems?: PurchaseGameItemDto[];
