@@ -10,3 +10,12 @@ export interface DrawLine {
 export interface DrawData {
   lines: DrawLine[];
 }
+
+export interface IDrawingRepo {
+  getDrawingsByMatchAndRound(params: {
+    matchId: number;
+    round: number;
+  }): Promise<Record<string, DrawData>>;
+}
+
+export const DRAWING_REPO = Symbol('DRAWING_REPO');

@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { type Drawing, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { DrawData, IDrawingRepo } from './interface/drawing.interface';
 
 @Injectable()
-export class DrawingRepository {
+export class DrawingRepository implements IDrawingRepo {
   constructor(private readonly prisma: PrismaService) {}
+
+  private makeDrawingId(matchId: number, roomMemberId: number, round: number) {
+    return `${matchId}:${roomMemberId}:${round}`;
+  }
 
   async upsertManyDrawings(
     rows: Array<{
@@ -57,5 +62,20 @@ export class DrawingRepository {
         data: true,
       },
     });
+  }
+
+  async getDrawingsByMatchAndRound(params: {
+    matchId: number;
+    round: number;
+  }): Promise<Record<string, DrawData>> {
+    const rows = await this.findManyByMatchIdAndRound(params);
+
+    const drawingsById: Record<string, DrawData> = {};
+    for (const r of rows) {
+      const drawingId = this.makeDrawingId(r.matchId, r.roomMemberId, r.round);
+      drawingsById[drawingId] = r.data as unknown as DrawData;
+    }
+
+    return drawingsById;
   }
 }

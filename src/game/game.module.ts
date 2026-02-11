@@ -19,6 +19,8 @@ import { CooldownStore } from './item/stores/cooldown.store';
 import { GameItemService } from './item/game-item.service';
 import { GameItemGateway } from './item/game-item.gateway';
 import { ItemModule } from 'src/item/item.module';
+import { EvaluationGateway } from './evaluation/evaluation.gateway';
+import { DRAWING_REPO } from './drawing/interface/drawing.interface';
 
 @Module({
   imports: [
@@ -43,10 +45,15 @@ import { ItemModule } from 'src/item/item.module';
     DrawingGateway,
     DrawingStore,
     DrawingRepository,
+    {
+      provide: DRAWING_REPO,
+      useClass: DrawingRepository,
+    },
     GameItemGateway,
     GameItemService,
     CooldownStore,
     GameInventoryStore,
+    EvaluationGateway,
   ],
   exports: [],
 })

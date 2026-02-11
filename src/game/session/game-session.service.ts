@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { DefaultEventsMap, RemoteSocket, Server } from 'socket.io';
+
 import { GAME_EVENT_PUBLISHER } from '../interfaces/game-event-publisher.interfaces';
 import type { IGameEventPublisher } from '../interfaces/game-event-publisher.interfaces';
 import { TopicService } from '../topic/topic.service';
@@ -17,17 +18,20 @@ import type { DrawData } from '../drawing/interface/drawing.interface';
 import { DrawingService } from '../drawing/drawing.service';
 import { GameSocketData } from '../interfaces/gameSocket.interface';
 import { wsError } from 'src/common/utils/ws-error.util';
+import { EvaluationService } from '../evaluation/evaluation.service';
 
 type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
 const DRAWING_DURATION_MS = 92000; // 92초
 const EVALUATING_DURATION_MS = 60000; // 60초
+const ROUND_SUMMARY_DURATION_MS = 32000; // 32초
 
 @Injectable()
 export class GameSessionService {
   constructor(
     private readonly topicService: TopicService,
     private readonly drawingService: DrawingService,
+    private readonly evaluationService: EvaluationService,
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
     @Inject(GAME_EVENT_PUBLISHER) private readonly eventPublisher: IGameEventPublisher,
   ) {}
@@ -73,9 +77,7 @@ export class GameSessionService {
   // 주제 확정 및 DRAWING 시작
   async startDrawingPhase(roomId: number, userId: number, typedValue: string, server: Server) {
     const state = await this.gameStateStore.get(roomId);
-    if (!state) {
-      throw wsError(404, GAME_ERRORS.CONTEXT_INVALID);
-    }
+    if (!state) throw wsError(404, GAME_ERRORS.CONTEXT_INVALID);
 
     this.clearTimer(roomId);
 
@@ -133,12 +135,12 @@ export class GameSessionService {
     if (!state || state.phase !== GamePhase.DRAWING) return;
     if (!state.phaseContext || state.phaseContext.kind !== GamePhase.DRAWING) return;
 
+    const drawingCtx = state.phaseContext;
+
     const entity = GameSessionEntity.restore(state);
     const roundId = entity.currentPhaseInstanceId;
 
-    if (expectedPhaseInstanceId && roundId !== expectedPhaseInstanceId) {
-      return;
-    }
+    if (expectedPhaseInstanceId && roundId !== expectedPhaseInstanceId) return;
 
     const round = state.currentRound ?? 1;
 
@@ -156,7 +158,8 @@ export class GameSessionService {
 
     const evaluatingContext: EvaluatingContext = {
       kind: GamePhase.EVALUATING,
-      votes: {},
+      activeUserIds: [...drawingCtx.activeUserIds],
+      readyUserIds: [],
     };
 
     const patched = await this.gameStateStore.patch(roomId, {
@@ -167,6 +170,8 @@ export class GameSessionService {
     if (!patched) return;
 
     this.clearTimer(roomId);
+
+    this.startEvaluatingPhaseTimer({ roomId, server });
 
     server.to(this.roomSocketRoom(roomId)).emit('room:updateGameState', {
       phase: GamePhase.EVALUATING,
@@ -195,11 +200,50 @@ export class GameSessionService {
     }
   }
 
+  // EVALUATING 종료 -> ROUND_SUMMARY 전환
+  async advanceToRoundSummary(params: { roomId: number; server: Server }): Promise<void> {
+    const { roomId, server } = params;
+
+    const gs = await this.gameStateStore.get(roomId);
+    if (!gs) throw wsError(404, GAME_ERRORS.CONTEXT_INVALID);
+    if (gs.phase !== GamePhase.EVALUATING) return;
+
+    if (!this.evaluationService.tryBeginSummaryTransition(roomId)) return;
+
+    this.clearTimer(roomId);
+
+    const nicknameByUserId = await this.collectNicknameByUserId(server, roomId);
+
+    const { phaseContext, updatedTotals, summaryEndsAtMs } =
+      await this.evaluationService.computeRoundSummary({
+        roomId,
+        gs,
+        nicknameByUserId,
+      });
+
+    const endsAtMs =
+      typeof summaryEndsAtMs === 'number' ? summaryEndsAtMs : ROUND_SUMMARY_DURATION_MS;
+
+    const patched = await this.gameStateStore.patch(roomId, {
+      phase: GamePhase.ROUND_SUMMARY,
+      endsAt: Date.now() + endsAtMs,
+      phaseContext,
+      totalScores: updatedTotals,
+    });
+
+    if (!patched) return;
+
+    server.to(this.roomSocketRoom(roomId)).emit('room:updateGameState', {
+      phase: patched.phase,
+      endsAt: patched.endsAt,
+      phaseContext: patched.phaseContext,
+    });
+  }
+
+  // DRAWING 페이즈 키(roomId:phaseInstanceId) 생성/반환
   async getDrawingPhaseKeyOrThrow(roomId: number): Promise<string> {
     const state = await this.gameStateStore.get(roomId);
-    if (!state) {
-      throw wsError(400, GAME_ERRORS.CONTEXT_INVALID);
-    }
+    if (!state) throw wsError(400, GAME_ERRORS.CONTEXT_INVALID);
 
     const entity = GameSessionEntity.restore(state);
 
@@ -211,14 +255,13 @@ export class GameSessionService {
     return `${roomId}:${roundId}`;
   }
 
-  // Room Name 생성
+  private timers = new Map<number, NodeJS.Timeout>();
+
   private roomSocketRoom(roomId: number) {
     return `game:room:${roomId}`;
   }
 
-  private timers = new Map<number, NodeJS.Timeout>();
-
-  // 타이머 제거
+  // roomId 타이머 해제
   private clearTimer(roomId: number) {
     const timer = this.timers.get(roomId);
     if (timer) {
@@ -227,13 +270,12 @@ export class GameSessionService {
     }
   }
 
-  // 소켓들 가져오기
+  // 해당 roomId에 join된 소켓 목록 조회
   private async fetchGameSockets(server: Server, roomId: number): Promise<GameRemoteSocket[]> {
     const sockets = await server.in(this.roomSocketRoom(roomId)).fetchSockets();
     return sockets as unknown as GameRemoteSocket[];
   }
 
-  // 배열 셔플
   private shuffleArray<T>(array: T[]): T[] {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -241,5 +283,74 @@ export class GameSessionService {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
+  }
+
+  // 현재 접속 소켓 기준 userId->nickname 맵 구성
+  private async collectNicknameByUserId(
+    server: Server,
+    roomId: number,
+  ): Promise<Record<number, string>> {
+    const sockets = await this.fetchGameSockets(server, roomId);
+
+    const out: Record<number, string> = {};
+    for (const s of sockets) {
+      const uid = s.data?.userId;
+      const nick = s.data?.nickname;
+      if (typeof uid === 'number' && typeof nick === 'string' && nick.length > 0) {
+        out[uid] = nick;
+      }
+    }
+    return out;
+  }
+
+  // 지정 페이즈에서만 유효한 roomId 타이머 등록
+  private schedulePhaseTimer(params: {
+    roomId: number;
+    delayMs: number;
+    expectedPhase: GamePhase;
+    expectedPhaseInstanceId?: string;
+    server: Server;
+    onTimeout: () => Promise<void> | void;
+  }) {
+    const { roomId, delayMs, expectedPhase, expectedPhaseInstanceId, onTimeout } = params;
+
+    this.clearTimer(roomId);
+
+    const timer = setTimeout(
+      () => {
+        void (async () => {
+          const state = await this.gameStateStore.get(roomId);
+          if (!state) return;
+          if (state.phase !== expectedPhase) return;
+
+          if (expectedPhaseInstanceId) {
+            const ctx: any = state.phaseContext;
+            if (!ctx?.phaseInstanceId || ctx.phaseInstanceId !== expectedPhaseInstanceId) return;
+          }
+
+          await onTimeout();
+        })();
+      },
+      Math.max(0, delayMs),
+    );
+
+    this.timers.set(roomId, timer);
+  }
+
+  // EVALUATING 시작 시 평가버퍼 리셋 + 타임아웃 시 ROUND_SUMMARY 전환 예약
+  private startEvaluatingPhaseTimer(params: { roomId: number; server: Server }) {
+    const { roomId, server } = params;
+
+    this.evaluationService.resetForEvaluating(roomId);
+
+    this.schedulePhaseTimer({
+      roomId,
+      delayMs: EVALUATING_DURATION_MS,
+      expectedPhase: GamePhase.EVALUATING,
+      server,
+      onTimeout: async () => {
+        await this.advanceToRoundSummary({ roomId, server });
+      },
+    });
   }
 }
