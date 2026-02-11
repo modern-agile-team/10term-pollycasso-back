@@ -21,6 +21,7 @@ import { GameItemGateway } from './item/game-item.gateway';
 import { ItemModule } from 'src/item/item.module';
 import { EvaluationGateway } from './evaluation/evaluation.gateway';
 import { DRAWING_REPO } from './drawing/interface/drawing.interface';
+import { EvaluationService } from './evaluation/evaluation.service';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { DRAWING_REPO } from './drawing/interface/drawing.interface';
     TopicService,
     GameSessionService,
     DrawingService,
+    EvaluationService,
     { provide: GAME_STATE_STORE, useClass: GameStateStore },
     { provide: GAME_EVENT_PUBLISHER, useExisting: GameGateway },
     DrawingGateway,
