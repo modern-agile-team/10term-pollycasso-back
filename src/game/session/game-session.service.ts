@@ -140,8 +140,8 @@ export class GameSessionService {
       return;
     }
 
-    const round = state.currentRound ?? 1;
-
+    const round = state.currentRound;
+    if (!round) return;
     await this.drawingService.endDrawing({
       gameId: roomId.toString(),
       roundId: roundId,
@@ -174,6 +174,9 @@ export class GameSessionService {
       phaseContext: evaluatingContext,
     });
 
+    const matchId = state.matchId;
+    const memberMap = state.roomMemberIdByUserId;
+
     const sockets = await this.fetchGameSockets(server, roomId);
 
     for (const socket of sockets) {
@@ -187,9 +190,18 @@ export class GameSessionService {
       const shuffled = this.shuffleArray(otherUserIds);
 
       const drawings = shuffled
-        .map((uid) => drawingsByUserId[uid])
-        .filter((v): v is DrawData => !!v)
-        .map((drawData) => ({ drawData }));
+        .map((targetUserId) => {
+          const drawData = drawingsByUserId[targetUserId];
+          if (!drawData) return null;
+          const targetMemberId = memberMap[targetUserId];
+          if (!targetMemberId) return null;
+          const drawingId = `${matchId}:${targetMemberId}:${round}`;
+          return {
+            drawingId,
+            drawData,
+          };
+        })
+        .filter((v): v is { drawingId: string; drawData: DrawData } => !!v);
 
       socket.emit('game:startEvaluation', { drawings });
     }
