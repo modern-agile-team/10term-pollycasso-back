@@ -16,8 +16,9 @@ export interface EvaluationRoomLike {
   evaluationState?: EvaluationRoomState;
 }
 
-export interface AckResponse {
-  ok: boolean;
-  code?: string;
-  allReady?: boolean;
-}
+export type RoomUpdatePlayerPayload = {
+  userId: number;
+  changes: {
+    isReady: boolean;
+  };
+};

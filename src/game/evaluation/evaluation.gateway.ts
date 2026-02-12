@@ -14,11 +14,14 @@ import {
 } from '../../game-state/interfaces/game-state.interface';
 
 import { EvaluationService } from './evaluation.service';
-import type { AckResponse, EvaluationSubmitPayload } from './interfaces/evaluation.interface';
-import { EVALUATION_EVENTS } from './constants/evaluation.constant';
+import type { RoomUpdatePlayerPayload } from './interfaces/evaluation.interface';
+import { EVALUATION_ERRORS, EVALUATION_EVENTS } from './constants/evaluation.constant';
 import type { GameSocket } from '../interfaces/gameSocket.interface';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { GameSessionService } from '../session/game-session.service';
+import { SubmitEvaluationDto } from './dto/requests/submit-evaluation.dto';
+import { requireRoomId, requireUserId } from '../utils/game-ws.util';
+import { wsError } from 'src/common/utils/ws-error.util';
 
 @UseFilters(SocketExceptionFilter)
 @WebSocketGateway({
@@ -34,52 +37,42 @@ export class EvaluationGateway {
   constructor(
     private readonly evalService: EvaluationService,
     private readonly gameSessionService: GameSessionService,
-    @Inject(GAME_STATE_STORE) private readonly store: IGameStateStore,
+    @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
   ) {}
-
-  private notify(client: GameSocket, payload: { status: number; code: string; errors?: any[] }) {
-    client.emit(EVALUATION_EVENTS.SYSTEM_NOTIFICATION, payload);
-  }
 
   @SubscribeMessage(EVALUATION_EVENTS.GAME_SUBMIT_EVALUATION)
   async onSubmitEval(
     @ConnectedSocket() client: GameSocket,
-    @MessageBody() payload: EvaluationSubmitPayload,
-  ): Promise<AckResponse> {
-    const roomId = client.data.roomId;
-    const userId = client.data.userId;
-    if (roomId == null || userId == null) return { ok: false, code: 'CONTEXT_INVALID' };
+    @MessageBody() payload: SubmitEvaluationDto,
+  ): Promise<void> {
+    const userId = requireUserId(client);
+    const roomId = requireRoomId(client);
 
-    const gs = await this.store.get(roomId);
-    if (!gs) return { ok: false, code: 'GAME_STATE_NOT_FOUND' };
+    const gameState = await this.gameStateStore.get(roomId);
+    if (!gameState) throw wsError(404, EVALUATION_ERRORS.GAME_STATE_NOT_FOUND);
 
-    return this.evalService.submitEvaluation(roomId, gs, userId, payload);
+    return this.evalService.submitEvaluation(roomId, gameState, userId, payload);
   }
 
   @SubscribeMessage(EVALUATION_EVENTS.ROOM_READY_TOGGLE)
-  async onReadyToggle(@ConnectedSocket() client: GameSocket): Promise<AckResponse> {
-    const roomId = client.data.roomId;
-    const userId = client.data.userId;
-    if (roomId == null || userId == null) return { ok: false, code: 'CONTEXT_INVALID' };
+  async onReadyToggle(@ConnectedSocket() client: GameSocket): Promise<void> {
+    const userId = requireUserId(client);
+    const roomId = requireRoomId(client);
 
-    const gs = await this.store.get(roomId);
-    if (!gs) return { ok: false, code: 'GAME_STATE_NOT_FOUND' };
+    const gameState = await this.gameStateStore.get(roomId);
+    if (!gameState) throw wsError(404, 'GAME_STATE_NOT_FOUND');
 
-    const res = await this.evalService.toggleReady(roomId, gs, userId);
+    const { isReady, allReady } = await this.evalService.toggleReady(roomId, gameState, userId);
 
-    if (!res.ok) {
-      this.notify(client, {
-        status: 400,
-        code: res.code ?? 'UNKNOWN_ERROR',
-        errors: [],
-      });
-      return res;
-    }
+    const payload: RoomUpdatePlayerPayload = {
+      userId,
+      changes: { isReady },
+    };
 
-    if (res.allReady) {
+    this.server.to(`game:room:${roomId}`).emit(EVALUATION_EVENTS.ROOM_UPDATE_PLAYER, payload);
+
+    if (allReady) {
       await this.gameSessionService.advanceToRoundSummary({ roomId, server: this.server });
     }
-
-    return res;
   }
 }

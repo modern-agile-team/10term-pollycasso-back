@@ -204,9 +204,9 @@ export class GameSessionService {
   async advanceToRoundSummary(params: { roomId: number; server: Server }): Promise<void> {
     const { roomId, server } = params;
 
-    const gs = await this.gameStateStore.get(roomId);
-    if (!gs) throw wsError(404, GAME_ERRORS.CONTEXT_INVALID);
-    if (gs.phase !== GamePhase.EVALUATING) return;
+    const gameState = await this.gameStateStore.get(roomId);
+    if (!gameState) throw wsError(404, GAME_ERRORS.CONTEXT_INVALID);
+    if (gameState.phase !== GamePhase.EVALUATING) return;
 
     if (!this.evaluationService.tryBeginSummaryTransition(roomId)) return;
 
@@ -217,7 +217,7 @@ export class GameSessionService {
     const { phaseContext, updatedTotals, summaryEndsAtMs } =
       await this.evaluationService.computeRoundSummary({
         roomId,
-        gs,
+        gameState,
         nicknameByUserId,
       });
 
