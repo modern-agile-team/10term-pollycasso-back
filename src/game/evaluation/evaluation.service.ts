@@ -10,12 +10,7 @@ import {
 } from '../../game-state/interfaces/game-state.interface';
 import { DRAWING_REPO, type IDrawingRepo } from '../drawing/interface/drawing.interface';
 import type { EvaluationSubmitPayload, PlayerId } from './interfaces/evaluation.interface';
-import {
-  EVALUATION_ERRORS,
-  ROUND_SUMMARY_MS,
-  SCORE_MAX,
-  SCORE_MIN,
-} from './constants/evaluation.constant';
+import { EVALUATION_ERRORS, SCORE_MAX, SCORE_MIN } from './constants/evaluation.constant';
 import {
   type EvaluationMemoryStore,
   ensureEvaluationState,
@@ -29,7 +24,6 @@ export const makeDrawingId = (matchId: number, roomMemberId: number, round: numb
 export type RoundSummaryComputeResult = {
   phaseContext: RoundSummaryPhaseContext;
   updatedTotals: Record<string, number>;
-  summaryEndsAtMs: number;
 };
 
 @Injectable()
@@ -180,6 +174,47 @@ export class EvaluationService {
       throw wsError(400, EVALUATION_ERRORS.INVALID_SCORE);
     }
 
+    const round = gameState.currentRound;
+    if (round == null) {
+      throw wsError(400, EVALUATION_ERRORS.ROUND_MISSING);
+    }
+
+    const parts = payload.drawingId.split(':');
+    if (parts.length !== 3) {
+      throw wsError(400, EVALUATION_ERRORS.DRAWING_ID_INVALID);
+    }
+
+    const [matchIdStr, roomMemberIdStr, roundStr] = parts;
+
+    const matchId = Number(matchIdStr);
+    const roomMemberId = Number(roomMemberIdStr);
+    const drawingRound = Number(roundStr);
+
+    if (
+      !Number.isFinite(matchId) ||
+      !Number.isFinite(roomMemberId) ||
+      !Number.isFinite(drawingRound)
+    ) {
+      throw wsError(400, EVALUATION_ERRORS.DRAWING_ID_INVALID);
+    }
+
+    if (matchId !== gameState.matchId || drawingRound !== round) {
+      throw wsError(400, EVALUATION_ERRORS.DRAWING_ID_INVALID);
+    }
+
+    const myRoomMemberId = gameState.roomMemberIdByUserId?.[userId];
+    if (myRoomMemberId == null) {
+      throw wsError(500, EVALUATION_ERRORS.CONTEXT_INVALID);
+    }
+    if (myRoomMemberId === roomMemberId) {
+      throw wsError(400, EVALUATION_ERRORS.SELF_EVALUATION_NOT_ALLOWED);
+    }
+
+    const allowedRoomMemberIds = new Set(Object.values(gameState.roomMemberIdByUserId ?? {}));
+    if (!allowedRoomMemberIds.has(roomMemberId)) {
+      throw wsError(400, EVALUATION_ERRORS.DRAWING_ID_INVALID);
+    }
+
     upsertEvaluation(this.memory, roomId, userId, payload);
   }
 
@@ -251,9 +286,8 @@ export class EvaluationService {
     roomId: number;
     gameState: GameState;
     nicknameByUserId: Record<number, string>;
-    summaryEndsAtMs?: number;
   }): Promise<RoundSummaryComputeResult> {
-    const { roomId, gameState, nicknameByUserId, summaryEndsAtMs = ROUND_SUMMARY_MS } = params;
+    const { roomId, gameState, nicknameByUserId } = params;
 
     const ctx = this.getEvaluatingContextOrNull(gameState);
     if (!ctx) {
@@ -286,6 +320,6 @@ export class EvaluationService {
       drawingsById,
     };
 
-    return { phaseContext, updatedTotals, summaryEndsAtMs };
+    return { phaseContext, updatedTotals };
   }
 }

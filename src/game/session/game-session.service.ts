@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { DefaultEventsMap, RemoteSocket, Server } from 'socket.io';
-
 import { GAME_EVENT_PUBLISHER } from '../interfaces/game-event-publisher.interfaces';
 import type { IGameEventPublisher } from '../interfaces/game-event-publisher.interfaces';
 import { TopicService } from '../topic/topic.service';
@@ -226,15 +225,13 @@ export class GameSessionService {
 
     const nicknameByUserId = await this.collectNicknameByUserId(server, roomId);
 
-    const { phaseContext, updatedTotals, summaryEndsAtMs } =
-      await this.evaluationService.computeRoundSummary({
-        roomId,
-        gameState,
-        nicknameByUserId,
-      });
+    const { phaseContext, updatedTotals } = await this.evaluationService.computeRoundSummary({
+      roomId,
+      gameState,
+      nicknameByUserId,
+    });
 
-    const endsAtMs =
-      typeof summaryEndsAtMs === 'number' ? summaryEndsAtMs : ROUND_SUMMARY_DURATION_MS;
+    const endsAtMs = ROUND_SUMMARY_DURATION_MS;
 
     const patched = await this.gameStateStore.patch(roomId, {
       phase: GamePhase.ROUND_SUMMARY,
