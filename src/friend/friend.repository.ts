@@ -1,10 +1,17 @@
-import { Friend as PrismaFriend, FriendStatus } from '@prisma/client';
+import {
+  Friend as PrismaFriend,
+  FriendStatus,
+  User,
+  UserProfile as PrismaUserProfile,
+} from '@prisma/client';
 import { FriendshipData, UserProfile } from './types/friend.type';
 import { IFriendRepository } from './interfaces/friend-repository.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
-import { FriendSearchType } from './constants/friend.constant';
+import { FriendSearchType, FRIEND_SEARCH_RULES } from './constants/friend.constant';
 import { paginate } from 'src/common/utils/paginate.util';
+
+type UserWithProfile = User & { profile: PrismaUserProfile | null };
 
 @Injectable()
 export class FriendRepository implements IFriendRepository {
@@ -30,27 +37,30 @@ export class FriendRepository implements IFriendRepository {
       where: {
         OR: [{ requesterId: userId }, { receiverId: userId }],
       },
+      include: {
+        requester: { include: { profile: true } },
+        receiver: { include: { profile: true } },
+      },
     });
 
     if (!friendships.length) return { friendships: [], users: [] };
 
-    const targetIds = friendships.map((f) =>
-      f.requesterId === userId ? f.receiverId : f.requesterId,
-    );
-
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: targetIds } },
-      include: { profile: true },
+    const userProfiles: UserProfile[] = friendships.map((f) => {
+      const targetUser = f.requesterId === userId ? f.receiver : f.requester;
+      return {
+        id: targetUser.id,
+        nickname: targetUser.nickname,
+        tag: targetUser.tag,
+        profile: targetUser.profile
+          ? { outfit: targetUser.profile.outfit, level: targetUser.profile.level }
+          : null,
+      };
     });
 
-    const userProfiles: UserProfile[] = users.map((u) => ({
-      id: u.id,
-      nickname: u.nickname,
-      tag: u.tag,
-      profile: u.profile ? { outfit: u.profile.outfit, level: u.profile.level } : null,
-    }));
-
-    return { friendships, users: userProfiles };
+    return {
+      friendships: friendships.map((f) => this.mapToFriendshipData(f)),
+      users: userProfiles,
+    };
   }
 
   async findBlockedUsersWithProfiles(userId: number): Promise<UserProfile[]> {
@@ -59,14 +69,14 @@ export class FriendRepository implements IFriendRepository {
       include: { blocked: { include: { profile: true } } },
     });
 
-    return blockedRecords
-      .map((r) => r.blocked)
-      .map((u) => ({
-        id: u.id,
-        nickname: u.nickname,
-        tag: u.tag,
-        profile: u.profile ? { outfit: u.profile.outfit, level: u.profile.level } : null,
-      }));
+    return blockedRecords.map((r) => ({
+      id: r.blocked.id,
+      nickname: r.blocked.nickname,
+      tag: r.blocked.tag,
+      profile: r.blocked.profile
+        ? { outfit: r.blocked.profile.outfit, level: r.blocked.profile.level }
+        : null,
+    }));
   }
 
   async createFriendship(userId: number, targetUserId: number): Promise<FriendshipData> {
@@ -136,28 +146,29 @@ export class FriendRepository implements IFriendRepository {
   async getRandomUsersForRecommendation(
     userId: number,
     excludeIds: number[],
-    limit: number,
-    cursor?: number,
-  ): Promise<{ data: UserProfile[]; hasNextPage: boolean; nextCursor: number | null }> {
+  ): Promise<UserProfile[]> {
     const allExcludeIds = [userId, ...excludeIds];
+    const count = await this.prisma.user.count({
+      where: { id: { notIn: allExcludeIds } },
+    });
+
+    if (count === 0) {
+      return [];
+    }
+
+    const takeLimit = Math.min(count, FRIEND_SEARCH_RULES.RECOMMENDED_FRIENDS_LIMIT);
+    const maxOffset = Math.max(0, count - takeLimit);
+    const randomOffset = count > takeLimit ? Math.floor(Math.random() * maxOffset) : 0;
 
     const users = await this.prisma.user.findMany({
       where: { id: { notIn: allExcludeIds } },
       include: { profile: true },
-      take: limit + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
+      skip: randomOffset,
+      take: takeLimit,
       orderBy: { id: 'asc' },
     });
 
-    const userProfiles: UserProfile[] = users.map((u) => ({
-      id: u.id,
-      nickname: u.nickname,
-      tag: u.tag,
-      profile: u.profile ? { outfit: u.profile.outfit, level: u.profile.level } : null,
-    }));
-
-    return paginate(userProfiles, limit);
+    return this.mapToUserProfiles(users);
   }
 
   async deleteFriendshipIfExists(userId: number, targetUserId: number): Promise<void> {
@@ -194,5 +205,14 @@ export class FriendRepository implements IFriendRepository {
         { id: { notIn: excludeIds } },
       ],
     };
+  }
+
+  private mapToUserProfiles(users: UserWithProfile[]): UserProfile[] {
+    return users.map((u) => ({
+      id: u.id,
+      nickname: u.nickname,
+      tag: u.tag,
+      profile: u.profile ? { outfit: u.profile.outfit, level: u.profile.level } : null,
+    }));
   }
 }

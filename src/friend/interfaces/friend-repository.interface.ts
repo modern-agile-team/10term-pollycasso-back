@@ -22,10 +22,5 @@ export interface IFriendRepository {
     limit: number,
     cursor?: number,
   ): Promise<{ data: UserProfile[]; hasNextPage: boolean; nextCursor: number | null }>;
-  getRandomUsersForRecommendation(
-    userId: number,
-    excludeIds: number[],
-    limit: number,
-    cursor?: number,
-  ): Promise<{ data: UserProfile[]; hasNextPage: boolean; nextCursor: number | null }>;
+  getRandomUsersForRecommendation(userId: number, excludeIds: number[]): Promise<UserProfile[]>;
 }

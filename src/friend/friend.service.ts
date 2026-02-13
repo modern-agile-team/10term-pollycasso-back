@@ -217,17 +217,14 @@ export class FriendService {
   async getRecommendedFriends(userId: number): Promise<SearchFriendResponseDto[]> {
     const excludeIds = await this.getExcludedUserIds(userId, false);
 
-    const { data: users } = await this.friendRepository.getRandomUsersForRecommendation(
-      userId,
-      excludeIds,
-      FRIEND_SEARCH_RULES.RECOMMENDED_FRIENDS_LIMIT,
-    );
+    const users = await this.friendRepository.getRandomUsersForRecommendation(userId, excludeIds);
 
     if (!users.length) {
       return [];
     }
 
     const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
+
     const results = this.friendMapper.mapUsersToSearchDto(users, onlineStatusMap);
     return this.sortByOnlineAndLevel(results);
   }
