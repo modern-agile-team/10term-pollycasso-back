@@ -1,4 +1,4 @@
-import { DEFAULT_OUTFIT } from './outfit.constants';
+import { DEFAULT_OUTFIT } from './constants/outfit.constant';
 import { OutfitIds } from './outfit.type';
 
 export class OutfitVO {

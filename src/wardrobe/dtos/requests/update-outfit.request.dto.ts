@@ -10,7 +10,7 @@ import {
 import { Type } from 'class-transformer';
 
 export function IsNumberOrNull(validationOptions?: ValidationOptions) {
-  return function (target: Object, propertyName: string) {
+  return function (target: object, propertyName: string) {
     registerDecorator({
       name: 'isNumberOrNull',
       target: target.constructor,

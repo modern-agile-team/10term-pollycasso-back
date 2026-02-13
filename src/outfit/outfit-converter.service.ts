@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OutfitAssetPaths, OutfitIds } from './outfit.type';
-import { DEFAULT_OUTFIT } from './outfit.constants';
+import { DEFAULT_OUTFIT } from './constants/outfit.constant';
 
 @Injectable()
 export class OutfitConverterService {

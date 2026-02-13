@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma, Provider, User } from '@prisma/client';
-import { DEFAULT_OUTFIT } from 'src/outfit/outfit.constants';
+import { DEFAULT_OUTFIT } from 'src/outfit/constants/outfit.constant';
 
 @Injectable()
 export class UsersRepository {

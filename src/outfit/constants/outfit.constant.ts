@@ -1,3 +1,5 @@
+import { OutfitIds } from '../outfit.type';
+
 export const OUTFIT_ERROR_CODES = {
   ITEM_NOT_OWNED: 'ITEM_NOT_OWNED',
   ITEM_NOT_FOUND: 'ITEM_NOT_FOUND',
@@ -19,4 +21,15 @@ export const OUTFIT_DOMAIN_ERRORS: Record<string, { field: string; reason: strin
     field: 'bird',
     reason: 'Bird is required',
   },
+};
+
+export const DEFAULT_BIRD_ID = 150;
+export const DEFAULT_OUTFIT: OutfitIds = {
+  bird: 150,
+  hat: null,
+  accessory: null,
+  top: null,
+  bottom: null,
+  shoes: null,
+  effect: null,
 };
