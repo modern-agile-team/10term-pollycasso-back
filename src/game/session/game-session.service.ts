@@ -218,35 +218,41 @@ export class GameSessionService {
     const gameState = await this.gameStateStore.get(roomId);
     if (!gameState) throw wsError(404, GAME_ERRORS.CONTEXT_INVALID);
     if (gameState.phase !== GamePhase.EVALUATING) return;
+    if (this.summaryTransitionGuard.has(roomId)) return;
+    this.summaryTransitionGuard.add(roomId);
 
-    if (!this.evaluationService.tryBeginSummaryTransition(roomId)) return;
+    try {
+      this.clearTimer(roomId);
+      const nicknameByUserId = await this.collectNicknameByUserId(server, roomId);
+      const { phaseContext, updatedTotals } = await this.evaluationService.computeRoundSummary({
+        roomId,
+        gameState,
+        nicknameByUserId,
+      });
 
-    this.clearTimer(roomId);
+      const endsAtMs = ROUND_SUMMARY_DURATION_MS;
 
-    const nicknameByUserId = await this.collectNicknameByUserId(server, roomId);
+      const patched = await this.gameStateStore.patch(roomId, {
+        phase: GamePhase.ROUND_SUMMARY,
+        endsAt: Date.now() + endsAtMs,
+        phaseContext,
+        totalScores: updatedTotals,
+      });
 
-    const { phaseContext, updatedTotals } = await this.evaluationService.computeRoundSummary({
-      roomId,
-      gameState,
-      nicknameByUserId,
-    });
+      if (!patched) {
+        this.summaryTransitionGuard.delete(roomId);
+        return;
+      }
 
-    const endsAtMs = ROUND_SUMMARY_DURATION_MS;
-
-    const patched = await this.gameStateStore.patch(roomId, {
-      phase: GamePhase.ROUND_SUMMARY,
-      endsAt: Date.now() + endsAtMs,
-      phaseContext,
-      totalScores: updatedTotals,
-    });
-
-    if (!patched) return;
-
-    server.to(this.roomSocketRoom(roomId)).emit('room:updateGameState', {
-      phase: patched.phase,
-      endsAt: patched.endsAt,
-      phaseContext: patched.phaseContext,
-    });
+      server.to(this.roomSocketRoom(roomId)).emit('room:updateGameState', {
+        phase: patched.phase,
+        endsAt: patched.endsAt,
+        phaseContext: patched.phaseContext,
+      });
+    } catch (e) {
+      this.summaryTransitionGuard.delete(roomId);
+      throw e;
+    }
   }
 
   // DRAWING 페이즈 키(roomId:phaseInstanceId) 생성/반환
@@ -265,6 +271,8 @@ export class GameSessionService {
   }
 
   private timers = new Map<number, NodeJS.Timeout>();
+
+  private readonly summaryTransitionGuard = new Set<number>();
 
   private roomSocketRoom(roomId: number) {
     return `game:room:${roomId}`;
@@ -350,7 +358,7 @@ export class GameSessionService {
   private startEvaluatingPhaseTimer(params: { roomId: number; server: Server }) {
     const { roomId, server } = params;
 
-    this.evaluationService.resetForEvaluating(roomId);
+    this.summaryTransitionGuard.delete(roomId);
 
     this.schedulePhaseTimer({
       roomId,

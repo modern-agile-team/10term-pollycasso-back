@@ -51,7 +51,7 @@ export class EvaluationGateway {
     const gameState = await this.gameStateStore.get(roomId);
     if (!gameState) throw wsError(404, EVALUATION_ERRORS.GAME_STATE_NOT_FOUND);
 
-    return this.evalService.submitEvaluation(roomId, gameState, userId, payload);
+    await this.evalService.submitEvaluation(roomId, gameState, userId, payload);
   }
 
   @SubscribeMessage(EVALUATION_EVENTS.ROOM_READY_TOGGLE)

@@ -11,12 +11,9 @@ import {
 import { DRAWING_REPO, type IDrawingRepo } from '../drawing/interface/drawing.interface';
 import type { EvaluationSubmitPayload, PlayerId } from './interfaces/evaluation.interface';
 import { EVALUATION_ERRORS, SCORE_MAX, SCORE_MIN } from './constants/evaluation.constant';
-import {
-  type EvaluationMemoryStore,
-  ensureEvaluationState,
-  upsertEvaluation,
-} from './evaluation.inmemory';
 import { wsError } from 'src/common/utils/ws-error.util';
+import { EVALUATION_VOTE } from './interfaces/evaluation-vote.interface';
+import type { IEvaluationVote } from './interfaces/evaluation-vote.interface';
 
 export const makeDrawingId = (matchId: number, roomMemberId: number, round: number) =>
   `${matchId}:${roomMemberId}:${round}`;
@@ -31,13 +28,8 @@ export class EvaluationService {
   constructor(
     @Inject(GAME_STATE_STORE) private readonly store: IGameStateStore,
     @Inject(DRAWING_REPO) private readonly drawingRepository: IDrawingRepo,
+    @Inject(EVALUATION_VOTE) private readonly voteRepo: IEvaluationVote,
   ) {}
-
-  private readonly memory: EvaluationMemoryStore = new Map();
-
-  private getState(roomId: number) {
-    return ensureEvaluationState(this.memory, roomId);
-  }
 
   private validateScore(score: number): boolean {
     return Number.isInteger(score) && score >= SCORE_MIN && score <= SCORE_MAX;
@@ -47,17 +39,6 @@ export class EvaluationService {
     const ctx = gameState.phaseContext;
     if (!ctx || ctx.kind !== GamePhase.EVALUATING) return null;
     return ctx;
-  }
-
-  resetForEvaluating(roomId: number) {
-    const st = this.getState(roomId);
-    st.evaluations.clear();
-    st.isPhaseEnded = false;
-
-    if (st.evaluationTimer) {
-      clearTimeout(st.evaluationTimer);
-      st.evaluationTimer = null;
-    }
   }
 
   async handleDisconnect(roomId: number, userId: number): Promise<void> {
@@ -81,41 +62,26 @@ export class EvaluationService {
     return active.length > 0 && active.every((uid) => ready.has(uid));
   }
 
-  private isEvaluationCompleteForUser(
-    roomId: number,
+  private async isEvaluationCompleteForUser(
     gameState: GameState,
     userId: PlayerId,
-  ): boolean {
-    const st = this.getState(roomId);
+  ): Promise<boolean> {
     const ctx = this.getEvaluatingContextOrNull(gameState);
     if (!ctx) return false;
 
     const round = gameState.currentRound;
     if (round == null) return false;
 
-    const myRoomMemberId = gameState.roomMemberIdByUserId?.[userId];
-    if (myRoomMemberId == null) return false;
+    const activeCount = (ctx.activeUserIds ?? []).length;
+    const required = (ctx.activeUserIds ?? []).filter((uid) => uid !== userId).length;
 
-    const myDrawingId = makeDrawingId(gameState.matchId, myRoomMemberId, round);
+    const submittedDistinct = await this.voteRepo.countDistinctTargetsByVoter({
+      matchId: gameState.matchId,
+      round,
+      voterId: userId,
+    });
 
-    const requiredDrawingIds = (ctx.activeUserIds ?? [])
-      .filter((uid) => uid !== userId)
-      .map((uid) => {
-        const rmId = gameState.roomMemberIdByUserId?.[uid];
-        if (rmId == null) return null;
-        return makeDrawingId(gameState.matchId, rmId, round);
-      })
-      .filter((v): v is string => !!v && v !== myDrawingId);
-
-    const perUser = st.evaluations.get(userId);
-    if (!perUser) return requiredDrawingIds.length === 0;
-
-    for (const drawingId of requiredDrawingIds) {
-      const score = perUser.get(drawingId);
-      if (score == null) return false;
-      if (!this.validateScore(score)) return false;
-    }
-    return true;
+    return submittedDistinct >= required;
   }
 
   async toggleReady(
@@ -136,7 +102,7 @@ export class EvaluationService {
     const willBeReady = !alreadyReady;
 
     if (willBeReady) {
-      const complete = this.isEvaluationCompleteForUser(roomId, gameState, userId);
+      const complete = await this.isEvaluationCompleteForUser(gameState, userId);
       if (!complete) {
         throw wsError(400, EVALUATION_ERRORS.EVALUATION_INCOMPLETE);
       }
@@ -160,12 +126,12 @@ export class EvaluationService {
     return { isReady: willBeReady, allReady };
   }
 
-  submitEvaluation(
+  async submitEvaluation(
     roomId: number,
     gameState: GameState,
     userId: PlayerId,
     payload: EvaluationSubmitPayload,
-  ): void {
+  ): Promise<void> {
     if (gameState.phase !== GamePhase.EVALUATING) {
       throw wsError(400, EVALUATION_ERRORS.INVALID_PHASE);
     }
@@ -185,7 +151,6 @@ export class EvaluationService {
     }
 
     const [matchIdStr, roomMemberIdStr, roundStr] = parts;
-
     const matchId = Number(matchIdStr);
     const roomMemberId = Number(roomMemberIdStr);
     const drawingRound = Number(roundStr);
@@ -215,26 +180,13 @@ export class EvaluationService {
       throw wsError(400, EVALUATION_ERRORS.DRAWING_ID_INVALID);
     }
 
-    upsertEvaluation(this.memory, roomId, userId, payload);
-  }
-
-  tryBeginSummaryTransition(roomId: number): boolean {
-    const st = this.getState(roomId);
-    if (st.isPhaseEnded) return false;
-    st.isPhaseEnded = true;
-    return true;
-  }
-
-  private computeRoundScoresByDrawingId(roomId: number): Record<string, number> {
-    const st = this.getState(roomId);
-    const totals = new Map<string, number>();
-
-    for (const [, perUser] of st.evaluations.entries()) {
-      for (const [drawingId, score] of perUser.entries()) {
-        totals.set(drawingId, (totals.get(drawingId) ?? 0) + score);
-      }
-    }
-    return Object.fromEntries(totals.entries());
+    await this.voteRepo.upsertVoteByDrawingKey({
+      matchId: gameState.matchId,
+      round,
+      roomMemberId,
+      voterId: userId,
+      rating: payload.score,
+    });
   }
 
   private mergeTotals(
@@ -298,7 +250,11 @@ export class EvaluationService {
       throw wsError(400, EVALUATION_ERRORS.ROUND_MISSING);
     }
 
-    const roundScores = this.computeRoundScoresByDrawingId(roomId);
+    const roundScores = await this.voteRepo.sumRatingsByDrawingKey({
+      matchId: gameState.matchId,
+      round: gameState.currentRound,
+    });
+
     const updatedTotals = this.mergeTotals(gameState.totalScores ?? {}, roundScores);
 
     const rankings = this.buildRankings({
