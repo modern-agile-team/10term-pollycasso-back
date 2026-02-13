@@ -72,7 +72,6 @@ export class EvaluationService {
     const round = gameState.currentRound;
     if (round == null) return false;
 
-    const activeCount = (ctx.activeUserIds ?? []).length;
     const required = (ctx.activeUserIds ?? []).filter((uid) => uid !== userId).length;
 
     const submittedDistinct = await this.voteRepo.countDistinctTargetsByVoter({
@@ -235,11 +234,10 @@ export class EvaluationService {
   }
 
   async computeRoundSummary(params: {
-    roomId: number;
     gameState: GameState;
     nicknameByUserId: Record<number, string>;
   }): Promise<RoundSummaryComputeResult> {
-    const { roomId, gameState, nicknameByUserId } = params;
+    const { gameState, nicknameByUserId } = params;
 
     const ctx = this.getEvaluatingContextOrNull(gameState);
     if (!ctx) {

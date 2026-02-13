@@ -225,7 +225,6 @@ export class GameSessionService {
       this.clearTimer(roomId);
       const nicknameByUserId = await this.collectNicknameByUserId(server, roomId);
       const { phaseContext, updatedTotals } = await this.evaluationService.computeRoundSummary({
-        roomId,
         gameState,
         nicknameByUserId,
       });
@@ -341,8 +340,10 @@ export class GameSessionService {
           if (state.phase !== expectedPhase) return;
 
           if (expectedPhaseInstanceId) {
-            const ctx: any = state.phaseContext;
-            if (!ctx?.phaseInstanceId || ctx.phaseInstanceId !== expectedPhaseInstanceId) return;
+            if (expectedPhase !== GamePhase.DRAWING) return;
+            const ctx = state.phaseContext;
+            if (!ctx || ctx.kind !== GamePhase.DRAWING) return;
+            if (ctx.phaseInstanceId !== expectedPhaseInstanceId) return;
           }
 
           await onTimeout();
