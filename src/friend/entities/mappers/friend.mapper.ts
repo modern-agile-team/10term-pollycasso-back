@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { FriendStatus } from '@prisma/client';
-import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
-import { OutfitVO } from 'src/common/value-objects/outfit.vo';
 import { FriendRelation, FriendResponseDto } from 'src/friend/dtos/responses/friend.response.dto';
 import { SearchFriendResponseDto } from 'src/friend/dtos/responses/search-friend.response.dto';
 import { FriendshipData, UserProfile } from 'src/friend/types/friend.type';
+import { OutfitDto } from 'src/outfit/dtos/responses/outfit-response.dto';
+import { OutfitVO } from 'src/outfit/outfit.vo';
 
 @Injectable()
 export class FriendMapper {
@@ -13,11 +13,13 @@ export class FriendMapper {
     relation: FriendRelation,
     onlineStatusMap: Map<number, boolean>,
   ): FriendResponseDto {
+    const outfit = OutfitVO.from(user.profile?.outfit).get();
+
     return new FriendResponseDto({
       userId: user.id,
       nickname: user.nickname,
       tag: user.tag,
-      outfit: this.createOutfitDto(user.profile?.outfit),
+      outfit: new OutfitDto(outfit),
       level: user.profile?.level ?? 1,
       isOnline: onlineStatusMap.get(user.id) ?? false,
       relation: relation,

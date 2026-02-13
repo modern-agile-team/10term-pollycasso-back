@@ -1,4 +1,4 @@
-import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
+import { OutfitDto } from 'src/outfit/dtos/responses/outfit-response.dto';
 
 export enum FriendRelation {
   FRIEND = 'FRIEND',

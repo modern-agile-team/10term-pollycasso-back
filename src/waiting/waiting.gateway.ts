@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { WaitingService } from './waiting.service';
 import { UseFilters, UsePipes, ValidationPipe } from '@nestjs/common';
+import { ValidationError } from 'class-validator';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
 import { WAITING_ERROR_CODES, WAITING_EVENTS } from './constants/waiting.constant';
 import { wsError } from 'src/common/utils/ws-error.util';
@@ -18,12 +19,13 @@ import { JwtService } from '@nestjs/jwt';
 import { JoinRoomDto } from './dtos/requests/join-room.dto';
 import { ChangeTeamDto } from './dtos/requests/change-team.dto';
 import { UpdateStatusDto } from './dtos/requests/update-status.dto';
-import { UpdateOutfitDto } from './dtos/requests/update-outfit.dto';
 import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
 import { PlayerResponseDto } from './dtos/responses/player-response.dto';
-import { OutfitVO } from 'src/common/value-objects/outfit.vo';
+import { UpdateRoomOutfitDto } from './dtos/requests/update-room-outfit.dto';
+import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
+import { flattenValidationErrors } from 'src/common/utils/flatten-validation-errors.util';
 
 interface JwtPayload {
   sub: string;
@@ -42,15 +44,9 @@ interface ClientData {
     transform: true,
     whitelist: true,
     forbidNonWhitelisted: true,
-    exceptionFactory: (errors) => {
-      throw wsError(
-        400,
-        WAITING_ERROR_CODES.INVALID_INPUT,
-        errors.map((e) => ({
-          field: e.property,
-          reason: Object.values(e.constraints ?? {}),
-        })),
-      );
+    exceptionFactory: (errors: ValidationError[]) => {
+      const flattenedErrors = flattenValidationErrors(errors);
+      throw wsError(400, WAITING_ERROR_CODES.INVALID_INPUT, flattenedErrors);
     },
   }),
 )
@@ -66,6 +62,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   constructor(
     private readonly waitingService: WaitingService,
+    private readonly outfitConverterService: OutfitConverterService,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -239,7 +236,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   @SubscribeMessage(WAITING_EVENTS.ROOM_UPDATE_OUTFIT)
   async handleUpdateOutfit(
-    @MessageBody() body: UpdateOutfitDto,
+    @MessageBody() body: UpdateRoomOutfitDto,
     @ConnectedSocket() client: Socket,
   ) {
     const clientData = this.getClientData(client);
@@ -248,23 +245,15 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     const { roomId, userId } = clientData;
+    const outfitIds = await this.outfitConverterService.convertPathsToIds(body.outfit);
 
-    const players = await this.waitingService.getPlayers(roomId);
-    const player = players.find((p) => p.userId === userId);
-    if (!player) {
-      throw wsError(404, WAITING_ERROR_CODES.PLAYER_NOT_FOUND);
-    }
+    await this.waitingService.updateOutfit(roomId, userId, outfitIds);
 
-    const nextOutfit = OutfitVO.from({
-      ...player.outfit,
-      ...body.outfit,
-    }).get();
-
-    await this.waitingService.updateOutfit(roomId, userId, nextOutfit);
+    const outfitPaths = await this.outfitConverterService.convertIdsToPath(outfitIds);
 
     this.server.to(`room:${roomId}`).emit(WAITING_EVENTS.ROOM_UPDATE_PLAYER, {
       userId: userId.toString(),
-      changes: { outfit: nextOutfit },
+      changes: { outfit: outfitPaths },
     });
   }
 

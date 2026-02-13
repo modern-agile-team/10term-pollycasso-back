@@ -8,12 +8,14 @@ import { JwtModule } from '@nestjs/jwt';
 import { RoomsModule } from 'src/room/room.module';
 import { GameStateModule } from 'src/game-state/game-state.module';
 import { WaitingRepository } from './waiting.repository';
+import { OutfitModule } from 'src/outfit/outfit.module';
 
 @Module({
   imports: [
     RoomsModule,
     ChatModule,
     GameStateModule,
+    OutfitModule,
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRATION },

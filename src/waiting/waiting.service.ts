@@ -1,3 +1,4 @@
+// waiting.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -25,9 +26,6 @@ import { GAME_EVENTS } from 'src/game/constants/game.constant';
 import { ChatMessageDto, ChatReceiveChannel } from 'src/chat/dtos/responses/message-response.dto';
 import { ChatValidationService } from 'src/chat/chat-validation.service';
 import { PlayerResponseDto } from './dtos/responses/player-response.dto';
-import { Outfit } from 'src/common/types/outfit.type';
-import { OutfitVO } from 'src/common/value-objects/outfit.vo';
-import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
 import {
   WAITING_CONSTANTS,
   WAITING_DOMAIN_ERRORS,
@@ -39,6 +37,11 @@ import {
   RoomNotFoundError,
   WaitingRepository,
 } from './waiting.repository';
+import type { IWardrobeRepository } from 'src/wardrobe/interfaces/wardrobe-repository.interface';
+import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
+import { OutfitVO } from 'src/outfit/outfit.vo';
+import { OutfitIds } from 'src/outfit/outfit.type';
+import { Outfit } from 'src/outfit/entities/outfit.entity';
 
 type StartGameResult = {
   matchId: number;
@@ -51,12 +54,15 @@ export class WaitingService {
     private readonly waitingStore: WaitingStore,
     private readonly prisma: PrismaService,
     private readonly chatService: ChatService,
+    private readonly outfitConverterService: OutfitConverterService,
     private readonly gameStateStore: GameStateStore,
     private readonly waitingRepository: WaitingRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly chatValidationService: ChatValidationService,
     @Inject('IRoomReader') private readonly roomReader: IRoomReader,
     @Inject('IRoomWriter') private readonly roomWriter: IRoomWriter,
+    @Inject('IWardrobeRepository')
+    private readonly wardrobeRepository: IWardrobeRepository,
   ) {}
 
   private async loadWaitingEntity(roomId: number): Promise<Waiting> {
@@ -169,11 +175,26 @@ export class WaitingService {
     await this.waitingStore.updatePageStatus(roomId, userId, status);
   }
 
-  async updateOutfit(roomId: number, userId: number, outfit: Outfit): Promise<void> {
+  async updateOutfit(roomId: number, userId: number, outfit: OutfitIds): Promise<void> {
     const waiting = await this.loadWaitingEntity(roomId);
     waiting.validatePlayerExists(userId);
 
-    await this.waitingStore.updateOutfit(roomId, userId, outfit);
+    const outfitEntity = Outfit.create(outfit);
+
+    const ownedCosmeticIds = await this.wardrobeRepository.findOwnedCosmeticIds(userId);
+    const ownedCosmeticIdsSet = new Set(ownedCosmeticIds);
+    outfitEntity.validateOwnership(ownedCosmeticIdsSet);
+
+    const itemIds = Object.values(outfit).filter(
+      (id): id is number => id !== null && id !== undefined,
+    );
+    const cosmeticItems = await this.wardrobeRepository.findCosmeticItemsByIds(new Set(itemIds));
+    const cosmeticItemMap = new Map(
+      cosmeticItems.map((item) => [item.id, { id: item.id, subCategory: item.subCategory }]),
+    );
+    outfitEntity.validateCategories(cosmeticItemMap);
+
+    await this.waitingStore.updateOutfit(roomId, userId, outfitEntity.getAll());
   }
 
   async updateSettings(
@@ -357,6 +378,18 @@ export class WaitingService {
     const players = await this.waitingStore.getPlayers(roomId);
     const hostId = await this.waitingStore.getHostId(roomId);
 
+    const playerData = await Promise.all(
+      players.map(async (p) => ({
+        userId: p.userId,
+        nickname: p.nickname,
+        team: p.team,
+        isReady: p.isReady,
+        level: p.level,
+        status: p.pageStatus,
+        outfit: await this.outfitConverterService.convertIdsToPath(p.outfit),
+      })),
+    );
+
     return new WaitingStateResponseDto({
       status: room.status,
       hostId: hostId?.toString() ?? null,
@@ -366,15 +399,7 @@ export class WaitingService {
         maxPlayers: room.maxPlayers,
         isPrivate: room.isPrivate,
       },
-      players: players.map((p) => ({
-        userId: p.userId,
-        nickname: p.nickname,
-        team: p.team,
-        isReady: p.isReady,
-        level: p.level,
-        status: p.pageStatus,
-        outfit: new OutfitDto(p.outfit),
-      })),
+      players: playerData,
     });
   }
 
@@ -385,17 +410,20 @@ export class WaitingService {
 
   async getPlayerResponses(roomId: number): Promise<PlayerResponseDto[]> {
     const players = await this.getPlayers(roomId);
-    return players.map(
-      (p) =>
-        new PlayerResponseDto({
+
+    return await Promise.all(
+      players.map(async (p) => {
+        const outfit = await this.outfitConverterService.convertIdsToPath(p.outfit);
+        return new PlayerResponseDto({
           userId: p.userId,
           nickname: p.nickname,
           team: p.team,
           isReady: p.isReady,
           level: p.level,
           status: p.pageStatus,
-          outfit: new OutfitDto(p.outfit),
-        }),
+          outfit,
+        });
+      }),
     );
   }
 
