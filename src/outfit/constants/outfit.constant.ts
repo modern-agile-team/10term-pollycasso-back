@@ -1,4 +1,4 @@
-import { OutfitIds } from '../outfit.type';
+import { OutfitIds, OutfitAssetPaths } from '../outfit.type';
 
 export const OUTFIT_ERROR_CODES = {
   ITEM_NOT_OWNED: 'ITEM_NOT_OWNED',
@@ -24,8 +24,21 @@ export const OUTFIT_DOMAIN_ERRORS: Record<string, { field: string; reason: strin
 };
 
 export const DEFAULT_BIRD_ID = 150;
+
 export const DEFAULT_OUTFIT: OutfitIds = {
-  bird: 150,
+  bird: DEFAULT_BIRD_ID,
+  hat: null,
+  accessory: null,
+  top: null,
+  bottom: null,
+  shoes: null,
+  effect: null,
+};
+
+export const DEFAULT_BIRD_PATH = 'bird_01';
+
+export const DEFAULT_OUTFIT_PATHS: OutfitAssetPaths = {
+  bird: DEFAULT_BIRD_PATH,
   hat: null,
   accessory: null,
   top: null,

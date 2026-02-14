@@ -1,6 +1,6 @@
 import { CosmeticItem } from '@prisma/client';
 
-export class WardrobeCosmeticItemDto {
+export class WardrobeCosmeticItemResponseDto {
   id: number;
   name: string;
   price: number;

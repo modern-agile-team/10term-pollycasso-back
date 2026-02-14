@@ -1,6 +1,6 @@
 import { Team } from '@prisma/client';
 import { PlayerPageStatus } from '../requests/update-status.dto';
-import { OutfitAssetPaths } from 'src/outfit/outfit.type';
+import { OutfitPathsResponseDto } from 'src/outfit/dtos/responses/outfit-paths-response.dto';
 
 export class PlayerResponseDto {
   userId: number;
@@ -9,7 +9,7 @@ export class PlayerResponseDto {
   isReady: boolean;
   level: number;
   status?: PlayerPageStatus;
-  outfit?: OutfitAssetPaths;
+  outfit?: OutfitPathsResponseDto;
 
   constructor(data: {
     userId: number;
@@ -18,7 +18,7 @@ export class PlayerResponseDto {
     isReady: boolean;
     level: number;
     status?: PlayerPageStatus;
-    outfit?: OutfitAssetPaths;
+    outfit?: OutfitPathsResponseDto;
   }) {
     this.userId = data.userId;
     this.nickname = data.nickname;

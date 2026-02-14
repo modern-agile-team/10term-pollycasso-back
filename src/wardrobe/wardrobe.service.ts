@@ -1,12 +1,12 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { IWardrobeRepository } from './interfaces/wardrobe-repository.interface';
 import { UpdateOutfitRequestDto } from './dtos/requests/update-outfit.request.dto';
-import { UpdateOutfitResponseDto } from './dtos/responses/update-outfit.response.dto';
 import { WardrobeCosmeticInventoryResponseDto } from './dtos/responses/wardrobe-cosmetic-inventory.response.dto';
 import { WardrobeConsumableInventoryResponseDto } from './dtos/responses/wardrobe-consumable-inventory.response.dto';
 import { WARDROBE_ERROR_CODES } from './constants/wardrobe.constant';
 import { Outfit } from 'src/outfit/entities/outfit.entity';
 import { OutfitIds } from 'src/outfit/outfit.type';
+import { OutfitIdsResponseDto } from 'src/outfit/dtos/responses/outfit-ids-response.dto';
 
 @Injectable()
 export class WardrobeService {
@@ -36,7 +36,7 @@ export class WardrobeService {
   async updateOutfit(
     userId: number,
     request: UpdateOutfitRequestDto,
-  ): Promise<UpdateOutfitResponseDto> {
+  ): Promise<OutfitIdsResponseDto> {
     if (!request.outfitIds) {
       throw new BadRequestException({
         code: WARDROBE_ERROR_CODES.MISSING_OUTFIT_FIELD,
@@ -78,6 +78,6 @@ export class WardrobeService {
 
     await this.wardrobeRepository.updateUserOutfit(userId, outfit.getAll());
 
-    return new UpdateOutfitResponseDto(outfit.getAll());
+    return new OutfitIdsResponseDto(outfit.getAll());
   }
 }

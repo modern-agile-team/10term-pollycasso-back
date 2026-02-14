@@ -23,9 +23,9 @@ import { UpdateSettingsDto } from './dtos/requests/update-settings.dto';
 import { KickUserDto } from './dtos/requests/kick-user.dto';
 import { NudgeUserDto } from './dtos/requests/nudge-user.dto';
 import { PlayerResponseDto } from './dtos/responses/player-response.dto';
-import { UpdateRoomOutfitDto } from './dtos/requests/update-room-outfit.dto';
 import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
 import { flattenValidationErrors } from 'src/common/utils/flatten-validation-errors.util';
+import { UpdateRoomOutfitRequestDto } from './dtos/requests/update-room-outfit.dto';
 
 interface JwtPayload {
   sub: string;
@@ -236,7 +236,7 @@ export class WaitingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   @SubscribeMessage(WAITING_EVENTS.ROOM_UPDATE_OUTFIT)
   async handleUpdateOutfit(
-    @MessageBody() body: UpdateRoomOutfitDto,
+    @MessageBody() body: UpdateRoomOutfitRequestDto,
     @ConnectedSocket() client: Socket,
   ) {
     const clientData = this.getClientData(client);

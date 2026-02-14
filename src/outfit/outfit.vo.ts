@@ -13,12 +13,12 @@ export class OutfitVO {
 
     return new OutfitVO({
       bird: typeof obj.bird === 'number' ? obj.bird : DEFAULT_OUTFIT.bird,
-      hat: (typeof obj.hat === 'number' ? obj.hat : null) ?? null,
-      accessory: (typeof obj.accessory === 'number' ? obj.accessory : null) ?? null,
-      top: (typeof obj.top === 'number' ? obj.top : null) ?? null,
-      bottom: (typeof obj.bottom === 'number' ? obj.bottom : null) ?? null,
-      shoes: (typeof obj.shoes === 'number' ? obj.shoes : null) ?? null,
-      effect: (typeof obj.effect === 'number' ? obj.effect : null) ?? null,
+      hat: typeof obj.hat === 'number' ? obj.hat : null,
+      accessory: typeof obj.accessory === 'number' ? obj.accessory : null,
+      top: typeof obj.top === 'number' ? obj.top : null,
+      bottom: typeof obj.bottom === 'number' ? obj.bottom : null,
+      shoes: typeof obj.shoes === 'number' ? obj.shoes : null,
+      effect: typeof obj.effect === 'number' ? obj.effect : null,
     });
   }
 

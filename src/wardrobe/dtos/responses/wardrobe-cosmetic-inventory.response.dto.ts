@@ -1,12 +1,12 @@
 import { CosmeticItem } from '@prisma/client';
-import { WardrobeCosmeticItemDto } from '../wardrobe-cosmetic-item.dto';
+import { WardrobeCosmeticItemResponseDto } from '../wardrobe-cosmetic-item.response.dto';
 
 export class WardrobeCosmeticInventoryResponseDto {
-  inventory: WardrobeCosmeticItemDto[];
+  inventory: WardrobeCosmeticItemResponseDto[];
 
   constructor(inventory: CosmeticItem[], equippedIds: Set<number>) {
     this.inventory = inventory.map(
-      (item) => new WardrobeCosmeticItemDto(item, equippedIds.has(item.id)),
+      (item) => new WardrobeCosmeticItemResponseDto(item, equippedIds.has(item.id)),
     );
   }
 }

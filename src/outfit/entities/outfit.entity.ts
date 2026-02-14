@@ -25,31 +25,31 @@ export class Outfit {
     return new Outfit(props);
   }
 
-  get bird() {
+  get bird(): number {
     return this.props.bird;
   }
 
-  get hat() {
+  get hat(): number | null {
     return this.props.hat;
   }
 
-  get accessory() {
+  get accessory(): number | null {
     return this.props.accessory;
   }
 
-  get top() {
+  get top(): number | null {
     return this.props.top;
   }
 
-  get bottom() {
+  get bottom(): number | null {
     return this.props.bottom;
   }
 
-  get shoes() {
+  get shoes(): number | null {
     return this.props.shoes;
   }
 
-  get effect() {
+  get effect(): number | null {
     return this.props.effect;
   }
 
@@ -72,11 +72,9 @@ export class Outfit {
   }
 
   validateOwnership(ownedIds: Set<number>): void {
-    const outfitIds = Object.values(this.props).filter(
-      (id): id is number => id !== null && id !== undefined,
-    );
+    const equippedIds = this.getEquippedIds();
 
-    for (const id of outfitIds) {
+    for (const id of equippedIds) {
       if (!ownedIds.has(id)) {
         throw new ForbiddenException({
           code: OUTFIT_ERROR_CODES.ITEM_NOT_OWNED,
@@ -89,7 +87,7 @@ export class Outfit {
   validateCategories(
     cosmeticItemMap: Map<number, { id: number; subCategory: CosmeticSubCategory }>,
   ): void {
-    const categoryMap: Record<string, CosmeticSubCategory> = {
+    const categoryMap: Record<keyof OutfitIds, CosmeticSubCategory> = {
       bird: CosmeticSubCategory.BIRD,
       hat: CosmeticSubCategory.HAT,
       accessory: CosmeticSubCategory.ACC,
@@ -108,6 +106,12 @@ export class Outfit {
       if (!cosmeticItem) {
         throw new BadRequestException({
           code: OUTFIT_ERROR_CODES.ITEM_NOT_FOUND,
+          errors: [
+            {
+              field: key,
+              reason: `Item ${itemId} not found`,
+            },
+          ],
         });
       }
 
@@ -126,7 +130,7 @@ export class Outfit {
   }
 
   private validate(): void {
-    if (!this.props.bird) {
+    if (!this.props.bird || typeof this.props.bird !== 'number') {
       throw new BadRequestException({
         code: OUTFIT_ERROR_CODES.MISSING_BIRD_FIELD,
         errors: [OUTFIT_DOMAIN_ERRORS[OUTFIT_ERROR_CODES.MISSING_BIRD_FIELD]],

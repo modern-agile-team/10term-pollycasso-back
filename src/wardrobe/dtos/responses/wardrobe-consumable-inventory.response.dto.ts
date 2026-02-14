@@ -1,5 +1,5 @@
 import { GameItem } from '@prisma/client';
-import { WardrobeConsumableItemDto } from '../wardrobe-consumable-item.dto';
+import { WardrobeConsumableItemDto } from '../wardrobe-consumable-item.response.dto';
 
 export class WardrobeConsumableInventoryResponseDto {
   inventory: WardrobeConsumableItemDto[];

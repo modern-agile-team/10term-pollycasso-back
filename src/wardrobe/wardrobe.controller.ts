@@ -5,9 +5,9 @@ import type { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { WardrobeService } from './wardrobe.service';
 import { UpdateOutfitRequestDto } from './dtos/requests/update-outfit.request.dto';
-import { UpdateOutfitResponseDto } from './dtos/responses/update-outfit.response.dto';
 import { WardrobeCosmeticInventoryResponseDto } from './dtos/responses/wardrobe-cosmetic-inventory.response.dto';
 import { WardrobeConsumableInventoryResponseDto } from './dtos/responses/wardrobe-consumable-inventory.response.dto';
+import { OutfitIdsResponseDto } from 'src/outfit/dtos/responses/outfit-ids-response.dto';
 
 @ApiTags('wardrobe')
 @Controller('wardrobe')
@@ -34,7 +34,7 @@ export class WardrobeController {
   async updateOutfit(
     @CurrentUser() user: JwtPayload,
     @Body() body: UpdateOutfitRequestDto,
-  ): Promise<UpdateOutfitResponseDto> {
+  ): Promise<OutfitIdsResponseDto> {
     return this.wardrobeService.updateOutfit(user.sub, body);
   }
 }
