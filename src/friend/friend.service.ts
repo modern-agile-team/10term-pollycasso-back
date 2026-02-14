@@ -219,11 +219,7 @@ export class FriendService {
   async getRecommendedFriends(userId: number): Promise<SearchFriendResponseDto[]> {
     const excludeIds = await this.getExcludedUserIds(userId, false);
 
-    const { data: users } = await this.friendRepository.getRandomUsersForRecommendation(
-      userId,
-      excludeIds,
-      FRIEND_SEARCH_RULES.RECOMMENDED_FRIENDS_LIMIT,
-    );
+    const users = await this.friendRepository.getRandomUsersForRecommendation(userId, excludeIds);
 
     if (!users.length) {
       return [];
