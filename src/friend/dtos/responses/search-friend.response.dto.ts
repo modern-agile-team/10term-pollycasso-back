@@ -1,10 +1,10 @@
-import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
+import { OutfitPathsResponseDto } from 'src/outfit/dtos/responses/outfit-paths-response.dto';
 
 export class SearchFriendResponseDto {
   userId: number;
   nickname: string;
   tag: string;
-  outfit: OutfitDto;
+  outfit: OutfitPathsResponseDto;
   level: number;
   isOnline: boolean;
 
@@ -12,7 +12,7 @@ export class SearchFriendResponseDto {
     userId: number;
     nickname: string;
     tag: string;
-    outfit: OutfitDto;
+    outfit: OutfitPathsResponseDto;
     level: number;
     isOnline: boolean;
   }) {

@@ -8,6 +8,7 @@ import { FriendGateway } from './friend.gateway';
 import { PresenceModule } from 'src/presence/presence.module';
 import { JwtModule } from '@nestjs/jwt';
 import { FriendMapper } from './entities/mappers/friend.mapper';
+import { OutfitModule } from 'src/outfit/outfit.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { FriendMapper } from './entities/mappers/friend.mapper';
     forwardRef(() => BlockModule),
     RedisModule,
     PresenceModule,
+    OutfitModule,
   ],
   providers: [
     FriendService,

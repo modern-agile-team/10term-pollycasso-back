@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma, Provider, User } from '@prisma/client';
+import { DEFAULT_OUTFIT } from 'src/outfit/constants/outfit.constant';
 
 @Injectable()
 export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly DEFAULT_BIRD_ID = 150;
 
   async findByUsernameOrNickname(username: string, nickname: string): Promise<User | null> {
     return await this.prisma.user.findFirst({
@@ -36,10 +39,22 @@ export class UsersRepository {
       data: {
         ...data,
         profile: {
-          create: {},
+          create: {
+            outfit: DEFAULT_OUTFIT,
+          },
+        },
+        cosmeticItems: {
+          create: [
+            {
+              cosmeticItemId: this.DEFAULT_BIRD_ID,
+            },
+          ],
         },
       },
-      include: { profile: true },
+      include: {
+        profile: true,
+        cosmeticItems: true,
+      },
     });
   }
 

@@ -3,8 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { Team } from '@prisma/client';
 import Redis from 'ioredis';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
-import { Outfit } from 'src/common/types/outfit.type';
-import { OutfitVO } from 'src/common/value-objects/outfit.vo';
+import { OutfitIds } from 'src/outfit/outfit.type';
+import { OutfitVO } from 'src/outfit/outfit.vo';
 
 export interface WaitingPlayerState {
   userId: number;
@@ -13,7 +13,7 @@ export interface WaitingPlayerState {
   isReady: boolean;
   level: number;
   pageStatus: PlayerPageStatus;
-  outfit: Outfit;
+  outfit: OutfitIds;
   joinedAt: number;
 }
 
@@ -140,7 +140,7 @@ export class WaitingStore {
     await this.redis.hset(this.getPlayerKey(roomId, userId), 'pageStatus', status);
   }
 
-  async updateOutfit(roomId: number, userId: number, outfit: Outfit) {
+  async updateOutfit(roomId: number, userId: number, outfit: OutfitIds) {
     await this.redis.hset(this.getPlayerKey(roomId, userId), 'outfit', JSON.stringify(outfit));
   }
 

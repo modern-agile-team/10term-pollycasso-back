@@ -1,37 +1,15 @@
 import { Team } from '@prisma/client';
 import { PlayerPageStatus } from '../requests/update-status.dto';
-import { ApiProperty } from '@nestjs/swagger';
-import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
+import { OutfitPathsResponseDto } from 'src/outfit/dtos/responses/outfit-paths-response.dto';
 
 export class PlayerResponseDto {
-  @ApiProperty({ description: '플레이어 ID', example: 1 })
   userId: number;
-
-  @ApiProperty({ description: '플레이어 닉네임', example: '홍길동' })
   nickname: string;
-
-  @ApiProperty({ description: '팀', example: Team.RED, enum: Team })
   team: Team;
-
-  @ApiProperty({ description: '준비 상태', example: false })
   isReady: boolean;
-
-  @ApiProperty({ description: '레벨', example: 10 })
   level: number;
-
-  @ApiProperty({
-    description: '페이지 상태',
-    example: PlayerPageStatus.IDLE,
-    enum: PlayerPageStatus,
-  })
-  status: PlayerPageStatus;
-
-  @ApiProperty({
-    description: '아웃핏 (코디)',
-    type: OutfitDto,
-    required: false,
-  })
-  outfit?: OutfitDto;
+  status?: PlayerPageStatus;
+  outfit?: OutfitPathsResponseDto;
 
   constructor(data: {
     userId: number;
@@ -40,14 +18,14 @@ export class PlayerResponseDto {
     isReady: boolean;
     level: number;
     status?: PlayerPageStatus;
-    outfit?: OutfitDto;
+    outfit?: OutfitPathsResponseDto;
   }) {
     this.userId = data.userId;
     this.nickname = data.nickname;
     this.team = data.team;
     this.isReady = data.isReady;
     this.level = data.level;
-    this.status = data.status || PlayerPageStatus.IDLE;
+    this.status = data.status;
     this.outfit = data.outfit;
   }
 }

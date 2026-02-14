@@ -63,7 +63,7 @@ export class FriendService {
 
     const userMap = new Map(allUsers.map((u) => [u.id, u]));
 
-    const friends = this.friendMapper.mapFriendships(
+    const friends = await this.friendMapper.mapFriendships(
       friendships,
       userId,
       userMap,
@@ -72,11 +72,13 @@ export class FriendService {
     );
 
     const friendUserIds = new Set(friends.map((f) => f.userId));
-    const blockedDtos = blockedUserProfiles
-      .filter((u) => !friendUserIds.has(u.id))
-      .map((u) =>
+    const blockedUsers = blockedUserProfiles.filter((u) => !friendUserIds.has(u.id));
+
+    const blockedDtos = await Promise.all(
+      blockedUsers.map((u) =>
         this.friendMapper.createFriendResponseDto(u, FriendRelation.BLOCKED, onlineStatusMap),
-      );
+      ),
+    );
 
     return this.sortFriendList([...friends, ...blockedDtos]);
   }
@@ -167,7 +169,7 @@ export class FriendService {
     }
 
     const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
-    const results = this.friendMapper.mapUsersToSearchDto(users, onlineStatusMap);
+    const results = await this.friendMapper.mapUsersToSearchDto(users, onlineStatusMap);
     return this.sortByOnlineAndLevel(results);
   }
 
@@ -203,7 +205,7 @@ export class FriendService {
       filtered.map((u) => u.id),
     );
 
-    const results = this.friendMapper.mapUsersWithRelation(
+    const results = await this.friendMapper.mapUsersWithRelation(
       filtered,
       friendships,
       userId,
@@ -228,7 +230,7 @@ export class FriendService {
     }
 
     const onlineStatusMap = await this.presenceService.getBulkOnlineStatus(users.map((u) => u.id));
-    const results = this.friendMapper.mapUsersToSearchDto(users, onlineStatusMap);
+    const results = await this.friendMapper.mapUsersToSearchDto(users, onlineStatusMap);
     return this.sortByOnlineAndLevel(results);
   }
 

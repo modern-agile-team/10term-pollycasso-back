@@ -1,103 +1,194 @@
 import { Injectable } from '@nestjs/common';
 import { FriendStatus } from '@prisma/client';
-import { OutfitDto } from 'src/common/dtos/responses/outfit-response.dto';
-import { OutfitVO } from 'src/common/value-objects/outfit.vo';
 import { FriendRelation, FriendResponseDto } from 'src/friend/dtos/responses/friend.response.dto';
 import { SearchFriendResponseDto } from 'src/friend/dtos/responses/search-friend.response.dto';
 import { FriendshipData, UserProfile } from 'src/friend/types/friend.type';
+import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
+import { OutfitPathsResponseDto } from 'src/outfit/dtos/responses/outfit-paths-response.dto';
+import { OutfitVO } from 'src/outfit/outfit.vo';
+import { OutfitAssetPaths } from 'src/outfit/outfit.type';
+import { DEFAULT_OUTFIT_PATHS } from 'src/outfit/constants/outfit.constant';
 
 @Injectable()
 export class FriendMapper {
-  createFriendResponseDto(
+  constructor(private readonly outfitConverter: OutfitConverterService) {}
+
+  async createFriendResponseDto(
     user: UserProfile,
     relation: FriendRelation,
     onlineStatusMap: Map<number, boolean>,
-  ): FriendResponseDto {
-    return new FriendResponseDto({
-      userId: user.id,
-      nickname: user.nickname,
-      tag: user.tag,
-      outfit: this.createOutfitDto(user.profile?.outfit),
-      level: user.profile?.level ?? 1,
-      isOnline: onlineStatusMap.get(user.id) ?? false,
-      relation: relation,
-    });
+  ): Promise<FriendResponseDto> {
+    const outfitIds = OutfitVO.from(user.profile?.outfit).get();
+    const outfitPaths = await this.outfitConverter.convertIdsToPath(outfitIds);
+
+    return this.buildFriendDto(user, relation, onlineStatusMap, outfitPaths);
   }
 
-  createSearchFriendResponseDto(
+  async createSearchFriendResponseDto(
     user: UserProfile,
     onlineStatusMap: Map<number, boolean>,
-  ): SearchFriendResponseDto {
-    return new SearchFriendResponseDto({
-      userId: user.id,
-      nickname: user.nickname,
-      tag: user.tag,
-      outfit: this.createOutfitDto(user.profile?.outfit),
-      level: user.profile?.level ?? 1,
-      isOnline: onlineStatusMap.get(user.id) ?? false,
-    });
+  ): Promise<SearchFriendResponseDto> {
+    const outfitIds = OutfitVO.from(user.profile?.outfit).get();
+    const outfitPaths = await this.outfitConverter.convertIdsToPath(outfitIds);
+
+    return this.buildSearchDto(user, onlineStatusMap, outfitPaths);
   }
 
-  mapFriendships(
+  async mapFriendships(
     friendships: FriendshipData[],
     userId: number,
     userMap: Map<number, UserProfile>,
     blockedIds: Set<number>,
     onlineStatusMap: Map<number, boolean>,
-  ): FriendResponseDto[] {
-    return friendships
-      .map((friendship) => {
-        const targetId =
-          friendship.requesterId === userId ? friendship.receiverId : friendship.requesterId;
+  ): Promise<FriendResponseDto[]> {
+    const validUsers: UserProfile[] = [];
+    const friendshipMap = new Map<number, FriendshipData>();
 
-        const user = userMap.get(targetId);
+    for (const friendship of friendships) {
+      const targetId =
+        friendship.requesterId === userId ? friendship.receiverId : friendship.requesterId;
 
-        if (!user || !user.profile) {
-          return null;
-        }
+      const user = userMap.get(targetId);
 
-        const relation = this.determineFriendRelation(friendship, userId, targetId, blockedIds);
+      if (user?.profile) {
+        validUsers.push(user);
+        friendshipMap.set(user.id, friendship);
+      }
+    }
 
-        if (!relation) {
-          return null;
-        }
+    if (validUsers.length === 0) return [];
 
-        return this.createFriendResponseDto(user, relation, onlineStatusMap);
+    const outfitPaths = await this.batchConvertOutfits(validUsers);
+
+    return validUsers
+      .map((user, index) => {
+        const friendship = friendshipMap.get(user.id);
+        if (!friendship) return null;
+
+        const relation = this.determineFriendRelation(friendship, userId, user.id, blockedIds);
+
+        if (!relation) return null;
+
+        return this.buildFriendDto(
+          user,
+          relation,
+          onlineStatusMap,
+          outfitPaths[index] ?? DEFAULT_OUTFIT_PATHS,
+        );
       })
       .filter((dto): dto is FriendResponseDto => dto !== null);
   }
 
-  mapUsersToSearchDto(
+  async mapUsersToSearchDto(
     users: UserProfile[],
     onlineStatusMap: Map<number, boolean>,
-  ): SearchFriendResponseDto[] {
-    return users.map((user) => this.createSearchFriendResponseDto(user, onlineStatusMap));
+  ): Promise<SearchFriendResponseDto[]> {
+    if (users.length === 0) return [];
+
+    const validUsers = users.filter((u) => u.profile);
+    if (validUsers.length === 0) return [];
+
+    const outfitPaths = await this.batchConvertOutfits(validUsers);
+
+    return validUsers.map((user, index) =>
+      this.buildSearchDto(user, onlineStatusMap, outfitPaths[index] ?? DEFAULT_OUTFIT_PATHS),
+    );
   }
 
-  mapUsersWithRelation(
+  async mapUsersWithRelation(
     users: UserProfile[],
     friendships: FriendshipData[],
     userId: number,
     blockedIds: Set<number>,
     onlineStatusMap: Map<number, boolean>,
-  ): FriendResponseDto[] {
+  ): Promise<FriendResponseDto[]> {
     const friendshipMap = new Map<number, FriendshipData>();
-    friendships.forEach((friendship) => {
+
+    for (const friendship of friendships) {
       const targetId =
         friendship.requesterId === userId ? friendship.receiverId : friendship.requesterId;
+
       friendshipMap.set(targetId, friendship);
-    });
+    }
 
-    return users
-      .map((user) => {
-        if (!user.profile) {
-          return null;
-        }
+    const validUsers = users.filter((u) => u.profile);
+    if (validUsers.length === 0) return [];
 
+    const outfitPaths = await this.batchConvertOutfits(validUsers);
+
+    return validUsers
+      .map((user, index) => {
         const friendship = friendshipMap.get(user.id);
-        return this.buildFriendResponseDto(user, friendship, userId, blockedIds, onlineStatusMap);
+
+        return this.buildFriendResponseDtoWithPaths(
+          user,
+          friendship,
+          userId,
+          blockedIds,
+          onlineStatusMap,
+          outfitPaths[index] ?? DEFAULT_OUTFIT_PATHS,
+        );
       })
       .filter((dto): dto is FriendResponseDto => dto !== null);
+  }
+
+  private async batchConvertOutfits(users: UserProfile[]): Promise<OutfitAssetPaths[]> {
+    const outfitIds = users.map((user) => OutfitVO.from(user.profile?.outfit).get());
+
+    return this.outfitConverter.convertMultipleIdsToPath(outfitIds);
+  }
+
+  private buildFriendDto(
+    user: UserProfile,
+    relation: FriendRelation,
+    onlineStatusMap: Map<number, boolean>,
+    outfitPaths: OutfitAssetPaths,
+  ): FriendResponseDto {
+    return new FriendResponseDto({
+      userId: user.id,
+      nickname: user.nickname,
+      tag: user.tag,
+      outfit: new OutfitPathsResponseDto(outfitPaths),
+      level: user.profile?.level ?? 1,
+      isOnline: onlineStatusMap.get(user.id) ?? false,
+      relation,
+    });
+  }
+
+  private buildSearchDto(
+    user: UserProfile,
+    onlineStatusMap: Map<number, boolean>,
+    outfitPaths: OutfitAssetPaths,
+  ): SearchFriendResponseDto {
+    return new SearchFriendResponseDto({
+      userId: user.id,
+      nickname: user.nickname,
+      tag: user.tag,
+      outfit: new OutfitPathsResponseDto(outfitPaths),
+      level: user.profile?.level ?? 1,
+      isOnline: onlineStatusMap.get(user.id) ?? false,
+    });
+  }
+
+  private buildFriendResponseDtoWithPaths(
+    user: UserProfile,
+    friendship: FriendshipData | undefined,
+    userId: number,
+    blockedIds: Set<number>,
+    onlineStatusMap: Map<number, boolean>,
+    outfitPaths: OutfitAssetPaths,
+  ): FriendResponseDto | null {
+    if (!friendship) {
+      if (!blockedIds.has(user.id)) return null;
+
+      return this.buildFriendDto(user, FriendRelation.BLOCKED, onlineStatusMap, outfitPaths);
+    }
+
+    const relation = this.determineFriendRelation(friendship, userId, user.id, blockedIds);
+
+    if (!relation) return null;
+
+    return this.buildFriendDto(user, relation, onlineStatusMap, outfitPaths);
   }
 
   private determineFriendRelation(
@@ -121,41 +212,5 @@ export class FriendMapper {
     }
 
     return null;
-  }
-
-  private buildFriendResponseDto(
-    user: UserProfile,
-    friendship: FriendshipData | undefined,
-    userId: number,
-    blockedIds: Set<number>,
-    onlineStatusMap: Map<number, boolean>,
-  ): FriendResponseDto | null {
-    if (!friendship) {
-      return this.buildBlockedUserDto(user, blockedIds, onlineStatusMap);
-    }
-
-    const relation = this.determineFriendRelation(friendship, userId, user.id, blockedIds);
-
-    if (!relation) {
-      return null;
-    }
-
-    return this.createFriendResponseDto(user, relation, onlineStatusMap);
-  }
-
-  private buildBlockedUserDto(
-    user: UserProfile,
-    blockedIds: Set<number>,
-    onlineStatusMap: Map<number, boolean>,
-  ): FriendResponseDto | null {
-    if (!blockedIds.has(user.id)) {
-      return null;
-    }
-
-    return this.createFriendResponseDto(user, FriendRelation.BLOCKED, onlineStatusMap);
-  }
-
-  private createOutfitDto(rawOutfit: unknown): OutfitDto {
-    return new OutfitDto(OutfitVO.from(rawOutfit).get());
   }
 }

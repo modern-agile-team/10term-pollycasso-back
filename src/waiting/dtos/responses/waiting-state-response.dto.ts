@@ -2,7 +2,7 @@ import { RoomStatus, RoomMode, Team } from '@prisma/client';
 import { PlayerResponseDto } from './player-response.dto';
 import { PlayerPageStatus } from '../requests/update-status.dto';
 import { ApiProperty } from '@nestjs/swagger';
-import { Outfit } from 'src/common/types/outfit.type';
+import { OutfitPathsResponseDto } from 'src/outfit/dtos/responses/outfit-paths-response.dto';
 
 export class WaitingStateResponseDto {
   @ApiProperty({ description: '방 상태', example: RoomStatus.WAITING, enum: RoomStatus })
@@ -46,7 +46,7 @@ export class WaitingStateResponseDto {
       isReady: boolean;
       level: number;
       status?: PlayerPageStatus;
-      outfit?: Outfit;
+      outfit?: OutfitPathsResponseDto;
     }>;
   }) {
     this.status = data.status;
