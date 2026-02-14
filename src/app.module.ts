@@ -17,6 +17,7 @@ import { BlockModule } from './block/block.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ShopModule } from './shop/shop.module';
 import { ItemModule } from './item/item.module';
+import { WardrobeModule } from './wardrobe/wardrobe.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ItemModule } from './item/item.module';
     BlockModule,
     ShopModule,
     ItemModule,
+    WardrobeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

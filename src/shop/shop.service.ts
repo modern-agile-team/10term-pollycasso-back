@@ -128,7 +128,7 @@ export class ShopService {
     return new PurchaseResultResponseDto({
       purchasedCosmeticItemIds: cosmeticItemIds,
       purchasedGameItemIds: Array.from(gameItemQuantityMap.keys()),
-      remainingCoin: updatedUser!.coins,
+      remainingCoins: updatedUser!.coins,
     });
   }
 }

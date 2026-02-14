@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, BadRequestException, ValidationError } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { ValidationError } from 'class-validator';
 import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { flattenValidationErrors } from './common/utils/flatten-validation-errors.util';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -28,10 +30,7 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
       transform: true,
       exceptionFactory: (errors: ValidationError[]) => {
-        const formattedErrors = errors.map((err) => ({
-          field: err.property,
-          reason: err.constraints ? Object.values(err.constraints) : [],
-        }));
+        const formattedErrors = flattenValidationErrors(errors);
 
         return new BadRequestException({
           status: 400,
@@ -77,5 +76,5 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error('서버 시작 중 오류 발생:', err);
+  console.error('서버 시작 중 오류 발생: ', err);
 });
