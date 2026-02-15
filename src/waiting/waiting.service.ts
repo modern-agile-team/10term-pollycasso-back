@@ -39,7 +39,6 @@ import {
 } from './waiting.repository';
 import type { IWardrobeRepository } from 'src/wardrobe/interfaces/wardrobe-repository.interface';
 import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
-import { OutfitVO } from 'src/outfit/outfit.vo';
 import { OutfitIds } from 'src/outfit/outfit.type';
 import { Outfit } from 'src/outfit/entities/outfit.entity';
 
@@ -143,7 +142,7 @@ export class WaitingService {
     const nickname = user?.nickname ?? 'Unknown';
     const level = user?.profile?.level ?? 1;
     const initialTeam = waiting.getInitialTeam();
-    const outfit = OutfitVO.from(user?.profile?.outfit);
+    const outfit = Outfit.fromJSON(user?.profile?.outfit);
 
     return {
       userId,
@@ -152,7 +151,7 @@ export class WaitingService {
       isReady: false,
       level,
       pageStatus: PlayerPageStatus.IDLE,
-      outfit: outfit.get(),
+      outfit: outfit.getAll(),
       joinedAt: Date.now(),
     };
   }

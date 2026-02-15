@@ -5,9 +5,9 @@ import { SearchFriendResponseDto } from 'src/friend/dtos/responses/search-friend
 import { FriendshipData, UserProfile } from 'src/friend/types/friend.type';
 import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
 import { OutfitPathsResponseDto } from 'src/outfit/dtos/responses/outfit-paths-response.dto';
-import { OutfitVO } from 'src/outfit/outfit.vo';
 import { OutfitAssetPaths } from 'src/outfit/outfit.type';
 import { DEFAULT_OUTFIT_PATHS } from 'src/outfit/constants/outfit.constant';
+import { Outfit } from 'src/outfit/entities/outfit.entity';
 
 @Injectable()
 export class FriendMapper {
@@ -18,7 +18,7 @@ export class FriendMapper {
     relation: FriendRelation,
     onlineStatusMap: Map<number, boolean>,
   ): Promise<FriendResponseDto> {
-    const outfitIds = OutfitVO.from(user.profile?.outfit).get();
+    const outfitIds = Outfit.fromJSON(user.profile?.outfit).getAll();
     const outfitPaths = await this.outfitConverter.convertIdsToPath(outfitIds);
 
     return this.buildFriendDto(user, relation, onlineStatusMap, outfitPaths);
@@ -28,7 +28,7 @@ export class FriendMapper {
     user: UserProfile,
     onlineStatusMap: Map<number, boolean>,
   ): Promise<SearchFriendResponseDto> {
-    const outfitIds = OutfitVO.from(user.profile?.outfit).get();
+    const outfitIds = Outfit.fromJSON(user.profile?.outfit).getAll();
     const outfitPaths = await this.outfitConverter.convertIdsToPath(outfitIds);
 
     return this.buildSearchDto(user, onlineStatusMap, outfitPaths);
@@ -133,7 +133,7 @@ export class FriendMapper {
   }
 
   private async batchConvertOutfits(users: UserProfile[]): Promise<OutfitAssetPaths[]> {
-    const outfitIds = users.map((user) => OutfitVO.from(user.profile?.outfit).get());
+    const outfitIds = users.map((user) => Outfit.fromJSON(user.profile?.outfit).getAll());
 
     return this.outfitConverter.convertMultipleIdsToPath(outfitIds);
   }

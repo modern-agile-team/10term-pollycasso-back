@@ -25,6 +25,7 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 import { KakaoGuard } from './guards/kakao.guard';
 import { GoogleGuard } from './guards/google.guard';
 import type { SocialLoginRequest } from './interfaces/social-login-request.interface';
+import { LoginResponseDto } from './dtos/responses/login-response.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -49,16 +50,23 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiAuth.login()
-  async login(@Body() body: LoginRequestDto, @Res({ passthrough: true }) res: ExpressResponse) {
+  async login(
+    @Body() body: LoginRequestDto,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ): Promise<LoginResponseDto> {
     const user = await this.authService.validateUser(body.username, body.password);
     if (!user) {
       throw new UnauthorizedException({ code: AUTH_ERROR_CODES.INVALID_CREDENTIALS });
     }
-    const { accessToken, refreshToken } = await this.authService.login(user);
 
-    this.setRefreshToken(res, refreshToken);
+    const { tokens, profile } = await this.authService.login(user);
 
-    return { accessToken };
+    this.setRefreshToken(res, tokens.refreshToken);
+
+    return {
+      accessToken: tokens.accessToken,
+      ...profile,
+    } as LoginResponseDto;
   }
 
   @UseGuards(RefreshTokenGuard)
@@ -118,14 +126,23 @@ export class AuthController {
   }
 
   private async handleOAuthCallback(req: SocialLoginRequest, res: ExpressResponse, state: string) {
-    const { accessToken, refreshToken } = await this.authService.socialLogin(req.user);
+    const { tokens, profile } = await this.authService.socialLogin(req.user);
 
-    this.setRefreshToken(res, refreshToken);
-    this.setAccessToken(res, accessToken);
+    this.setRefreshToken(res, tokens.refreshToken);
+    this.setAccessToken(res, tokens.accessToken);
 
     const redirectUrl = this.authService.validateRedirectUrl(state);
 
-    return res.redirect(redirectUrl);
+    const url = new URL(redirectUrl);
+    url.searchParams.append('coins', String(profile.coins ?? 0));
+    url.searchParams.append('level', String(profile.level ?? 1));
+    url.searchParams.append('currentExp', String(profile.currentExp ?? 0));
+
+    if (profile.outfit) {
+      url.searchParams.append('outfit', JSON.stringify(profile.outfit));
+    }
+
+    return res.redirect(url.toString());
   }
 
   private setAccessToken(res: ExpressResponse, accessToken: string) {

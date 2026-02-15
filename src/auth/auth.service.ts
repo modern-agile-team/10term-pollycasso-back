@@ -8,10 +8,15 @@ import { UserData } from './interfaces/user-data.interface';
 import { SocialLoginPayload } from './interfaces/social-login.interface';
 import { USER_ERROR_CODES } from 'src/user/constants/user.constant';
 import { TokenDto } from './dtos/responses/token.dto';
+import { LoginResponseDto } from './dtos/responses/login-response.dto';
 import { AccessTokenDto } from './dtos/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { AUTH_DOMAIN_ERRORS } from './constants/auth.constant';
 import { PresenceService } from 'src/presence/presence.service';
+import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
+import { DEFAULT_OUTFIT_PATHS } from 'src/outfit/constants/outfit.constant';
+import { UserWithProfile } from 'src/user/types/user-with-profile.type';
+import { Outfit } from 'src/outfit/entities/outfit.entity';
 
 @Injectable()
 export class AuthService {
@@ -20,6 +25,7 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly configService: ConfigService,
     private readonly presenceService: PresenceService,
+    private readonly outfitConverterService: OutfitConverterService,
   ) {}
 
   async signup(signupRequestDto: SignupRequestDto): Promise<void> {
@@ -44,7 +50,7 @@ export class AuthService {
   async validateUser(username: string, password: string): Promise<UserData | null> {
     const user = await this.userService.findUserByUsername(username);
 
-    if (!user || !user.hashedPassword) {
+    if (!user?.hashedPassword) {
       return null;
     }
 
@@ -58,13 +64,25 @@ export class AuthService {
     return result as UserData;
   }
 
-  async login(userData: UserData): Promise<TokenDto> {
-    await this.presenceService.markOnline(userData.id);
+  async login(
+    userData: UserData,
+  ): Promise<{ tokens: TokenDto; profile: Partial<LoginResponseDto> }> {
+    return this.issueLoginResult(userData);
+  }
 
-    const payload = this.createJwtPayload(userData);
-    const tokens = await this.generateTokens(payload);
+  async socialLogin(
+    socialUser: SocialLoginPayload,
+  ): Promise<{ tokens: TokenDto; profile: Partial<LoginResponseDto> }> {
+    let user = await this.userService.findUserByProvider(
+      socialUser.provider,
+      socialUser.providerId,
+    );
 
-    return tokens;
+    if (!user) {
+      user = await this.userService.createSocialUser(socialUser);
+    }
+
+    return this.issueLoginResult(user);
   }
 
   refreshAccessOnly(userData: JwtPayload): AccessTokenDto {
@@ -79,38 +97,51 @@ export class AuthService {
     ]);
   }
 
-  async socialLogin(socialUser: SocialLoginPayload): Promise<TokenDto> {
-    let user = await this.userService.findUserByProvider(
-      socialUser.provider,
-      socialUser.providerId,
-    );
-
-    if (!user) {
-      user = await this.userService.createSocialUser(socialUser);
-    }
+  private async issueLoginResult(
+    user: UserData,
+  ): Promise<{ tokens: TokenDto; profile: Partial<LoginResponseDto> }> {
     await this.presenceService.markOnline(user.id);
 
     const payload = this.createJwtPayload(user);
-    const tokens = await this.generateTokens(payload);
 
-    return tokens;
+    const [accessToken, refreshToken] = await Promise.all([
+      this.tokenService.createAccessToken(payload),
+      this.tokenService.createRefreshToken(payload),
+    ]);
+
+    const userWithProfile = await this.userService.findOneWithProfile(user.id);
+    const profile = await this.buildProfileData(userWithProfile);
+
+    return {
+      tokens: { accessToken, refreshToken },
+      profile,
+    };
   }
 
-  validateRedirectUrl(state: string): string {
-    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
-    const fallbackUrl = new URL('/auth/callback', frontendUrl).toString();
-
-    if (!state) {
-      return fallbackUrl;
+  private async buildProfileData(
+    userWithProfile: UserWithProfile | null,
+  ): Promise<Partial<LoginResponseDto>> {
+    if (!userWithProfile?.profile) {
+      return {
+        coins: 0,
+        level: 1,
+        currentExp: 0,
+        outfit: DEFAULT_OUTFIT_PATHS,
+      };
     }
 
-    const whitelist = this.buildRedirectWhitelist(frontendUrl);
+    const { profile } = userWithProfile;
 
-    try {
-      return this.validateAndBuildRedirectUrl(state, frontendUrl, whitelist, fallbackUrl);
-    } catch {
-      return fallbackUrl;
-    }
+    const outfitPaths = await this.outfitConverterService.convertIdsToPath(
+      Outfit.fromJSON(profile.outfit).getAll(),
+    );
+
+    return {
+      coins: profile.coin ?? 0,
+      level: profile.level ?? 1,
+      currentExp: profile.experience ?? 0,
+      outfit: outfitPaths,
+    };
   }
 
   private createJwtPayload(user: UserData): JwtPayload {
@@ -129,13 +160,21 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(payload: JwtPayload): Promise<TokenDto> {
-    const [accessToken, refreshToken] = await Promise.all([
-      Promise.resolve(this.tokenService.createAccessToken(payload)),
-      this.tokenService.createRefreshToken(payload),
-    ]);
+  validateRedirectUrl(state: string): string {
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    const fallbackUrl = new URL('/auth/callback', frontendUrl).toString();
 
-    return { accessToken, refreshToken };
+    if (!state) {
+      return fallbackUrl;
+    }
+
+    const whitelist = this.buildRedirectWhitelist(frontendUrl);
+
+    try {
+      return this.validateAndBuildRedirectUrl(state, frontendUrl, whitelist, fallbackUrl);
+    } catch {
+      return fallbackUrl;
+    }
   }
 
   private buildRedirectWhitelist(frontendUrl: string): Set<string> {
@@ -161,7 +200,7 @@ export class AuthService {
 
     const parsed = new URL(state);
 
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
       return fallbackUrl;
     }
 

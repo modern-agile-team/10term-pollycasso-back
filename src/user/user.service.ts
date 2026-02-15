@@ -19,6 +19,11 @@ export class UsersService {
     return this.usersRepository.findOneById(id);
   }
 
+  // 프로필 정보 포함해서 조회 (로그인용)
+  async findOneWithProfile(id: number) {
+    return this.usersRepository.findOneWithProfile(id);
+  }
+
   // 유저 생성
   async createUser(userData: CreateUserDto): Promise<User> {
     return this.createUserWithTag(userData);
