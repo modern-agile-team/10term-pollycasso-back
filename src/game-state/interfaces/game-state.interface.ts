@@ -1,3 +1,5 @@
+import { DrawData } from 'src/game/drawing/interface/drawing.interface';
+
 export const GAME_STATE_STORE = Symbol('GAME_STATE_STORE');
 
 export enum GamePhase {
@@ -24,10 +26,31 @@ export interface DrawingContext {
 
 export interface EvaluatingContext {
   kind: GamePhase.EVALUATING;
-  votes: Record<string, number>;
+  activeUserIds: number[];
+  readyUserIds: number[];
 }
 
-export type PhaseContext = ThemeSelectPhaseContext | DrawingContext | EvaluatingContext | null;
+export interface RoundRankItem {
+  roomMemberId: number;
+  nickname: string;
+
+  drawingId: string;
+  score: number;
+  totalScore: number;
+}
+
+export interface RoundSummaryPhaseContext {
+  kind: GamePhase.ROUND_SUMMARY;
+  rankings: RoundRankItem[];
+  drawingsById: Record<string, DrawData>;
+}
+
+export type PhaseContext =
+  | ThemeSelectPhaseContext
+  | DrawingContext
+  | EvaluatingContext
+  | RoundSummaryPhaseContext
+  | null;
 
 export interface GameState {
   phase: GamePhase;
@@ -38,6 +61,7 @@ export interface GameState {
   roomMemberIdByUserId: Record<number, number>;
   currentTheme: string | null;
   recentThemes: string[];
+  totalScores: Record<string, number>;
   phaseContext: PhaseContext;
 }
 
