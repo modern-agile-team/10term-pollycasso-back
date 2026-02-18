@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { type Drawing, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DrawData, IDrawingRepo } from './interface/drawing.interface';
+import {
+  DrawData,
+  IDrawingRepo,
+  isValidDrawData,
+  MatchRoundCriteria,
+} from './interface/drawing.interface';
+import { DRAWING_ERRORS } from './constants/drawing.constant';
+import { wsError } from 'src/common/utils/ws-error.util';
 
 @Injectable()
 export class DrawingRepository implements IDrawingRepo {
@@ -47,10 +54,9 @@ export class DrawingRepository implements IDrawingRepo {
     });
   }
 
-  async findManyByMatchIdAndRound(params: {
-    matchId: number;
-    round: number;
-  }): Promise<Array<Pick<Drawing, 'matchId' | 'roomMemberId' | 'round' | 'data'>>> {
+  async findManyByMatchIdAndRound(
+    params: MatchRoundCriteria,
+  ): Promise<Array<Pick<Drawing, 'matchId' | 'roomMemberId' | 'round' | 'data'>>> {
     const { matchId, round } = params;
 
     return this.prisma.drawing.findMany({
@@ -64,16 +70,17 @@ export class DrawingRepository implements IDrawingRepo {
     });
   }
 
-  async getDrawingsByMatchAndRound(params: {
-    matchId: number;
-    round: number;
-  }): Promise<Record<string, DrawData>> {
+  async getDrawingsByMatchAndRound(params: MatchRoundCriteria): Promise<Record<string, DrawData>> {
     const rows = await this.findManyByMatchIdAndRound(params);
 
     const drawingsById: Record<string, DrawData> = {};
     for (const r of rows) {
+      if (!isValidDrawData(r.data)) {
+        throw wsError(500, DRAWING_ERRORS.DRAW_DATA_INVALID);
+      }
+
       const drawingId = this.makeDrawingId(r.matchId, r.roomMemberId, r.round);
-      drawingsById[drawingId] = r.data as unknown as DrawData;
+      drawingsById[drawingId] = r.data;
     }
 
     return drawingsById;
