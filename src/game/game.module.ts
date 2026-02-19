@@ -24,6 +24,8 @@ import { DRAWING_REPO } from './drawing/interface/drawing.interface';
 import { EvaluationService } from './evaluation/evaluation.service';
 import { EvaluationVoteRepository } from './evaluation/evaluation-vote.repository';
 import { EVALUATION_VOTE } from './evaluation/interfaces/evaluation-vote.interface';
+import { RoundSummaryGateway } from './round-summary/round-summary.gateway';
+import { RoundSummaryService } from './round-summary/round-summary.service';
 
 @Module({
   imports: [
@@ -60,6 +62,8 @@ import { EVALUATION_VOTE } from './evaluation/interfaces/evaluation-vote.interfa
     EvaluationGateway,
     EvaluationService,
     { provide: EVALUATION_VOTE, useClass: EvaluationVoteRepository },
+    RoundSummaryGateway,
+    RoundSummaryService,
   ],
   exports: [],
 })

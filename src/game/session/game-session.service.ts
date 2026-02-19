@@ -21,6 +21,7 @@ import { EvaluationService } from '../evaluation/evaluation.service';
 
 type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
+const THEME_SELECTING_DURATION_MS = 32000; // 32초
 const DRAWING_DURATION_MS = 92000; // 92초
 const EVALUATING_DURATION_MS = 60000; // 60초
 const ROUND_SUMMARY_DURATION_MS = 32000; // 32초
@@ -248,6 +249,8 @@ export class GameSessionService {
         endsAt: patched.endsAt,
         phaseContext: patched.phaseContext,
       });
+
+      this.startRoundSummaryPhaseTimer({ roomId, server });
     } catch (e) {
       this.summaryTransitionGuard.delete(roomId);
       throw e;
@@ -269,9 +272,67 @@ export class GameSessionService {
     return `${roomId}:${roundId}`;
   }
 
+  async advanceFromRoundSummary(params: { roomId: number; server: Server }) {
+    const { roomId, server } = params;
+
+    if (this.roundSummaryExitGuard.has(roomId)) return;
+    this.roundSummaryExitGuard.add(roomId);
+
+    try {
+      const state = await this.gameStateStore.get(roomId);
+      if (!state) return;
+      if (state.phase !== GamePhase.ROUND_SUMMARY) return;
+
+      const currentRound = state.currentRound ?? 0;
+      const totalRounds = state.totalRounds ?? 0;
+      const isLastRound = totalRounds > 0 && currentRound >= totalRounds;
+
+      this.clearTimer(roomId);
+
+      if (isLastRound) {
+        const patched = await this.gameStateStore.patch(roomId, {
+          phase: GamePhase.FINISHED,
+          endsAt: null,
+          phaseContext: null,
+          currentTheme: null,
+        });
+        if (!patched) return;
+
+        this.eventPublisher.broadcastGameState(roomId, patched);
+        return;
+      }
+
+      const themeContext = await this.topicService.buildThemeSelectionContext(roomId);
+      if (!themeContext) return;
+
+      const { selectorId, selectorNickname } = themeContext;
+
+      const endsAt = Date.now() + THEME_SELECTING_DURATION_MS;
+
+      const patched = await this.gameStateStore.patch(roomId, {
+        phase: GamePhase.THEME_SELECTING,
+        endsAt,
+        currentTheme: null,
+        phaseContext: {
+          kind: GamePhase.THEME_SELECTING,
+          selectorId,
+          selectorNickname,
+        },
+      });
+
+      if (!patched) return;
+
+      this.eventPublisher.broadcastGameState(roomId, patched);
+    } finally {
+      this.roundSummaryExitGuard.delete(roomId);
+    }
+  }
+
   private timers = new Map<number, NodeJS.Timeout>();
 
   private readonly summaryTransitionGuard = new Set<number>();
+
+  private readonly roundSummaryExitGuard = new Set<number>();
 
   private roomSocketRoom(roomId: number) {
     return `game:room:${roomId}`;
@@ -368,6 +429,27 @@ export class GameSessionService {
       server,
       onTimeout: async () => {
         await this.advanceToRoundSummary({ roomId, server });
+      },
+    });
+  }
+
+  private async startRoundSummaryPhaseTimer(params: { roomId: number; server: Server }) {
+    const { roomId, server } = params;
+
+    const state = await this.gameStateStore.get(roomId);
+    if (!state) return;
+    if (state.phase !== GamePhase.ROUND_SUMMARY) return;
+    if (!state.endsAt) return;
+
+    const delay = Math.max(0, state.endsAt - Date.now());
+
+    this.schedulePhaseTimer({
+      roomId,
+      delayMs: delay,
+      expectedPhase: GamePhase.ROUND_SUMMARY,
+      server,
+      onTimeout: async () => {
+        await this.advanceFromRoundSummary({ roomId, server });
       },
     });
   }
