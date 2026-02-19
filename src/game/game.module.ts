@@ -19,6 +19,11 @@ import { CooldownStore } from './item/stores/cooldown.store';
 import { GameItemService } from './item/game-item.service';
 import { GameItemGateway } from './item/game-item.gateway';
 import { ItemModule } from 'src/item/item.module';
+import { EvaluationGateway } from './evaluation/evaluation.gateway';
+import { DRAWING_REPO } from './drawing/interface/drawing.interface';
+import { EvaluationService } from './evaluation/evaluation.service';
+import { EvaluationVoteRepository } from './evaluation/evaluation-vote.repository';
+import { EVALUATION_VOTE } from './evaluation/interfaces/evaluation-vote.interface';
 
 @Module({
   imports: [
@@ -38,15 +43,23 @@ import { ItemModule } from 'src/item/item.module';
     TopicService,
     GameSessionService,
     DrawingService,
+    EvaluationService,
     { provide: GAME_STATE_STORE, useClass: GameStateStore },
     { provide: GAME_EVENT_PUBLISHER, useExisting: GameGateway },
     DrawingGateway,
     DrawingStore,
     DrawingRepository,
+    {
+      provide: DRAWING_REPO,
+      useClass: DrawingRepository,
+    },
     GameItemGateway,
     GameItemService,
     CooldownStore,
     GameInventoryStore,
+    EvaluationGateway,
+    EvaluationService,
+    { provide: EVALUATION_VOTE, useClass: EvaluationVoteRepository },
   ],
   exports: [],
 })

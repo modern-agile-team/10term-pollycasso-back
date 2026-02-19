@@ -14,7 +14,7 @@ export function flattenValidationErrors(
 
     if (error.constraints) {
       result.push({
-        field: currentPath,
+        field: error.property,
         reason: Object.values(error.constraints),
       });
     }

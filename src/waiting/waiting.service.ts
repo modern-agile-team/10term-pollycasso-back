@@ -344,6 +344,7 @@ export class WaitingService {
       currentTheme: null,
       recentThemes: [],
       phaseContext: null,
+      totalScores: {},
     });
 
     this.eventEmitter.emit(GAME_EVENTS.LOADING_STARTED, { roomId });
