@@ -9,6 +9,7 @@ export const GAME_ERRORS = {
   GAME_INVALID_ROOM_ID: 'GAME_INVALID_ROOM_ID',
   GAME_ACCESS_DENIED: 'GAME_ACCESS_DENIED',
   GAME_CONTEXT_INVALID: 'GAME_CONTEXT_INVALID',
+  INVALID_PHASE: 'INVALID_PHASE',
 } as const;
 
 export const GAME_EVENTS = {
@@ -17,4 +18,6 @@ export const GAME_EVENTS = {
   ROOM_UPDATE_GAME_STATE: 'room:updateGameState',
   GAME_THEME_CONFIRMED: 'game:themeConfirmed',
   LOADING_STARTED: 'game.loading.started',
+  ROOM_READY_TOGGLE: 'room:readyToggle',
+  ROOM_UPDATE_PLAYER: 'room:updatePlayer',
 } as const;

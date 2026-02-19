@@ -1,6 +1,5 @@
 export const EVALUATION_EVENTS = {
   GAME_SUBMIT_EVALUATION: 'game:submitEvaluation',
-  ROOM_READY_TOGGLE: 'room:readyToggle',
   ROOM_UPDATE_GAME_STATE: 'room:updateGameState',
   ROOM_UPDATE_PLAYER: 'room:updatePlayer',
 } as const;

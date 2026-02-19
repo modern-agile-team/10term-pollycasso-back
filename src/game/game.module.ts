@@ -24,7 +24,6 @@ import { DRAWING_REPO } from './drawing/interface/drawing.interface';
 import { EvaluationService } from './evaluation/evaluation.service';
 import { EvaluationVoteRepository } from './evaluation/evaluation-vote.repository';
 import { EVALUATION_VOTE } from './evaluation/interfaces/evaluation-vote.interface';
-import { RoundSummaryGateway } from './round-summary/round-summary.gateway';
 import { RoundSummaryService } from './round-summary/round-summary.service';
 
 @Module({
@@ -45,7 +44,6 @@ import { RoundSummaryService } from './round-summary/round-summary.service';
     TopicService,
     GameSessionService,
     DrawingService,
-    EvaluationService,
     { provide: GAME_STATE_STORE, useClass: GameStateStore },
     { provide: GAME_EVENT_PUBLISHER, useExisting: GameGateway },
     DrawingGateway,
@@ -62,7 +60,6 @@ import { RoundSummaryService } from './round-summary/round-summary.service';
     EvaluationGateway,
     EvaluationService,
     { provide: EVALUATION_VOTE, useClass: EvaluationVoteRepository },
-    RoundSummaryGateway,
     RoundSummaryService,
   ],
   exports: [],

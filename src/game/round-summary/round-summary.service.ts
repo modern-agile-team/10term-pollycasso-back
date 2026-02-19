@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import type { Server } from 'socket.io';
 import {
   GAME_STATE_STORE,
@@ -7,12 +7,14 @@ import {
   type GameState,
   type RoundSummaryPhaseContext,
 } from 'src/game-state/interfaces/game-state.interface';
-import { ROUND_SUMMARY_EVENTS } from './constants/round-summary.constants';
 import { GameSessionService } from '../session/game-session.service';
+import { GAME_EVENTS } from '../constants/game.constant';
+import { RoomUpdatePlayerPayload } from '../interfaces/game.interface';
 
 @Injectable()
 export class RoundSummaryService {
   constructor(
+    @Inject(forwardRef(() => GameSessionService))
     private readonly gameSessionService: GameSessionService,
     @Inject(GAME_STATE_STORE) private readonly store: IGameStateStore,
   ) {}
@@ -22,9 +24,12 @@ export class RoundSummaryService {
   }
 
   private broadcastPlayerReady(server: Server, roomId: number, userId: number, isReady: boolean) {
-    server
-      .to(this.roomKey(roomId))
-      .emit(ROUND_SUMMARY_EVENTS.ROOM_UPDATE_PLAYER, { userId, isReady });
+    const payload: RoomUpdatePlayerPayload = {
+      userId,
+      changes: { isReady },
+    };
+
+    server.to(this.roomKey(roomId)).emit(GAME_EVENTS.ROOM_UPDATE_PLAYER, payload);
   }
 
   private getAllUserIdsFromState(state: GameState): number[] {
