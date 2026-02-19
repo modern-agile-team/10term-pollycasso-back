@@ -2,13 +2,12 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { CosmeticSubCategory } from '@prisma/client';
 import { OutfitIds } from '../outfit.type';
 import { OUTFIT_DOMAIN_ERRORS, OUTFIT_ERROR_CODES } from '../constants/outfit.constant';
+import { ErrorDetail } from 'src/common/utils/error-response.util';
 
 type UpdateOutfitProps = Partial<OutfitIds>;
 
 export class Outfit {
-  private constructor(private props: OutfitIds) {
-    this.validate();
-  }
+  private constructor(private props: OutfitIds) {}
 
   static create(props: OutfitIds | undefined | null): Outfit {
     if (!props) {
@@ -68,25 +67,25 @@ export class Outfit {
       Object.entries(props).filter(([, value]) => value !== undefined),
     );
     Object.assign(this.props, updates);
-    this.validate();
   }
 
   validateOwnership(ownedIds: Set<number>): void {
-    const equippedIds = this.getEquippedIds();
+    const notOwnedItems: ErrorDetail[] = Object.entries(this.props)
+      .filter(([, itemId]) => itemId != null && !ownedIds.has(itemId))
+      .map(([key]) => ({
+        field: key,
+        reason: ['You do not own this item'],
+      }));
 
-    for (const id of equippedIds) {
-      if (!ownedIds.has(id)) {
-        throw new ForbiddenException({
-          code: OUTFIT_ERROR_CODES.ITEM_NOT_OWNED,
-          errors: [OUTFIT_DOMAIN_ERRORS[OUTFIT_ERROR_CODES.ITEM_NOT_OWNED]],
-        });
-      }
+    if (notOwnedItems.length > 0) {
+      throw new ForbiddenException({
+        code: OUTFIT_ERROR_CODES.ITEM_NOT_OWNED,
+        errors: notOwnedItems,
+      });
     }
   }
 
-  validateCategories(
-    cosmeticItemMap: Map<number, { id: number; subCategory: CosmeticSubCategory }>,
-  ): void {
+  validateCategories(cosmeticItemMap: Map<number, { subCategory: CosmeticSubCategory }>): void {
     const categoryMap: Record<keyof OutfitIds, CosmeticSubCategory> = {
       bird: CosmeticSubCategory.BIRD,
       hat: CosmeticSubCategory.HAT,
@@ -97,43 +96,22 @@ export class Outfit {
       effect: CosmeticSubCategory.EFFECT,
     };
 
-    for (const key of Object.keys(this.props) as (keyof OutfitIds)[]) {
-      const itemId = this.props[key];
+    const validationErrors: ErrorDetail[] = Object.entries(this.props)
+      .filter(([key, itemId]) => {
+        if (itemId == null) return false;
 
-      if (itemId === null || itemId === undefined) continue;
+        const cosmeticItem = cosmeticItemMap.get(itemId);
+        return cosmeticItem != null && categoryMap[key] !== cosmeticItem.subCategory;
+      })
+      .map(([key]) => ({
+        field: key,
+        reason: [`This item is not in the ${key} category`],
+      }));
 
-      const cosmeticItem = cosmeticItemMap.get(itemId);
-      if (!cosmeticItem) {
-        throw new BadRequestException({
-          code: OUTFIT_ERROR_CODES.ITEM_NOT_FOUND,
-          errors: [
-            {
-              field: key,
-              reason: `Item ${itemId} not found`,
-            },
-          ],
-        });
-      }
-
-      if (categoryMap[key] !== cosmeticItem.subCategory) {
-        throw new BadRequestException({
-          code: OUTFIT_ERROR_CODES.INVALID_CATEGORY_MATCH,
-          errors: [
-            {
-              field: key,
-              reason: `This item is not in the ${key} category`,
-            },
-          ],
-        });
-      }
-    }
-  }
-
-  private validate(): void {
-    if (!this.props.bird || typeof this.props.bird !== 'number') {
+    if (validationErrors.length > 0) {
       throw new BadRequestException({
-        code: OUTFIT_ERROR_CODES.MISSING_BIRD_FIELD,
-        errors: [OUTFIT_DOMAIN_ERRORS[OUTFIT_ERROR_CODES.MISSING_BIRD_FIELD]],
+        code: OUTFIT_ERROR_CODES.INVALID_CATEGORY_MATCH,
+        errors: validationErrors,
       });
     }
   }
