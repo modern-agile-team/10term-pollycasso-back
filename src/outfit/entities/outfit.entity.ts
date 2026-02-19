@@ -70,22 +70,12 @@ export class Outfit {
   }
 
   validateOwnership(ownedIds: Set<number>): void {
-    const notOwnedItems: ErrorDetail[] = [];
-
-    for (const key of Object.keys(this.props) as (keyof OutfitIds)[]) {
-      const itemId = this.props[key];
-
-      if (itemId === null || itemId === undefined) {
-        continue;
-      }
-
-      if (!ownedIds.has(itemId)) {
-        notOwnedItems.push({
-          field: key,
-          reason: ['You do not own this item'],
-        });
-      }
-    }
+    const notOwnedItems: ErrorDetail[] = Object.entries(this.props)
+      .filter(([, itemId]) => itemId != null && !ownedIds.has(itemId))
+      .map(([key]) => ({
+        field: key,
+        reason: ['You do not own this item'],
+      }));
 
     if (notOwnedItems.length > 0) {
       throw new ForbiddenException({
@@ -106,27 +96,17 @@ export class Outfit {
       effect: CosmeticSubCategory.EFFECT,
     };
 
-    const validationErrors: ErrorDetail[] = [];
+    const validationErrors: ErrorDetail[] = Object.entries(this.props)
+      .filter(([key, itemId]) => {
+        if (itemId == null) return false;
 
-    for (const key of Object.keys(this.props) as (keyof OutfitIds)[]) {
-      const itemId = this.props[key];
-
-      if (itemId === null || itemId === undefined) {
-        continue;
-      }
-
-      const cosmeticItem = cosmeticItemMap.get(itemId);
-      if (!cosmeticItem) {
-        continue;
-      }
-
-      if (categoryMap[key] !== cosmeticItem.subCategory) {
-        validationErrors.push({
-          field: key,
-          reason: [`This item is not in the '${key}' category`],
-        });
-      }
-    }
+        const cosmeticItem = cosmeticItemMap.get(itemId);
+        return cosmeticItem != null && categoryMap[key] !== cosmeticItem.subCategory;
+      })
+      .map(([key]) => ({
+        field: key,
+        reason: [`This item is not in the ${key} category`],
+      }));
 
     if (validationErrors.length > 0) {
       throw new BadRequestException({
