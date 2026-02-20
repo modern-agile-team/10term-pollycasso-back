@@ -23,7 +23,7 @@ export function isValidDrawData(data: unknown): data is DrawData {
     if (typeof line !== 'object' || line === null) return false;
     const l = line as Record<string, unknown>;
 
-    if (typeof l.tool !== 'string' || !VALID_TOOLS.includes(l.tool as any)) return false;
+    if (typeof l.tool !== 'string' || !VALID_TOOLS.includes(l.tool as DrawingTool)) return false;
 
     if (typeof l.color !== 'string') return false;
 

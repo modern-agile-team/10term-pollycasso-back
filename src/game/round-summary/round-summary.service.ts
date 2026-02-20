@@ -45,7 +45,7 @@ export class RoundSummaryService {
     const ctx = state.phaseContext;
     if (!ctx || ctx.kind !== GamePhase.ROUND_SUMMARY) return;
 
-    const summaryCtx = ctx as RoundSummaryPhaseContext;
+    const summaryCtx = ctx;
     const currentReady = summaryCtx.readyUserIds ?? [];
 
     const wasReady = currentReady.includes(userId);
@@ -65,7 +65,7 @@ export class RoundSummaryService {
     const patchedCtx = patched.phaseContext;
     if (!patchedCtx || patchedCtx.kind !== GamePhase.ROUND_SUMMARY) return;
 
-    const readySet = new Set((patchedCtx as RoundSummaryPhaseContext).readyUserIds ?? []);
+    const readySet = new Set(patchedCtx.readyUserIds ?? []);
     const allReady = allUserIds.length > 0 && allUserIds.every((id) => readySet.has(id));
     if (!allReady) return;
 

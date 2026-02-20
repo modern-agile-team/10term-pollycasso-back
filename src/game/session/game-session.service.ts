@@ -251,7 +251,7 @@ export class GameSessionService {
         phaseContext: patched.phaseContext,
       });
 
-      this.startRoundSummaryPhaseTimer({ roomId, server });
+      void this.startRoundSummaryPhaseTimer({ roomId, server });
     } catch (e) {
       this.summaryTransitionGuard.delete(roomId);
       throw e;
