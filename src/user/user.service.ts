@@ -78,8 +78,8 @@ export class UserService {
       const nickname = dto.nickname ?? user.nickname;
       const tag = formattedTag ?? user.tag;
 
-      const isDuplicate = await this.userRepository.existsByNicknameAndTag(nickname, tag, userId);
-      if (isDuplicate) {
+      const existing = await this.userRepository.findByNicknameAndTag(nickname, tag);
+      if (existing && existing.id !== userId) {
         throw new ConflictException({
           code: USER_ERROR_CODES.DUPLICATE_IDENTITY,
           errors: [USER_DOMAIN_ERRORS.DUPLICATE_IDENTITY],

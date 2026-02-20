@@ -42,15 +42,10 @@ export class UserRepository {
     });
   }
 
-  async existsByNicknameAndTag(
-    nickname: string,
-    tag: string,
-    excludeUserId: number,
-  ): Promise<boolean> {
-    const count = await this.prisma.user.count({
-      where: { nickname, tag, NOT: { id: excludeUserId } },
+  async findByNicknameAndTag(nickname: string, tag: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { nickname_tag: { nickname, tag } },
     });
-    return count > 0;
   }
 
   async updateUser(id: number, data: Prisma.UserUpdateInput): Promise<void> {
