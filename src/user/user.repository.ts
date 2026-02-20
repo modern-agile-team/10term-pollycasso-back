@@ -4,7 +4,7 @@ import { Prisma, Provider, User } from '@prisma/client';
 import { DEFAULT_BIRD_ID, DEFAULT_OUTFIT } from 'src/outfit/constants/outfit.constant';
 
 @Injectable()
-export class UsersRepository {
+export class UserRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async findOneById(id: number): Promise<User | null> {

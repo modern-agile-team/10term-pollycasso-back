@@ -1,7 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { UsersModule } from 'src/user/user.module';
+import { UserModule } from 'src/user/user.module';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 import { RedisModule } from '../redis/redis.module';
 import { TokenModule } from './tokens/token.module';
@@ -14,7 +14,7 @@ import { OutfitModule } from 'src/outfit/outfit.module';
 
 @Module({
   imports: [
-    UsersModule,
+    UserModule,
     RedisModule,
     TokenModule,
     FriendModule,

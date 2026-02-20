@@ -16,4 +16,4 @@ import { RoomGateway } from './room.gateway';
   ],
   exports: ['IRoomReader', 'IRoomWriter'],
 })
-export class RoomsModule {}
+export class RoomModule {}

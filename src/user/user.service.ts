@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { UsersRepository } from './user.repository';
+import { UserRepository } from './user.repository';
 import { User, Provider } from '@prisma/client';
 import { CreateUserDto } from './dtos/requests/create-user.request.dto';
 import { CreateSocialUserDto } from './dtos/requests/create-social-user.request.dto';
@@ -16,21 +16,21 @@ import { USER_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/user.constant'
 import { UpdateMypageRequestDto } from './dtos/requests/update-mypage.request.dto';
 
 @Injectable()
-export class UsersService {
+export class UserService {
   private readonly MAX_TAG_RETRIES = 10;
 
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(private readonly userRepository: UserRepository) {}
 
   async findUserByUsername(username: string): Promise<User | null> {
-    return this.usersRepository.findOneByUsername(username);
+    return this.userRepository.findOneByUsername(username);
   }
 
   async findOneById(id: number): Promise<User | null> {
-    return this.usersRepository.findOneById(id);
+    return this.userRepository.findOneById(id);
   }
 
   async findOneWithProfile(id: number) {
-    return this.usersRepository.findOneWithProfile(id);
+    return this.userRepository.findOneWithProfile(id);
   }
 
   async createUser(userData: CreateUserDto): Promise<User> {
@@ -38,7 +38,7 @@ export class UsersService {
   }
 
   async findUserByProvider(provider: Provider, providerId: string): Promise<User | null> {
-    return this.usersRepository.findUserByProvider(provider, providerId);
+    return this.userRepository.findUserByProvider(provider, providerId);
   }
 
   async createSocialUser(userData: CreateSocialUserDto): Promise<User> {
@@ -52,7 +52,7 @@ export class UsersService {
       return;
     }
 
-    const user = await this.usersRepository.findOneById(userId);
+    const user = await this.userRepository.findOneById(userId);
     if (!user) {
       throw new NotFoundException();
     }
@@ -78,7 +78,7 @@ export class UsersService {
       const nickname = dto.nickname ?? user.nickname;
       const tag = formattedTag ?? user.tag;
 
-      const isDuplicate = await this.usersRepository.existsByNicknameAndTag(nickname, tag, userId);
+      const isDuplicate = await this.userRepository.existsByNicknameAndTag(nickname, tag, userId);
       if (isDuplicate) {
         throw new ConflictException({
           code: USER_ERROR_CODES.DUPLICATE_IDENTITY,
@@ -91,7 +91,7 @@ export class UsersService {
       ? await PasswordEncoderUtil.hash(dto.newPassword)
       : undefined;
 
-    await this.usersRepository.updateUser(userId, {
+    await this.userRepository.updateUser(userId, {
       nickname: dto.nickname,
       tag: formattedTag,
       hashedPassword,
@@ -102,7 +102,7 @@ export class UsersService {
     for (let attempt = 0; attempt < this.MAX_TAG_RETRIES; attempt++) {
       try {
         const tag = this.generateRandomTag();
-        return await this.usersRepository.createUser({ ...userData, tag });
+        return await this.userRepository.createUser({ ...userData, tag });
       } catch (error) {
         if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
           continue;

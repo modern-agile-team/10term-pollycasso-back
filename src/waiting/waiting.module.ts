@@ -5,14 +5,14 @@ import { WaitingController } from './waiting.controller';
 import { WaitingStore } from './waiting.store';
 import { ChatModule } from 'src/chat/chat.module';
 import { JwtModule } from '@nestjs/jwt';
-import { RoomsModule } from 'src/room/room.module';
+import { RoomModule } from 'src/room/room.module';
 import { GameStateModule } from 'src/game-state/game-state.module';
 import { WaitingRepository } from './waiting.repository';
 import { OutfitModule } from 'src/outfit/outfit.module';
 
 @Module({
   imports: [
-    RoomsModule,
+    RoomModule,
     ChatModule,
     GameStateModule,
     OutfitModule,

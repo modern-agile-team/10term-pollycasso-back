@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from 'src/user/user.service';
+import { UserService } from 'src/user/user.service';
 import { SignupRequestDto } from './dtos/requests/signup-request.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { TokenService } from './tokens/token.service';
@@ -21,7 +21,7 @@ import { Outfit } from 'src/outfit/entities/outfit.entity';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UsersService,
+    private readonly userService: UserService,
     private readonly tokenService: TokenService,
     private readonly configService: ConfigService,
     private readonly presenceService: PresenceService,

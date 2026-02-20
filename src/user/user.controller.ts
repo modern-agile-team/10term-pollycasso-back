@@ -1,7 +1,7 @@
 import { Body, Controller, Patch, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { AccessTokenGuard } from 'src/auth/guards/access-token.guard';
-import { UsersService } from './user.service';
+import { UserService } from './user.service';
 import { UpdateMypageRequestDto } from './dtos/requests/update-mypage.request.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import type { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
@@ -9,8 +9,8 @@ import type { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 @Controller('users')
 @UseGuards(AccessTokenGuard)
 @ApiBearerAuth()
-export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+export class UserController {
+  constructor(private readonly userService: UserService) {}
 
   @Patch('me')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -18,6 +18,6 @@ export class UsersController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: UpdateMypageRequestDto,
   ): Promise<void> {
-    await this.usersService.updateMypage(user.sub, dto);
+    await this.userService.updateMypage(user.sub, dto);
   }
 }
