@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from 'src/user/user.service';
 import { SignupRequestDto } from './dtos/requests/signup-request.dto';
@@ -14,7 +14,7 @@ import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { AUTH_DOMAIN_ERRORS } from './constants/auth.constant';
 import { PresenceService } from 'src/presence/presence.service';
 import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
-import { DEFAULT_OUTFIT_PATHS } from 'src/outfit/constants/outfit.constant';
+import { DEFAULT_PROFILE } from 'src/auth/constants/auth.constant';
 import { UserWithProfile } from 'src/user/types/user-with-profile.type';
 import { Outfit } from 'src/outfit/entities/outfit.entity';
 
@@ -121,25 +121,28 @@ export class AuthService {
   private async buildProfileData(
     userWithProfile: UserWithProfile | null,
   ): Promise<Partial<LoginResponseDto>> {
-    if (!userWithProfile?.profile) {
-      return {
-        coins: 0,
-        level: 1,
-        currentExp: 0,
-        outfit: DEFAULT_OUTFIT_PATHS,
-      };
+    if (!userWithProfile) {
+      throw new InternalServerErrorException();
     }
 
-    const { profile } = userWithProfile;
+    const { tag, profile } = userWithProfile;
+
+    if (!profile) {
+      return {
+        tag,
+        ...DEFAULT_PROFILE,
+      };
+    }
 
     const outfitPaths = await this.outfitConverterService.convertIdsToPath(
       Outfit.fromJSON(profile.outfit).getAll(),
     );
 
     return {
-      coins: profile.coin ?? 0,
-      level: profile.level ?? 1,
-      currentExp: profile.experience ?? 0,
+      tag,
+      coins: profile.coin ?? DEFAULT_PROFILE.coins,
+      level: profile.level ?? DEFAULT_PROFILE.level,
+      currentExp: profile.experience ?? DEFAULT_PROFILE.currentExp,
       outfit: outfitPaths,
     };
   }
