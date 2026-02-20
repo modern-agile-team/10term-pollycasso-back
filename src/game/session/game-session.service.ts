@@ -11,6 +11,7 @@ import {
   EvaluatingContext,
   GAME_STATE_STORE,
   GamePhase,
+  GameState,
   type IGameStateStore,
 } from 'src/game-state/interfaces/game-state.interface';
 import type { DrawData } from '../drawing/interface/drawing.interface';
@@ -273,7 +274,7 @@ export class GameSessionService {
   }
 
   async advanceFromRoundSummary(params: { roomId: number; server: Server }) {
-    const { roomId, server } = params;
+    const { roomId } = params;
 
     if (this.roundSummaryExitGuard.has(roomId)) return;
     this.roundSummaryExitGuard.add(roomId);
@@ -283,44 +284,52 @@ export class GameSessionService {
       if (!state) return;
       if (state.phase !== GamePhase.ROUND_SUMMARY) return;
 
-      const currentRound = state.currentRound ?? 0;
+      this.clearTimer(roomId);
+
+      const currentRound = state.currentRound ?? 1;
       const totalRounds = state.totalRounds ?? 0;
       const isLastRound = totalRounds > 0 && currentRound >= totalRounds;
 
-      this.clearTimer(roomId);
+      const entity = GameSessionEntity.restore(state);
+
+      let nextState: GameState;
 
       if (isLastRound) {
-        const patched = await this.gameStateStore.patch(roomId, {
-          phase: GamePhase.FINISHED,
-          endsAt: null,
-          phaseContext: null,
-          currentTheme: null,
-        });
-        if (!patched) return;
+        ({ nextState } = entity.advanceFromRoundSummary());
+      } else {
+        const themeContext = await this.topicService.buildThemeSelectionContext(roomId);
+        if (!themeContext) return;
 
-        this.eventPublisher.broadcastGameState(roomId, patched);
-        return;
+        const endsAt = Date.now() + THEME_SELECTING_DURATION_MS;
+
+        ({ nextState } = entity.advanceFromRoundSummary({
+          themeSelectingEndsAt: endsAt,
+          themeSelection: {
+            selectorId: themeContext.selectorId,
+            selectorNickname: themeContext.selectorNickname,
+          },
+        }));
       }
 
-      const themeContext = await this.topicService.buildThemeSelectionContext(roomId);
-      if (!themeContext) return;
-
-      const { selectorId, selectorNickname } = themeContext;
-
-      const endsAt = Date.now() + THEME_SELECTING_DURATION_MS;
-
       const patched = await this.gameStateStore.patch(roomId, {
-        phase: GamePhase.THEME_SELECTING,
-        endsAt,
-        currentTheme: null,
-        phaseContext: {
-          kind: GamePhase.THEME_SELECTING,
-          selectorId,
-          selectorNickname,
-        },
+        phase: nextState.phase,
+        endsAt: nextState.endsAt,
+        phaseContext: nextState.phaseContext,
+        currentTheme: nextState.currentTheme,
+        currentRound: nextState.currentRound,
       });
 
       if (!patched) return;
+
+      if (patched.phase === GamePhase.FINISHED) {
+        const finalScoresByUserId = this.computeFinalScoresByUserId(patched);
+
+        this.eventPublisher.broadcastGameState(roomId, {
+          ...patched,
+          finalScoresByUserId,
+        });
+        return;
+      }
 
       this.eventPublisher.broadcastGameState(roomId, patched);
     } finally {
@@ -452,5 +461,32 @@ export class GameSessionService {
         await this.advanceFromRoundSummary({ roomId, server });
       },
     });
+  }
+
+  private computeFinalScoresByUserId(state: {
+    roomMemberIdByUserId: Record<string, number>;
+    totalScores?: Record<string, number> | null;
+  }): Record<string, number> {
+    const memberIdToUserId = new Map<number, string>();
+
+    for (const [userId, memberId] of Object.entries(state.roomMemberIdByUserId)) {
+      memberIdToUserId.set(Number(memberId), userId);
+    }
+
+    const out: Record<string, number> = {};
+
+    for (const [key, value] of Object.entries(state.totalScores ?? {})) {
+      const parts = key.split(':'); // "matchId:memberId:round"
+      if (parts.length !== 3) continue;
+
+      const memberId = Number(parts[1]);
+      const userId = memberIdToUserId.get(memberId);
+      if (!userId) continue;
+
+      const score = typeof value === 'number' ? value : Number(value);
+      out[userId] = (out[userId] ?? 0) + score;
+    }
+
+    return out;
   }
 }

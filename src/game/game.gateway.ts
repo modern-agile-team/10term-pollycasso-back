@@ -59,10 +59,10 @@ export class GameGateway implements IGameEventPublisher, OnGatewayConnection {
   private readonly logger = new Logger(GameGateway.name);
 
   constructor(
-    @Inject(forwardRef(() => RoundSummaryService))
     private readonly waitingState: WaitingStore,
     private readonly jwtService: JwtService,
     private readonly evaluationService: EvaluationService,
+    @Inject(forwardRef(() => RoundSummaryService))
     private readonly roundSummaryService: RoundSummaryService,
     private readonly gameSessionService: GameSessionService,
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,

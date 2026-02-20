@@ -113,4 +113,45 @@ export class GameSessionEntity {
   getDrawingPhaseInstanceId(): string {
     return this.currentPhaseInstanceId;
   }
+
+  advanceFromRoundSummary(params?: {
+    themeSelectingEndsAt?: number;
+    themeSelection?: { selectorId: number; selectorNickname?: string };
+  }): { nextState: GameState } {
+    if (this._state.phase !== GamePhase.ROUND_SUMMARY) {
+      throw new Error(GAME_ERRORS.CONTEXT_INVALID);
+    }
+
+    const currentRound = this._state.currentRound ?? 1;
+    const totalRounds = this._state.totalRounds ?? 0;
+
+    const isLastRound = totalRounds > 0 && currentRound >= totalRounds;
+
+    this._state.currentTheme = null;
+    this._state.endsAt = null;
+    this._state.phaseContext = null;
+
+    if (isLastRound) {
+      this._state.phase = GamePhase.FINISHED;
+      return { nextState: this.state };
+    }
+
+    if (!params?.themeSelectingEndsAt || !params.themeSelection) {
+      throw new Error(GAME_ERRORS.CONTEXT_INVALID);
+    }
+
+    this._state.currentRound = currentRound + 1;
+    this._state.phase = GamePhase.THEME_SELECTING;
+    this._state.endsAt = params.themeSelectingEndsAt;
+
+    const { selectorId, selectorNickname } = params.themeSelection;
+
+    this._state.phaseContext = {
+      kind: GamePhase.THEME_SELECTING,
+      selectorId,
+      selectorNickname,
+    };
+
+    return { nextState: this.state };
+  }
 }
