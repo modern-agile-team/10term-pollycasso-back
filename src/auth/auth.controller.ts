@@ -59,14 +59,11 @@ export class AuthController {
       throw new UnauthorizedException({ code: AUTH_ERROR_CODES.INVALID_CREDENTIALS });
     }
 
-    const { tokens, profile } = await this.authService.login(user);
+    const { tokens } = await this.authService.login(user);
 
     this.setRefreshToken(res, tokens.refreshToken);
 
-    return {
-      accessToken: tokens.accessToken,
-      ...profile,
-    } as LoginResponseDto;
+    return { accessToken: tokens.accessToken };
   }
 
   @UseGuards(RefreshTokenGuard)
@@ -126,23 +123,13 @@ export class AuthController {
   }
 
   private async handleOAuthCallback(req: SocialLoginRequest, res: ExpressResponse, state: string) {
-    const { tokens, profile } = await this.authService.socialLogin(req.user);
+    const { tokens } = await this.authService.socialLogin(req.user);
 
     this.setRefreshToken(res, tokens.refreshToken);
     this.setAccessToken(res, tokens.accessToken);
 
     const redirectUrl = this.authService.validateRedirectUrl(state);
-
-    const url = new URL(redirectUrl);
-    url.searchParams.append('coins', String(profile.coins ?? 0));
-    url.searchParams.append('level', String(profile.level ?? 1));
-    url.searchParams.append('currentExp', String(profile.currentExp ?? 0));
-
-    if (profile.outfit) {
-      url.searchParams.append('outfit', JSON.stringify(profile.outfit));
-    }
-
-    return res.redirect(url.toString());
+    return res.redirect(redirectUrl);
   }
 
   private setAccessToken(res: ExpressResponse, accessToken: string) {

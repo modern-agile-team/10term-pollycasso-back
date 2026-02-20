@@ -12,14 +12,20 @@ import { CreateUserDto } from './dtos/requests/create-user.request.dto';
 import { CreateSocialUserDto } from './dtos/requests/create-social-user.request.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
-import { USER_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/user.constant';
 import { UpdateMypageRequestDto } from './dtos/requests/update-mypage.request.dto';
+import { ProfileResponseDto } from './dtos/responses/profile-response.dto';
+import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
+import { Outfit } from 'src/outfit/entities/outfit.entity';
+import { DEFAULT_PROFILE, USER_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/user.constant';
 
 @Injectable()
 export class UserService {
   private readonly MAX_TAG_RETRIES = 10;
 
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly outfitConverterService: OutfitConverterService,
+  ) {}
 
   async findUserByUsername(username: string): Promise<User | null> {
     return this.userRepository.findOneByUsername(username);
@@ -43,6 +49,32 @@ export class UserService {
 
   async createSocialUser(userData: CreateSocialUserDto): Promise<User> {
     return this.createUserWithTag(userData);
+  }
+
+  async getMyProfile(userId: number): Promise<ProfileResponseDto> {
+    const userWithProfile = await this.userRepository.findOneWithProfile(userId);
+
+    if (!userWithProfile) {
+      throw new InternalServerErrorException();
+    }
+
+    const { tag, profile } = userWithProfile;
+
+    if (!profile) {
+      return { tag, ...DEFAULT_PROFILE };
+    }
+
+    const outfitPaths = await this.outfitConverterService.convertIdsToPath(
+      Outfit.fromJSON(profile.outfit).getAll(),
+    );
+
+    return {
+      tag,
+      coins: profile.coin ?? DEFAULT_PROFILE.coins,
+      level: profile.level ?? DEFAULT_PROFILE.level,
+      currentExp: profile.experience ?? DEFAULT_PROFILE.currentExp,
+      outfit: outfitPaths,
+    };
   }
 
   async updateMypage(userId: number, dto: UpdateMypageRequestDto): Promise<void> {

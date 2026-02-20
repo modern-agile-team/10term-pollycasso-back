@@ -1,3 +1,5 @@
+import { DEFAULT_OUTFIT_PATHS } from 'src/outfit/constants/outfit.constant';
+
 export const USER_ERROR_CODES = {
   USERNAME_ALREADY_EXISTS: 'USERNAME_ALREADY_EXISTS',
   TAG_GENERATION_FAILED: 'TAG_GENERATION_FAILED',
@@ -23,4 +25,11 @@ export const USER_DOMAIN_ERRORS: Record<string, { field: string; reason: string 
     field: 'currentPassword',
     reason: 'Social login accounts cannot change password.',
   },
+} as const;
+
+export const DEFAULT_PROFILE = {
+  coins: 0,
+  level: 1,
+  currentExp: 0,
+  outfit: DEFAULT_OUTFIT_PATHS,
 } as const;

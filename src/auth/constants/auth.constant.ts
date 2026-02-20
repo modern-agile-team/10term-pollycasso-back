@@ -1,5 +1,3 @@
-import { DEFAULT_OUTFIT_PATHS } from 'src/outfit/constants/outfit.constant';
-
 export const AUTH_ERROR_CODES = {
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
 } as const;
@@ -29,10 +27,3 @@ export const AUTH_DOMAIN_ERRORS: Record<string, { field: string; reason: string 
     reason: 'This username is already in use',
   },
 };
-
-export const DEFAULT_PROFILE = {
-  coins: 0,
-  level: 1,
-  currentExp: 0,
-  outfit: DEFAULT_OUTFIT_PATHS,
-} as const;

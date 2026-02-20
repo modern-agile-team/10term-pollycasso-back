@@ -10,17 +10,9 @@ import { KakaoStrategy } from './strategies/kakao.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { FriendModule } from 'src/friend/friend.module';
 import { PresenceModule } from 'src/presence/presence.module';
-import { OutfitModule } from 'src/outfit/outfit.module';
 
 @Module({
-  imports: [
-    UserModule,
-    RedisModule,
-    TokenModule,
-    FriendModule,
-    forwardRef(() => PresenceModule),
-    OutfitModule,
-  ],
+  imports: [UserModule, RedisModule, TokenModule, FriendModule, forwardRef(() => PresenceModule)],
   controllers: [AuthController],
   providers: [
     AuthService,

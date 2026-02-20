@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
 import { SignupRequestDto } from './dtos/requests/signup-request.dto';
@@ -8,15 +8,10 @@ import { UserData } from './interfaces/user-data.interface';
 import { SocialLoginPayload } from './interfaces/social-login.interface';
 import { USER_ERROR_CODES } from 'src/user/constants/user.constant';
 import { TokenDto } from './dtos/responses/token.dto';
-import { LoginResponseDto } from './dtos/responses/login-response.dto';
 import { AccessTokenDto } from './dtos/responses/access-token.dto';
 import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
 import { AUTH_DOMAIN_ERRORS } from './constants/auth.constant';
 import { PresenceService } from 'src/presence/presence.service';
-import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
-import { DEFAULT_PROFILE } from 'src/auth/constants/auth.constant';
-import { UserWithProfile } from 'src/user/types/user-with-profile.type';
-import { Outfit } from 'src/outfit/entities/outfit.entity';
 
 @Injectable()
 export class AuthService {
@@ -25,7 +20,6 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly configService: ConfigService,
     private readonly presenceService: PresenceService,
-    private readonly outfitConverterService: OutfitConverterService,
   ) {}
 
   async signup(signupRequestDto: SignupRequestDto): Promise<void> {
@@ -64,15 +58,11 @@ export class AuthService {
     return result as UserData;
   }
 
-  async login(
-    userData: UserData,
-  ): Promise<{ tokens: TokenDto; profile: Partial<LoginResponseDto> }> {
+  async login(userData: UserData): Promise<{ tokens: TokenDto }> {
     return this.issueLoginResult(userData);
   }
 
-  async socialLogin(
-    socialUser: SocialLoginPayload,
-  ): Promise<{ tokens: TokenDto; profile: Partial<LoginResponseDto> }> {
+  async socialLogin(socialUser: SocialLoginPayload): Promise<{ tokens: TokenDto }> {
     let user = await this.userService.findUserByProvider(
       socialUser.provider,
       socialUser.providerId,
@@ -97,9 +87,7 @@ export class AuthService {
     ]);
   }
 
-  private async issueLoginResult(
-    user: UserData,
-  ): Promise<{ tokens: TokenDto; profile: Partial<LoginResponseDto> }> {
+  private async issueLoginResult(user: UserData): Promise<{ tokens: TokenDto }> {
     await this.presenceService.markOnline(user.id);
 
     const payload = this.createJwtPayload(user);
@@ -109,41 +97,8 @@ export class AuthService {
       this.tokenService.createRefreshToken(payload),
     ]);
 
-    const userWithProfile = await this.userService.findOneWithProfile(user.id);
-    const profile = await this.buildProfileData(userWithProfile);
-
     return {
       tokens: { accessToken, refreshToken },
-      profile,
-    };
-  }
-
-  private async buildProfileData(
-    userWithProfile: UserWithProfile | null,
-  ): Promise<Partial<LoginResponseDto>> {
-    if (!userWithProfile) {
-      throw new InternalServerErrorException();
-    }
-
-    const { tag, profile } = userWithProfile;
-
-    if (!profile) {
-      return {
-        tag,
-        ...DEFAULT_PROFILE,
-      };
-    }
-
-    const outfitPaths = await this.outfitConverterService.convertIdsToPath(
-      Outfit.fromJSON(profile.outfit).getAll(),
-    );
-
-    return {
-      tag,
-      coins: profile.coin ?? DEFAULT_PROFILE.coins,
-      level: profile.level ?? DEFAULT_PROFILE.level,
-      currentExp: profile.experience ?? DEFAULT_PROFILE.currentExp,
-      outfit: outfitPaths,
     };
   }
 
