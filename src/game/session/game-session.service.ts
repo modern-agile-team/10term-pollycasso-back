@@ -1,4 +1,4 @@
-import { Inject, Injectable, type LoggerService } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { DefaultEventsMap, RemoteSocket, Server } from 'socket.io';
 import { GAME_EVENT_PUBLISHER } from '../interfaces/game-event-publisher.interfaces';
@@ -29,11 +29,12 @@ const ROUND_SUMMARY_DURATION_MS = 32000; // 32초
 
 @Injectable()
 export class GameSessionService {
+  private readonly logger = new Logger(GameSessionService.name);
+
   constructor(
     private readonly topicService: TopicService,
     private readonly drawingService: DrawingService,
     private readonly evaluationService: EvaluationService,
-    private readonly logger: LoggerService,
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
     @Inject(GAME_EVENT_PUBLISHER) private readonly eventPublisher: IGameEventPublisher,
   ) {}
