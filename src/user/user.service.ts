@@ -1,50 +1,140 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { UsersRepository } from './user.repository';
-import { User } from '@prisma/client';
-import { CreateUserDto } from './dtos/create-user.dto';
-import { CreateSocialUserDto } from './dtos/create-social-user.dto';
-import { Provider } from '@prisma/client';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { UserRepository } from './user.repository';
+import { User, Provider } from '@prisma/client';
+import { CreateUserDto } from './dtos/requests/create-user.request.dto';
+import { CreateSocialUserDto } from './dtos/requests/create-social-user.request.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { PasswordEncoderUtil } from 'src/common/utils/password-encoder.util';
+import { UpdateMypageRequestDto } from './dtos/requests/update-mypage.request.dto';
+import { ProfileResponseDto } from './dtos/responses/profile-response.dto';
+import { OutfitConverterService } from 'src/outfit/outfit-converter.service';
+import { Outfit } from 'src/outfit/entities/outfit.entity';
+import { DEFAULT_PROFILE, USER_DOMAIN_ERRORS, USER_ERROR_CODES } from './constants/user.constant';
 
 @Injectable()
-export class UsersService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+export class UserService {
+  private readonly MAX_TAG_RETRIES = 10;
 
-  // 로그인 아이디(Username)로 조회
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly outfitConverterService: OutfitConverterService,
+  ) {}
+
   async findUserByUsername(username: string): Promise<User | null> {
-    return this.usersRepository.findOneByUsername(username);
+    return this.userRepository.findOneByUsername(username);
   }
 
   async findOneById(id: number): Promise<User | null> {
-    return this.usersRepository.findOneById(id);
+    return this.userRepository.findOneById(id);
   }
 
-  // 유저 생성
+  async findOneWithProfile(id: number) {
+    return this.userRepository.findOneWithProfile(id);
+  }
+
   async createUser(userData: CreateUserDto): Promise<User> {
     return this.createUserWithTag(userData);
   }
 
-  // Provider로 소셜 사용자 조회
   async findUserByProvider(provider: Provider, providerId: string): Promise<User | null> {
-    return this.usersRepository.findUserByProvider(provider, providerId);
+    return this.userRepository.findUserByProvider(provider, providerId);
   }
 
-  // 소셜 로그인 유저 생성
   async createSocialUser(userData: CreateSocialUserDto): Promise<User> {
     return this.createUserWithTag(userData);
   }
 
-  private async createUserWithTag(userData: CreateUserDto | CreateSocialUserDto): Promise<User> {
-    const MAX_RETRIES = 10;
+  async getMyProfile(userId: number): Promise<ProfileResponseDto> {
+    const userWithProfile = await this.userRepository.findOneWithProfile(userId);
 
-    for (let retries = 0; retries < MAX_RETRIES; retries++) {
-      try {
-        const tag = this.createRandomTag();
+    if (!userWithProfile) {
+      throw new InternalServerErrorException();
+    }
 
-        return await this.usersRepository.createUser({
-          ...userData,
-          tag,
+    const { tag, profile } = userWithProfile;
+
+    if (!profile) {
+      return { tag, ...DEFAULT_PROFILE };
+    }
+
+    const outfitPaths = await this.outfitConverterService.convertIdsToPath(
+      Outfit.fromJSON(profile.outfit).getAll(),
+    );
+
+    return {
+      tag,
+      coins: profile.coin ?? DEFAULT_PROFILE.coins,
+      level: profile.level ?? DEFAULT_PROFILE.level,
+      currentExp: profile.experience ?? DEFAULT_PROFILE.currentExp,
+      outfit: outfitPaths,
+    };
+  }
+
+  async updateMypage(userId: number, dto: UpdateMypageRequestDto): Promise<void> {
+    const formattedTag = dto.tag !== undefined ? String(dto.tag).padStart(4, '0') : undefined;
+
+    if (!dto.nickname && !formattedTag && !dto.newPassword) {
+      return;
+    }
+
+    const user = await this.userRepository.findOneById(userId);
+    if (!user) {
+      throw new NotFoundException();
+    }
+
+    if (dto.newPassword) {
+      if (user.provider) {
+        throw new UnprocessableEntityException({
+          code: USER_ERROR_CODES.SOCIAL_USER_NO_PASSWORD,
+          errors: [USER_DOMAIN_ERRORS.SOCIAL_USER_NO_PASSWORD],
         });
+      }
+
+      const isMatch = await PasswordEncoderUtil.compare(dto.currentPassword!, user.hashedPassword!);
+      if (!isMatch) {
+        throw new ForbiddenException({
+          code: USER_ERROR_CODES.WRONG_PASSWORD,
+          errors: [USER_DOMAIN_ERRORS.WRONG_PASSWORD],
+        });
+      }
+    }
+
+    if (dto.nickname || formattedTag) {
+      const nickname = dto.nickname ?? user.nickname;
+      const tag = formattedTag ?? user.tag;
+
+      const existing = await this.userRepository.findByNicknameAndTag(nickname, tag);
+      if (existing && existing.id !== userId) {
+        throw new ConflictException({
+          code: USER_ERROR_CODES.DUPLICATE_IDENTITY,
+          errors: [USER_DOMAIN_ERRORS.DUPLICATE_IDENTITY],
+        });
+      }
+    }
+
+    const hashedPassword = dto.newPassword
+      ? await PasswordEncoderUtil.hash(dto.newPassword)
+      : undefined;
+
+    await this.userRepository.updateUser(userId, {
+      nickname: dto.nickname,
+      tag: formattedTag,
+      hashedPassword,
+    });
+  }
+
+  private async createUserWithTag(userData: CreateUserDto | CreateSocialUserDto): Promise<User> {
+    for (let attempt = 0; attempt < this.MAX_TAG_RETRIES; attempt++) {
+      try {
+        const tag = this.generateRandomTag();
+        return await this.userRepository.createUser({ ...userData, tag });
       } catch (error) {
         if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
           continue;
@@ -53,10 +143,13 @@ export class UsersService {
       }
     }
 
-    throw new InternalServerErrorException();
+    throw new InternalServerErrorException({
+      code: USER_ERROR_CODES.TAG_GENERATION_FAILED,
+      errors: [USER_DOMAIN_ERRORS.TAG_GENERATION_FAILED],
+    });
   }
 
-  private createRandomTag(): string {
+  private generateRandomTag(): string {
     return String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0');
   }
 }

@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from 'src/user/user.service';
+import { UserService } from 'src/user/user.service';
 import { SignupRequestDto } from './dtos/requests/signup-request.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { TokenService } from './tokens/token.service';
@@ -16,7 +16,7 @@ import { PresenceService } from 'src/presence/presence.service';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UsersService,
+    private readonly userService: UserService,
     private readonly tokenService: TokenService,
     private readonly configService: ConfigService,
     private readonly presenceService: PresenceService,
@@ -44,7 +44,7 @@ export class AuthService {
   async validateUser(username: string, password: string): Promise<UserData | null> {
     const user = await this.userService.findUserByUsername(username);
 
-    if (!user || !user.hashedPassword) {
+    if (!user?.hashedPassword) {
       return null;
     }
 
@@ -58,13 +58,21 @@ export class AuthService {
     return result as UserData;
   }
 
-  async login(userData: UserData): Promise<TokenDto> {
-    await this.presenceService.markOnline(userData.id);
+  async login(userData: UserData): Promise<{ tokens: TokenDto }> {
+    return this.issueLoginResult(userData);
+  }
 
-    const payload = this.createJwtPayload(userData);
-    const tokens = await this.generateTokens(payload);
+  async socialLogin(socialUser: SocialLoginPayload): Promise<{ tokens: TokenDto }> {
+    let user = await this.userService.findUserByProvider(
+      socialUser.provider,
+      socialUser.providerId,
+    );
 
-    return tokens;
+    if (!user) {
+      user = await this.userService.createSocialUser(socialUser);
+    }
+
+    return this.issueLoginResult(user);
   }
 
   refreshAccessOnly(userData: JwtPayload): AccessTokenDto {
@@ -79,38 +87,19 @@ export class AuthService {
     ]);
   }
 
-  async socialLogin(socialUser: SocialLoginPayload): Promise<TokenDto> {
-    let user = await this.userService.findUserByProvider(
-      socialUser.provider,
-      socialUser.providerId,
-    );
-
-    if (!user) {
-      user = await this.userService.createSocialUser(socialUser);
-    }
+  private async issueLoginResult(user: UserData): Promise<{ tokens: TokenDto }> {
     await this.presenceService.markOnline(user.id);
 
     const payload = this.createJwtPayload(user);
-    const tokens = await this.generateTokens(payload);
 
-    return tokens;
-  }
+    const [accessToken, refreshToken] = await Promise.all([
+      this.tokenService.createAccessToken(payload),
+      this.tokenService.createRefreshToken(payload),
+    ]);
 
-  validateRedirectUrl(state: string): string {
-    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
-    const fallbackUrl = new URL('/auth/callback', frontendUrl).toString();
-
-    if (!state) {
-      return fallbackUrl;
-    }
-
-    const whitelist = this.buildRedirectWhitelist(frontendUrl);
-
-    try {
-      return this.validateAndBuildRedirectUrl(state, frontendUrl, whitelist, fallbackUrl);
-    } catch {
-      return fallbackUrl;
-    }
+    return {
+      tokens: { accessToken, refreshToken },
+    };
   }
 
   private createJwtPayload(user: UserData): JwtPayload {
@@ -129,13 +118,21 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(payload: JwtPayload): Promise<TokenDto> {
-    const [accessToken, refreshToken] = await Promise.all([
-      Promise.resolve(this.tokenService.createAccessToken(payload)),
-      this.tokenService.createRefreshToken(payload),
-    ]);
+  validateRedirectUrl(state: string): string {
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    const fallbackUrl = new URL('/auth/callback', frontendUrl).toString();
 
-    return { accessToken, refreshToken };
+    if (!state) {
+      return fallbackUrl;
+    }
+
+    const whitelist = this.buildRedirectWhitelist(frontendUrl);
+
+    try {
+      return this.validateAndBuildRedirectUrl(state, frontendUrl, whitelist, fallbackUrl);
+    } catch {
+      return fallbackUrl;
+    }
   }
 
   private buildRedirectWhitelist(frontendUrl: string): Set<string> {
@@ -161,7 +158,7 @@ export class AuthService {
 
     const parsed = new URL(state);
 
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
       return fallbackUrl;
     }
 

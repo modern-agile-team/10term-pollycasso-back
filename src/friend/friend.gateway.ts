@@ -21,7 +21,7 @@ import { TargetUserRequestDto } from './dtos/requests/target-user.request.dto';
 import { SearchFriendRequestDto } from './dtos/requests/search-friend-request.dto';
 import { AcceptFriendRequestDto } from './dtos/requests/accept-friend.request.dto';
 import { BlockService } from 'src/block/block.service';
-import { UsersService } from 'src/user/user.service';
+import { UserService } from 'src/user/user.service';
 import { FriendStatus } from '@prisma/client';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PRESENCE_EVENTS } from 'src/presence/constants/presence.constant';
@@ -75,7 +75,7 @@ export class FriendGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly friendService: FriendService,
     private readonly presenceService: PresenceService,
     private readonly blockService: BlockService,
-    private readonly usersService: UsersService,
+    private readonly userService: UserService,
   ) {}
 
   private getClientData(client: FriendSocket): ClientData {
@@ -166,7 +166,7 @@ export class FriendGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: FriendSocket,
   ): Promise<void> {
     const clientData = this.getClientData(client);
-    const targetUser = await this.usersService.findOneById(body.targetUserId);
+    const targetUser = await this.userService.findOneById(body.targetUserId);
     if (!targetUser) throw wsError(404, FRIEND_ERROR_CODES.USER_NOT_FOUND);
 
     const result = await this.friendService.sendRequest(clientData.userId, body.targetUserId);

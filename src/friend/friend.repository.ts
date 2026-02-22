@@ -1,17 +1,11 @@
-import {
-  Friend as PrismaFriend,
-  FriendStatus,
-  User,
-  UserProfile as PrismaUserProfile,
-} from '@prisma/client';
+import { Friend as PrismaFriend, FriendStatus } from '@prisma/client';
 import { FriendshipData, UserProfile } from './types/friend.type';
 import { IFriendRepository } from './interfaces/friend-repository.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
 import { FriendSearchType, FRIEND_SEARCH_RULES } from './constants/friend.constant';
 import { paginate } from 'src/common/utils/paginate.util';
-
-type UserWithProfile = User & { profile: PrismaUserProfile | null };
+import { UserWithProfile } from 'src/user/types/user-with-profile.type';
 
 @Injectable()
 export class FriendRepository implements IFriendRepository {

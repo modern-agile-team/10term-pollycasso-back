@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { FriendStatus } from '@prisma/client';
 import { FriendService } from 'src/friend/friend.service';
 import { BlockService } from 'src/block/block.service';
-import { UsersService } from 'src/user/user.service';
+import { UserService } from 'src/user/user.service';
 import { wsError } from 'src/common/utils/ws-error.util';
 import { CHAT_ERROR_CODES } from './constants/chat.constant';
 
@@ -16,7 +16,7 @@ export class ChatValidationService {
   constructor(
     private readonly friendService: FriendService,
     private readonly blockService: BlockService,
-    private readonly userService: UsersService,
+    private readonly userService: UserService,
   ) {}
 
   async validateDirectMessage(

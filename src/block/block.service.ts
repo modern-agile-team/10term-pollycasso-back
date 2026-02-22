@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { BLOCK_DOMAIN_ERRORS, BLOCK_ERROR_CODES } from './constants/block.constant';
 import type { IBlockRepository } from './interfaces/block-repository.interface';
-import { UsersService } from 'src/user/user.service';
+import { UserService } from 'src/user/user.service';
 import { Block } from './block.entity';
 import { FriendService } from 'src/friend/friend.service';
 
@@ -16,7 +16,7 @@ export class BlockService {
   constructor(
     @Inject('IBlockRepository')
     private readonly blockRepository: IBlockRepository,
-    private readonly userService: UsersService,
+    private readonly userService: UserService,
     @Inject(forwardRef(() => FriendService))
     private readonly friendService: FriendService,
   ) {}

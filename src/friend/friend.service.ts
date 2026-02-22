@@ -15,7 +15,7 @@ import {
 } from './constants/friend.constant';
 import type { IFriendRepository } from './interfaces/friend-repository.interface';
 import { BlockService } from 'src/block/block.service';
-import { UsersService } from 'src/user/user.service';
+import { UserService } from 'src/user/user.service';
 import { FriendRelation, FriendResponseDto } from './dtos/responses/friend.response.dto';
 import { SearchFriendResponseDto } from './dtos/responses/search-friend.response.dto';
 import { PresenceService } from 'src/presence/presence.service';
@@ -40,7 +40,7 @@ export class FriendService {
     @Inject('IFriendRepository') private readonly friendRepository: IFriendRepository,
     private readonly friendMapper: FriendMapper,
     private readonly blockService: BlockService,
-    private readonly userService: UsersService,
+    private readonly userService: UserService,
     private readonly presenceService: PresenceService,
   ) {}
 
