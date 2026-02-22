@@ -15,10 +15,3 @@ export interface EvaluationRoomState {
 export interface EvaluationRoomLike {
   evaluationState?: EvaluationRoomState;
 }
-
-export type RoomUpdatePlayerPayload = {
-  userId: number;
-  changes: {
-    isReady: boolean;
-  };
-};

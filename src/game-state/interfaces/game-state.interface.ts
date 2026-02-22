@@ -17,6 +17,7 @@ export interface ThemeSelectPhaseContext {
   selectorId: number;
   selectorNickname?: string;
 }
+
 export interface DrawingContext {
   kind: GamePhase.DRAWING;
   activeUserIds: number[];
@@ -43,6 +44,7 @@ export interface RoundSummaryPhaseContext {
   kind: GamePhase.ROUND_SUMMARY;
   rankings: RoundRankItem[];
   drawingsById: Record<string, DrawData>;
+  readyUserIds: number[];
 }
 
 export type PhaseContext =

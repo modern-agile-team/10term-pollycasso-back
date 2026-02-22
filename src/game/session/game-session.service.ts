@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type LoggerService } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { DefaultEventsMap, RemoteSocket, Server } from 'socket.io';
 import { GAME_EVENT_PUBLISHER } from '../interfaces/game-event-publisher.interfaces';
@@ -11,6 +11,7 @@ import {
   EvaluatingContext,
   GAME_STATE_STORE,
   GamePhase,
+  GameState,
   type IGameStateStore,
 } from 'src/game-state/interfaces/game-state.interface';
 import type { DrawData } from '../drawing/interface/drawing.interface';
@@ -21,6 +22,7 @@ import { EvaluationService } from '../evaluation/evaluation.service';
 
 type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
+const THEME_SELECTING_DURATION_MS = 32000; // 32초
 const DRAWING_DURATION_MS = 92000; // 92초
 const EVALUATING_DURATION_MS = 60000; // 60초
 const ROUND_SUMMARY_DURATION_MS = 32000; // 32초
@@ -31,6 +33,7 @@ export class GameSessionService {
     private readonly topicService: TopicService,
     private readonly drawingService: DrawingService,
     private readonly evaluationService: EvaluationService,
+    private readonly logger: LoggerService,
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
     @Inject(GAME_EVENT_PUBLISHER) private readonly eventPublisher: IGameEventPublisher,
   ) {}
@@ -78,7 +81,7 @@ export class GameSessionService {
     const state = await this.gameStateStore.get(roomId);
     if (!state) throw wsError(404, GAME_ERRORS.CONTEXT_INVALID);
 
-    this.clearTimer(roomId);
+    this.clearPhaseTimer(roomId);
 
     const entity = GameSessionEntity.restore(state);
 
@@ -117,7 +120,7 @@ export class GameSessionService {
       void this.advanceToEvaluating({ roomId, server, expectedPhaseInstanceId: phaseInstanceId });
     }, DRAWING_DURATION_MS);
 
-    this.timers.set(roomId, timer);
+    this.phaseTransitionTimersByRoomId.set(roomId, timer);
 
     return nextState;
   }
@@ -168,7 +171,7 @@ export class GameSessionService {
     });
     if (!patched) return;
 
-    this.clearTimer(roomId);
+    this.clearPhaseTimer(roomId);
 
     this.startEvaluatingPhaseTimer({ roomId, server });
 
@@ -222,7 +225,7 @@ export class GameSessionService {
     this.summaryTransitionGuard.add(roomId);
 
     try {
-      this.clearTimer(roomId);
+      this.clearPhaseTimer(roomId);
       const nicknameByUserId = await this.collectNicknameByUserId(server, roomId);
       const { phaseContext, updatedTotals } = await this.evaluationService.computeRoundSummary({
         gameState,
@@ -248,6 +251,8 @@ export class GameSessionService {
         endsAt: patched.endsAt,
         phaseContext: patched.phaseContext,
       });
+
+      void this.startRoundSummaryPhaseTimer({ roomId, server });
     } catch (e) {
       this.summaryTransitionGuard.delete(roomId);
       throw e;
@@ -269,20 +274,98 @@ export class GameSessionService {
     return `${roomId}:${roundId}`;
   }
 
-  private timers = new Map<number, NodeJS.Timeout>();
+  // ROUND_SUMMARY -> 다음 라운드 또는 게임 종료 전환
+  async advanceFromRoundSummary(params: { roomId: number; server: Server }) {
+    const { roomId } = params;
+
+    if (this.roundSummaryExitGuard.has(roomId)) return;
+    this.roundSummaryExitGuard.add(roomId);
+
+    try {
+      const state = await this.gameStateStore.get(roomId);
+      if (!state) return;
+      if (state.phase !== GamePhase.ROUND_SUMMARY) return;
+
+      this.clearPhaseTimer(roomId);
+
+      const currentRound = state.currentRound ?? 1;
+      const totalRounds = state.totalRounds ?? 3;
+      const isLastRound = totalRounds > 0 && currentRound >= totalRounds;
+
+      const entity = GameSessionEntity.restore(state);
+
+      let nextState: GameState;
+
+      if (isLastRound) {
+        ({ nextState } = entity.advanceToFinished());
+      } else {
+        const themeContext = await this.topicService.buildThemeSelectionContext(roomId);
+        if (!themeContext) return;
+
+        const endsAt = Date.now() + THEME_SELECTING_DURATION_MS;
+
+        ({ nextState } = entity.advanceToThemeSelecting({
+          themeSelectingEndsAt: endsAt,
+          themeSelection: {
+            selectorId: themeContext.selectorId,
+            selectorNickname: themeContext.selectorNickname,
+          },
+        }));
+      }
+
+      const patched = await this.gameStateStore.patch(roomId, {
+        phase: nextState.phase,
+        endsAt: nextState.endsAt,
+        phaseContext: nextState.phaseContext,
+        currentTheme: nextState.currentTheme,
+        currentRound: nextState.currentRound,
+      });
+
+      if (!patched) return;
+
+      if (patched.phase === GamePhase.FINISHED) {
+        const finalScoresByUserId = this.computeFinalScoresByUserId(patched);
+
+        this.eventPublisher.broadcastGameState(roomId, {
+          ...patched,
+          finalScoresByUserId,
+        });
+        return;
+      }
+
+      this.eventPublisher.broadcastGameState(roomId, patched);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(
+          { message: error.message, stack: error.stack, roomId },
+          'advanceFromRoundSummary failed',
+        );
+      } else {
+        this.logger.error({ error, roomId }, 'advanceFromRoundSummary failed (non-Error thrown)');
+      }
+
+      throw error;
+    } finally {
+      this.roundSummaryExitGuard.delete(roomId);
+    }
+  }
+
+  private phaseTransitionTimersByRoomId = new Map<number, NodeJS.Timeout>();
 
   private readonly summaryTransitionGuard = new Set<number>();
+
+  private readonly roundSummaryExitGuard = new Set<number>();
 
   private roomSocketRoom(roomId: number) {
     return `game:room:${roomId}`;
   }
 
   // roomId 타이머 해제
-  private clearTimer(roomId: number) {
-    const timer = this.timers.get(roomId);
+  private clearPhaseTimer(roomId: number) {
+    const timer = this.phaseTransitionTimersByRoomId.get(roomId);
     if (timer) {
       clearTimeout(timer);
-      this.timers.delete(roomId);
+      this.phaseTransitionTimersByRoomId.delete(roomId);
     }
   }
 
@@ -320,7 +403,7 @@ export class GameSessionService {
   }
 
   // 지정 페이즈에서만 유효한 roomId 타이머 등록
-  private schedulePhaseTimer(params: {
+  private schedulePhaseTransition(params: {
     roomId: number;
     delayMs: number;
     expectedPhase: GamePhase;
@@ -330,7 +413,7 @@ export class GameSessionService {
   }) {
     const { roomId, delayMs, expectedPhase, expectedPhaseInstanceId, onTimeout } = params;
 
-    this.clearTimer(roomId);
+    this.clearPhaseTimer(roomId);
 
     const timer = setTimeout(
       () => {
@@ -352,7 +435,7 @@ export class GameSessionService {
       Math.max(0, delayMs),
     );
 
-    this.timers.set(roomId, timer);
+    this.phaseTransitionTimersByRoomId.set(roomId, timer);
   }
 
   // EVALUATING 시작 시 평가버퍼 리셋 + 타임아웃 시 ROUND_SUMMARY 전환 예약
@@ -361,7 +444,7 @@ export class GameSessionService {
 
     this.summaryTransitionGuard.delete(roomId);
 
-    this.schedulePhaseTimer({
+    this.schedulePhaseTransition({
       roomId,
       delayMs: EVALUATING_DURATION_MS,
       expectedPhase: GamePhase.EVALUATING,
@@ -370,5 +453,53 @@ export class GameSessionService {
         await this.advanceToRoundSummary({ roomId, server });
       },
     });
+  }
+
+  private async startRoundSummaryPhaseTimer(params: { roomId: number; server: Server }) {
+    const { roomId, server } = params;
+
+    const state = await this.gameStateStore.get(roomId);
+    if (!state) return;
+    if (state.phase !== GamePhase.ROUND_SUMMARY) return;
+    if (!state.endsAt) return;
+
+    const delay = Math.max(0, state.endsAt - Date.now());
+
+    this.schedulePhaseTransition({
+      roomId,
+      delayMs: delay,
+      expectedPhase: GamePhase.ROUND_SUMMARY,
+      server,
+      onTimeout: async () => {
+        await this.advanceFromRoundSummary({ roomId, server });
+      },
+    });
+  }
+
+  private computeFinalScoresByUserId(state: {
+    roomMemberIdByUserId: Record<string, number>;
+    totalScores?: Record<string, number> | null;
+  }): Record<string, number> {
+    const memberIdToUserId = new Map<number, string>();
+
+    for (const [userId, memberId] of Object.entries(state.roomMemberIdByUserId)) {
+      memberIdToUserId.set(Number(memberId), userId);
+    }
+
+    const out: Record<string, number> = {};
+
+    for (const [key, value] of Object.entries(state.totalScores ?? {})) {
+      const parts = key.split(':'); // "matchId:memberId:round"
+      if (parts.length !== 3) continue;
+
+      const memberId = Number(parts[1]);
+      const userId = memberIdToUserId.get(memberId);
+      if (!userId) continue;
+
+      const score = typeof value === 'number' ? value : Number(value);
+      out[userId] = (out[userId] ?? 0) + score;
+    }
+
+    return out;
   }
 }
