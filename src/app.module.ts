@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { RoomsModule } from './room/room.module';
+import { RoomModule } from './room/room.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './user/user.module';
+import { UserModule } from './user/user.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ChatModule } from './chat/chat.module';
 import { GameModule } from './game/game.module';
@@ -29,8 +29,8 @@ import { WardrobeModule } from './wardrobe/wardrobe.module';
     }),
     PrismaModule,
     AuthModule,
-    UsersModule,
-    RoomsModule,
+    UserModule,
+    RoomModule,
     WaitingModule,
     ChatModule,
     GameStateModule,

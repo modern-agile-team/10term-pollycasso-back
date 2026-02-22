@@ -1,7 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { FriendService } from './friend.service';
 import { FriendRepository } from './friend.repository';
-import { UsersModule } from 'src/user/user.module';
+import { UserModule } from 'src/user/user.module';
 import { BlockModule } from 'src/block/block.module';
 import { RedisModule } from 'src/redis/redis.module';
 import { FriendGateway } from './friend.gateway';
@@ -16,7 +16,7 @@ import { OutfitModule } from 'src/outfit/outfit.module';
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRATION },
     }),
-    UsersModule,
+    UserModule,
     forwardRef(() => BlockModule),
     RedisModule,
     PresenceModule,

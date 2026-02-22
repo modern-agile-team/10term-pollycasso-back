@@ -5,7 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ChatValidationService } from './chat-validation.service';
 import { FriendModule } from 'src/friend/friend.module';
 import { BlockModule } from 'src/block/block.module';
-import { UsersModule } from 'src/user/user.module';
+import { UserModule } from 'src/user/user.module';
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import { UsersModule } from 'src/user/user.module';
     }),
     FriendModule,
     BlockModule,
-    UsersModule,
+    UserModule,
   ],
   providers: [ChatService, ChatValidationService, ChatGateway],
   exports: [ChatService, ChatValidationService],

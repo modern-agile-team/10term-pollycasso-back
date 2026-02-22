@@ -1,8 +1,12 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { CosmeticSubCategory } from '@prisma/client';
 import { OutfitIds } from '../outfit.type';
-import { OUTFIT_DOMAIN_ERRORS, OUTFIT_ERROR_CODES } from '../constants/outfit.constant';
 import { ErrorDetail } from 'src/common/utils/error-response.util';
+import {
+  DEFAULT_OUTFIT,
+  OUTFIT_DOMAIN_ERRORS,
+  OUTFIT_ERROR_CODES,
+} from '../constants/outfit.constant';
 
 type UpdateOutfitProps = Partial<OutfitIds>;
 
@@ -24,32 +28,26 @@ export class Outfit {
     return new Outfit(props);
   }
 
-  get bird(): number {
-    return this.props.bird;
+  static fromJSON(raw: unknown): Outfit {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return new Outfit(DEFAULT_OUTFIT);
+    }
+
+    const obj = raw as Partial<OutfitIds>;
+
+    return new Outfit({
+      bird: typeof obj.bird === 'number' ? obj.bird : DEFAULT_OUTFIT.bird,
+      hat: typeof obj.hat === 'number' ? obj.hat : null,
+      accessory: typeof obj.accessory === 'number' ? obj.accessory : null,
+      top: typeof obj.top === 'number' ? obj.top : null,
+      bottom: typeof obj.bottom === 'number' ? obj.bottom : null,
+      shoes: typeof obj.shoes === 'number' ? obj.shoes : null,
+      effect: typeof obj.effect === 'number' ? obj.effect : null,
+    });
   }
 
-  get hat(): number | null {
-    return this.props.hat;
-  }
-
-  get accessory(): number | null {
-    return this.props.accessory;
-  }
-
-  get top(): number | null {
-    return this.props.top;
-  }
-
-  get bottom(): number | null {
-    return this.props.bottom;
-  }
-
-  get shoes(): number | null {
-    return this.props.shoes;
-  }
-
-  get effect(): number | null {
-    return this.props.effect;
+  toJSON(): string {
+    return JSON.stringify(this.props);
   }
 
   getAll(): OutfitIds {
@@ -66,6 +64,7 @@ export class Outfit {
     const updates = Object.fromEntries(
       Object.entries(props).filter(([, value]) => value !== undefined),
     );
+
     Object.assign(this.props, updates);
   }
 

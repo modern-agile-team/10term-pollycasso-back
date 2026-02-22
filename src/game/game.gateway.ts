@@ -9,7 +9,7 @@ import {
 import { IGameEventPublisher } from './interfaces/game-event-publisher.interfaces';
 import { Server } from 'socket.io';
 import { wsError } from 'src/common/utils/ws-error.util';
-import { Logger, UseFilters, UsePipes, ValidationPipe } from '@nestjs/common';
+import { forwardRef, Inject, Logger, UseFilters, UsePipes, ValidationPipe } from '@nestjs/common';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { WAITING_ERROR_CODES } from 'src/waiting/constants/waiting.constant';
@@ -18,6 +18,16 @@ import { GameJoinDto } from './dto/requests/game-join.dto';
 import { GAME_ERRORS, GAME_EVENTS } from './constants/game.constant';
 import type { GameSocket } from './interfaces/gameSocket.interface';
 import { SocketExceptionFilter } from 'src/common/filters/socket-exception.filter';
+import { requireRoomId, requireUserId } from './utils/game-ws.util';
+import {
+  GAME_STATE_STORE,
+  GamePhase,
+  type IGameStateStore,
+} from 'src/game-state/interfaces/game-state.interface';
+import { GameSessionService } from './session/game-session.service';
+import { RoundSummaryService } from './round-summary/round-summary.service';
+import { EvaluationService } from './evaluation/evaluation.service';
+import { RoomUpdatePlayerPayload } from './interfaces/game.interface';
 
 @UsePipes(
   new ValidationPipe({
@@ -51,6 +61,11 @@ export class GameGateway implements IGameEventPublisher, OnGatewayConnection {
   constructor(
     private readonly waitingState: WaitingStore,
     private readonly jwtService: JwtService,
+    private readonly evaluationService: EvaluationService,
+    @Inject(forwardRef(() => RoundSummaryService))
+    private readonly roundSummaryService: RoundSummaryService,
+    private readonly gameSessionService: GameSessionService,
+    @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
   ) {}
 
   async handleConnection(client: GameSocket) {
@@ -117,6 +132,46 @@ export class GameGateway implements IGameEventPublisher, OnGatewayConnection {
     }
 
     await this.joinGameRoomInternal(client, roomId, true);
+  }
+
+  @SubscribeMessage(GAME_EVENTS.ROOM_READY_TOGGLE)
+  async onReadyToggle(@ConnectedSocket() client: GameSocket): Promise<void> {
+    const userId = requireUserId(client);
+    const roomId = requireRoomId(client);
+
+    const gameState = await this.gameStateStore.get(roomId);
+    if (!gameState) throw wsError(404, 'GAME_STATE_NOT_FOUND');
+
+    switch (gameState.phase) {
+      case GamePhase.EVALUATING: {
+        const { isReady, allReady } = await this.evaluationService.toggleReady(
+          roomId,
+          gameState,
+          userId,
+        );
+
+        const payload: RoomUpdatePlayerPayload = {
+          userId,
+          changes: { isReady },
+        };
+
+        this.server.to(`game:room:${roomId}`).emit(GAME_EVENTS.ROOM_UPDATE_PLAYER, payload);
+
+        if (allReady) {
+          await this.gameSessionService.advanceToRoundSummary({ roomId, server: this.server });
+        }
+        return;
+      }
+
+      case GamePhase.ROUND_SUMMARY: {
+        await this.roundSummaryService.handleReadyToggle(this.server, roomId, userId);
+        return;
+      }
+
+      default: {
+        throw wsError(400, GAME_ERRORS.INVALID_PHASE);
+      }
+    }
   }
 
   broadcastGameState(roomId: number, payload: any) {

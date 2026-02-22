@@ -4,7 +4,7 @@ import { Team } from '@prisma/client';
 import Redis from 'ioredis';
 import { PlayerPageStatus } from './dtos/requests/update-status.dto';
 import { OutfitIds } from 'src/outfit/outfit.type';
-import { OutfitVO } from 'src/outfit/outfit.vo';
+import { Outfit } from 'src/outfit/entities/outfit.entity';
 
 export interface WaitingPlayerState {
   userId: number;
@@ -87,7 +87,7 @@ export class WaitingStore {
       isReady: data.isReady === '1',
       level: Number(data.level) || 1,
       pageStatus: (data.pageStatus as PlayerPageStatus) || PlayerPageStatus.IDLE,
-      outfit: OutfitVO.fromJSON(data.outfit).get(),
+      outfit: Outfit.fromJSON(data.outfit).getAll(),
       joinedAt: Number(data.joinedAt),
     };
   }
@@ -114,7 +114,7 @@ export class WaitingStore {
         isReady: d.isReady === '1',
         level: Number(d.level) || 1,
         pageStatus: (d.pageStatus as PlayerPageStatus) || PlayerPageStatus.IDLE,
-        outfit: OutfitVO.fromJSON(d.outfit).get(),
+        outfit: Outfit.fromJSON(d.outfit).getAll(),
         joinedAt: Number(d.joinedAt),
       }));
   }

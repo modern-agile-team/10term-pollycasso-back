@@ -1,21 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma, Provider, User } from '@prisma/client';
-import { DEFAULT_OUTFIT } from 'src/outfit/constants/outfit.constant';
+import { DEFAULT_BIRD_ID, DEFAULT_OUTFIT } from 'src/outfit/constants/outfit.constant';
 
 @Injectable()
-export class UsersRepository {
+export class UserRepository {
   constructor(private readonly prisma: PrismaService) {}
-
-  private readonly DEFAULT_BIRD_ID = 150;
-
-  async findByUsernameOrNickname(username: string, nickname: string): Promise<User | null> {
-    return await this.prisma.user.findFirst({
-      where: {
-        OR: [{ username }, { nickname }],
-      },
-    });
-  }
 
   async findOneById(id: number): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
@@ -28,9 +18,7 @@ export class UsersRepository {
   async findOneWithProfile(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
-      include: {
-        profile: true,
-      },
+      include: { profile: true },
     });
   }
 
@@ -39,33 +27,28 @@ export class UsersRepository {
       data: {
         ...data,
         profile: {
-          create: {
-            outfit: DEFAULT_OUTFIT,
-          },
+          create: { outfit: DEFAULT_OUTFIT },
         },
         cosmeticItems: {
-          create: [
-            {
-              cosmeticItemId: this.DEFAULT_BIRD_ID,
-            },
-          ],
+          create: [{ cosmeticItemId: DEFAULT_BIRD_ID }],
         },
-      },
-      include: {
-        profile: true,
-        cosmeticItems: true,
       },
     });
   }
 
   async findUserByProvider(provider: Provider, providerId: string): Promise<User | null> {
     return this.prisma.user.findUnique({
-      where: {
-        provider_providerId: {
-          provider,
-          providerId,
-        },
-      },
+      where: { provider_providerId: { provider, providerId } },
     });
+  }
+
+  async findByNicknameAndTag(nickname: string, tag: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { nickname_tag: { nickname, tag } },
+    });
+  }
+
+  async updateUser(id: number, data: Prisma.UserUpdateInput): Promise<void> {
+    await this.prisma.user.update({ where: { id }, data });
   }
 }

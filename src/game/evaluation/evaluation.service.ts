@@ -272,6 +272,7 @@ export class EvaluationService {
       kind: GamePhase.ROUND_SUMMARY,
       rankings,
       drawingsById,
+      readyUserIds: [],
     };
 
     return { phaseContext, updatedTotals };
