@@ -137,11 +137,7 @@ export class FriendService {
       return;
     }
 
-    const result = await this.friendRepository.updateFriendshipStatus(
-      request.id,
-      FriendStatus.ACCEPTED,
-    );
-    return result;
+    return this.friendRepository.updateFriendshipStatus(request.id, FriendStatus.ACCEPTED);
   }
 
   async removeFriend(userId: number, friendUserId: number): Promise<void> {
@@ -218,8 +214,22 @@ export class FriendService {
 
   async getRecommendedFriends(userId: number): Promise<SearchFriendResponseDto[]> {
     const excludeIds = await this.getExcludedUserIds(userId, false);
+    const allExcludeIds = [userId, ...excludeIds];
+    const count = await this.friendRepository.countRecommendationCandidates(allExcludeIds);
 
-    const users = await this.friendRepository.getRandomUsersForRecommendation(userId, excludeIds);
+    if (count === 0) {
+      return [];
+    }
+
+    const limit = Math.min(count, FRIEND_SEARCH_RULES.RECOMMENDED_FRIENDS_LIMIT);
+    const maxOffset = Math.max(0, count - limit);
+    const offset = count > limit ? Math.floor(Math.random() * maxOffset) : 0;
+
+    const users = await this.friendRepository.getRecommendationCandidates(
+      allExcludeIds,
+      limit,
+      offset,
+    );
 
     if (!users.length) {
       return [];
@@ -287,11 +297,7 @@ export class FriendService {
     ]);
 
     const blockedIds = blockedUsers.map((b) => b.blockedId);
-    const excludeIds = includeUserId
-      ? [userId, ...relatedIds, ...blockedIds]
-      : [...relatedIds, ...blockedIds];
-
-    return excludeIds;
+    return includeUserId ? [userId, ...relatedIds, ...blockedIds] : [...relatedIds, ...blockedIds];
   }
 
   private validateSelfRequest(userId: number, targetUserId: number): void {
