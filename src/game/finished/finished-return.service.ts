@@ -8,7 +8,7 @@ import {
 } from 'src/game-state/interfaces/game-state.interface';
 import { FinishedRepository } from './finished.repository';
 
-const FINISHED_HOLD_MS = 8000;
+const FINISHED_HOLD_MS = 8000; // 8초
 
 @Injectable()
 export class FinishedReturnService {
@@ -24,42 +24,45 @@ export class FinishedReturnService {
   schedule(roomId: number) {
     this.cancel(roomId);
 
-    const t = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       void this.returnToWaiting(roomId);
     }, FINISHED_HOLD_MS);
 
-    this.timersByRoomId.set(roomId, t);
+    this.timersByRoomId.set(roomId, timeoutId);
   }
 
   cancel(roomId: number) {
-    const t = this.timersByRoomId.get(roomId);
-    if (t) {
-      clearTimeout(t);
+    const timeoutId = this.timersByRoomId.get(roomId);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
       this.timersByRoomId.delete(roomId);
     }
   }
 
   private async returnToWaiting(roomId: number) {
     try {
-      const current = await this.gameStateStore.get(roomId);
-      if (!current || current.phase !== GamePhase.FINISHED) return;
+      const currentState = await this.gameStateStore.get(roomId);
+      if (!currentState || currentState.phase !== GamePhase.FINISHED) return;
 
-      const patched = await this.gameStateStore.patch(roomId, {
+      const patchedState = await this.gameStateStore.patch(roomId, {
         phase: GamePhase.WAITING,
         endsAt: null,
         phaseContext: null,
         currentTheme: null,
       });
-      if (!patched) return;
+      if (!patchedState) return;
 
       await this.finishedRepository.resetRoomToWaiting(roomId);
 
-      this.eventPublisher.broadcastGameState(roomId, patched);
-    } catch (e) {
-      if (e instanceof Error) {
-        this.logger.error({ roomId, message: e.message, stack: e.stack }, 'returnToWaiting failed');
+      this.eventPublisher.broadcastGameState(roomId, patchedState);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(
+          { roomId, message: error.message, stack: error.stack },
+          'returnToWaiting failed',
+        );
       } else {
-        this.logger.error({ roomId, e }, 'returnToWaiting failed (non-Error thrown)');
+        this.logger.error({ roomId, error }, 'returnToWaiting failed with unknown error');
       }
     } finally {
       this.cancel(roomId);

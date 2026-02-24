@@ -3,83 +3,67 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { rewardByPlacement } from './policies/reward.policy';
 import { FINISHED_EVENTS } from './constants/finished.constant';
 import { FinishedRepository } from './finished.repository';
-
-type FinalResultItem = { userId: number; score: number; placement: number };
-type FinalRewardsByUserId = Record<string, { exp: number; coin: number }>;
+import { MatchFinalizeParams, RewardsGrantedEventPayload } from './interfaces/finished.interface';
+import { FinalRewardsByUserId } from './types/finished.type';
 
 @Injectable()
 export class MatchFinalizeService {
   constructor(
-    private readonly repo: FinishedRepository,
+    private readonly finishedRepository: FinishedRepository,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async finalizeFromFinalResults(params: {
-    matchId: number;
-    finalResults: FinalResultItem[];
-    roomMemberIdByUserId: Record<string, number>;
-  }): Promise<FinalRewardsByUserId> {
+  async finalizeFromFinalResults(params: MatchFinalizeParams): Promise<FinalRewardsByUserId> {
     const { matchId, finalResults, roomMemberIdByUserId } = params;
 
-    // 브로드캐스트용: 전원 보상표(정책 기반)
     const finalRewards: FinalRewardsByUserId = {};
-    for (const r of finalResults) {
-      const { xp, coin } = rewardByPlacement(r.placement || 9999);
-      finalRewards[String(r.userId)] = { exp: xp, coin };
+    for (const result of finalResults) {
+      const { exp, coin } = rewardByPlacement(result.placement || 9999);
+      finalRewards[String(result.userId)] = { exp, coin };
     }
 
-    // 커밋 후 유니캐스트 emit 목록
-    const notifications = await this.repo.transaction(async (tx) => {
-      const noti: Array<{
-        userId: number;
-        matchId: number;
-        exp: number;
-        coin: number;
-        placement: number;
-      }> = [];
+    const notifications = await this.finishedRepository.transaction(async (tx) => {
+      const eventPayloads: RewardsGrantedEventPayload[] = [];
 
-      for (const item of finalResults) {
-        const userId = Number(item.userId);
+      for (const userResult of finalResults) {
+        const userId = Number(userResult.userId);
         const memberId = roomMemberIdByUserId[String(userId)];
         if (!memberId) continue;
 
-        const score = Number(item.score ?? 0);
-        const placement = Number(item.placement ?? 0) || 0;
+        const score = Number(userResult.score ?? 0);
+        const placement = Number(userResult.placement ?? 0) || 0;
 
-        const upserted = await this.repo.upsertMatchResult(tx, {
+        const upserted = await this.finishedRepository.upsertMatchResult(tx, {
           matchId,
           roomMemberId: memberId,
           score,
           placement,
         });
 
-        // 이미 지급했으면 스킵
         if (upserted.rewardedAt != null) continue;
 
-        const { xp, coin } = rewardByPlacement(placement || 9999);
+        const { exp, coin } = rewardByPlacement(placement || 9999);
 
-        const updated = await this.repo.confirmRewardOnce(tx, {
+        const updated = await this.finishedRepository.confirmRewardOnce(tx, {
           matchResultId: upserted.id,
-          xp,
+          exp,
           coin,
         });
 
         if (updated.count !== 1) continue;
 
-        await this.repo.incrementUserProfile(tx, { userId, xp, coin });
+        await this.finishedRepository.incrementUserProfile(tx, { userId, exp, coin });
 
-        noti.push({ userId, matchId, exp: xp, coin, placement });
+        eventPayloads.push({ userId, matchId, exp, coin, placement });
       }
 
-      return noti;
+      return eventPayloads;
     });
 
-    // 커밋 후 유니캐스트 이벤트
-    for (const n of notifications) {
-      this.eventEmitter.emit(FINISHED_EVENTS.REWARDS_GRANTED, n);
+    for (const payload of notifications) {
+      this.eventEmitter.emit(FINISHED_EVENTS.REWARDS_GRANTED, payload);
     }
 
-    // 브로드캐스트용 리턴
     return finalRewards;
   }
 }

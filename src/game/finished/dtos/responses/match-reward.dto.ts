@@ -1,5 +1,4 @@
-export interface RewardsGrantedEvent {
-  userId: number;
+export class MatchRewardResponseDto {
   matchId: number;
   exp: number;
   coin: number;

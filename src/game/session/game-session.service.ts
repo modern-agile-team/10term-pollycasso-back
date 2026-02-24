@@ -21,6 +21,7 @@ import { wsError } from 'src/common/utils/ws-error.util';
 import { EvaluationService } from '../evaluation/evaluation.service';
 import { MatchLifecycleService } from '../finished/match-lifecycle.service';
 import { FinishedReturnService } from '../finished/finished-return.service';
+import { FinalRewardsByUserId } from '../finished/types/finished.type';
 
 type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
@@ -28,7 +29,6 @@ const THEME_SELECTING_DURATION_MS = 32000; // 32초
 const DRAWING_DURATION_MS = 92000; // 92초
 const EVALUATING_DURATION_MS = 60000; // 60초
 const ROUND_SUMMARY_DURATION_MS = 32000; // 32초
-const FINISHED_HOLD_MS = 8000; // 8초
 
 @Injectable()
 export class GameSessionService {
@@ -333,7 +333,7 @@ export class GameSessionService {
         const finalScoresByUserId = this.computeFinalScoresByUserId(patched);
         const finalResults = this.buildFinalResults(finalScoresByUserId);
 
-        let finalRewards: Record<string, { exp: number; coin: number }> = {};
+        let finalRewards: FinalRewardsByUserId = {};
 
         if (typeof patched.matchId === 'number') {
           finalRewards = await this.matchLifecycleService.onGameFinished({
@@ -344,7 +344,7 @@ export class GameSessionService {
           });
         }
 
-        const { totalScores, ...rest } = patched as any;
+        const { totalScores, ...rest } = patched;
 
         this.eventPublisher.broadcastGameState(roomId, {
           ...rest,
@@ -379,8 +379,6 @@ export class GameSessionService {
 
   private readonly roundSummaryExitGuard = new Set<number>();
 
-  private readonly finishedReturnTimersByRoomId = new Map<number, NodeJS.Timeout>();
-
   private roomSocketRoom(roomId: number) {
     return `game:room:${roomId}`;
   }
@@ -391,15 +389,6 @@ export class GameSessionService {
     if (timer) {
       clearTimeout(timer);
       this.phaseTransitionTimersByRoomId.delete(roomId);
-    }
-  }
-
-  // FINISHED 복귀 타이머 해제
-  private clearFinishedReturnTimer(roomId: number) {
-    const timer = this.finishedReturnTimersByRoomId.get(roomId);
-    if (timer) {
-      clearTimeout(timer);
-      this.finishedReturnTimersByRoomId.delete(roomId);
     }
   }
 

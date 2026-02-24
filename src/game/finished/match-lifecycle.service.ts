@@ -1,26 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { MatchFinalizeService } from './match-finalize.service';
 import { FinishedRepository } from './finished.repository';
-
-type FinalResultItem = { userId: number; score: number; placement: number };
-type FinalRewardsByUserId = Record<string, { exp: number; coin: number }>;
+import { FinalRewardsByUserId } from './types/finished.type';
+import { MatchLifecycleParams } from './interfaces/finished.interface';
 
 @Injectable()
 export class MatchLifecycleService {
   constructor(
-    private readonly repo: FinishedRepository,
+    private readonly finishedRepository: FinishedRepository,
     private readonly finalizeService: MatchFinalizeService,
   ) {}
 
-  async onGameFinished(params: {
-    roomId: number;
-    matchId: number;
-    finalResults: FinalResultItem[];
-    roomMemberIdByUserId: Record<string, number>;
-  }): Promise<FinalRewardsByUserId> {
+  // 매치 종료 처리: 결과 저장, 보상 계산 및 지급
+  async onGameFinished(params: MatchLifecycleParams): Promise<FinalRewardsByUserId> {
     const { matchId, finalResults, roomMemberIdByUserId } = params;
 
-    await this.repo.markMatchCompleted(matchId);
+    await this.finishedRepository.markMatchCompleted(matchId);
 
     return this.finalizeService.finalizeFromFinalResults({
       matchId,
