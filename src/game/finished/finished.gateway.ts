@@ -23,7 +23,10 @@ export class FinishedGateway {
       .emit(GAME_EVENTS.ROOM_UPDATE_GAME_STATE, { roomId, status });
   }
 
-  unicastRewards(userId: number, payload: { matchId: number; exp: number; coin: number }) {
+  unicastRewards(
+    userId: number,
+    payload: { matchId: number; exp: number; coin: number; placement: number },
+  ) {
     this.server.to(this.userRoomId(userId)).emit(FINISHED_EVENTS.USER_REWARDS_GRANTED, payload);
   }
 

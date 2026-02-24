@@ -19,6 +19,8 @@ import { DrawingService } from '../drawing/drawing.service';
 import { GameSocketData } from '../interfaces/gameSocket.interface';
 import { wsError } from 'src/common/utils/ws-error.util';
 import { EvaluationService } from '../evaluation/evaluation.service';
+import { MatchLifecycleService } from '../finished/match-lifecycle.service';
+import { FinishedReturnService } from '../finished/finished-return.service';
 
 type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
@@ -36,6 +38,8 @@ export class GameSessionService {
     private readonly topicService: TopicService,
     private readonly drawingService: DrawingService,
     private readonly evaluationService: EvaluationService,
+    private readonly matchLifecycleService: MatchLifecycleService,
+    private readonly finishedReturnService: FinishedReturnService,
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
     @Inject(GAME_EVENT_PUBLISHER) private readonly eventPublisher: IGameEventPublisher,
   ) {}
@@ -327,14 +331,28 @@ export class GameSessionService {
 
       if (patched.phase === GamePhase.FINISHED) {
         const finalScoresByUserId = this.computeFinalScoresByUserId(patched);
+        const finalResults = this.buildFinalResults(finalScoresByUserId);
+
+        let finalRewards: Record<string, { exp: number; coin: number }> = {};
+
+        if (typeof patched.matchId === 'number') {
+          finalRewards = await this.matchLifecycleService.onGameFinished({
+            roomId,
+            matchId: patched.matchId,
+            finalResults,
+            roomMemberIdByUserId: patched.roomMemberIdByUserId,
+          });
+        }
+
+        const { totalScores, ...rest } = patched as any;
 
         this.eventPublisher.broadcastGameState(roomId, {
-          ...patched,
-          finalScoresByUserId,
+          ...rest,
+          finalResults,
+          finalRewards,
         });
 
-        this.scheduleReturnToWaitingAfterFinished(roomId);
-
+        this.finishedReturnService.schedule(roomId);
         return;
       }
 
@@ -519,51 +537,31 @@ export class GameSessionService {
     return out;
   }
 
-  private scheduleReturnToWaitingAfterFinished(roomId: number) {
-    // room당 1개만 유지
-    this.clearFinishedReturnTimer(roomId);
+  private buildFinalResults(finalScoresByUserId: Record<string, number>) {
+    const items = Object.entries(finalScoresByUserId)
+      .map(([userId, score]) => ({ userId: Number(userId), score: Number(score) }))
+      .sort((a, b) => b.score - a.score);
 
-    const timer = setTimeout(() => {
-      void (async () => {
-        try {
-          const current = await this.gameStateStore.get(roomId);
-          if (!current) return;
+    const out: Array<{ userId: number; score: number; placement: number }> = [];
 
-          // 아직 FINISHED일 때만 대기실로 전환
-          if (current.phase !== GamePhase.FINISHED) return;
+    let prevScore: number | null = null;
+    let prevPlacement = 0;
 
-          // 다른 phase 전환 타이머가 남아있을 수 있으니 정리
-          this.clearPhaseTimer(roomId);
+    for (let i = 0; i < items.length; i++) {
+      const { userId, score } = items[i];
 
-          const patched = await this.gameStateStore.patch(roomId, {
-            phase: GamePhase.WAITING, // ✅ 실제 대기 phase로 변경(예: LOBBY)
-            endsAt: null,
-            phaseContext: null,
-            currentTheme: null,
-          });
+      let placement: number;
+      if (prevScore !== null && score === prevScore) {
+        placement = prevPlacement;
+      } else {
+        placement = i + 1;
+        prevScore = score;
+        prevPlacement = placement;
+      }
 
-          if (!patched) return;
+      out.push({ userId, score, placement });
+    }
 
-          // eventPublisher가 내부적으로 server.to(...).emit(...) 하므로 server 인자 불필요
-          this.eventPublisher.broadcastGameState(roomId, patched);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            this.logger.error(
-              { message: error.message, stack: error.stack, roomId },
-              'scheduleReturnToWaitingAfterFinished timeout handler failed',
-            );
-          } else {
-            this.logger.error(
-              { error, roomId },
-              'scheduleReturnToWaitingAfterFinished timeout handler failed (non-Error thrown)',
-            );
-          }
-        } finally {
-          this.clearFinishedReturnTimer(roomId);
-        }
-      })();
-    }, FINISHED_HOLD_MS);
-
-    this.finishedReturnTimersByRoomId.set(roomId, timer);
+    return out;
   }
 }
