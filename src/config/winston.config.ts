@@ -3,14 +3,16 @@ import WinstonCloudwatch from 'winston-cloudwatch';
 import { ConfigService } from '@nestjs/config';
 import type { TransformableInfo } from 'logform';
 
-function getString(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : fallback;
+const DEFAULT_CONTEXT = 'SYSTEM';
+
+function getString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }
 
 export function winstonConfig(configService: ConfigService) {
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
   const awsRegion = configService.get<string>('AWS_REGION');
-
+  const serviceName = configService.get<string>('SERVICE_NAME') ?? 'UNKNOWN_SERVICE';
   const timestampKST = winston.format.timestamp({
     format: () =>
       new Date().toLocaleString('ko-KR', {
@@ -25,25 +27,30 @@ export function winstonConfig(configService: ConfigService) {
     return info;
   });
 
-  const devConsoleFormat = winston.format.printf((info: TransformableInfo) => {
-    const level = getString(info.level);
-    const message = getString(info.message);
-    const ctx = getString(info.context, 'APP');
-    const timestamp = getString(info.timestamp);
-    const stack = typeof info.stack === 'string' ? info.stack : undefined;
+  const devFormat = winston.format.printf((info: TransformableInfo) => {
+    const ctx = getString(info.context) ?? DEFAULT_CONTEXT;
+    const level = info.level;
+    const message = String(info.message);
+    const timestamp = String(info.timestamp);
 
-    const base = `[PollyCasso] [${ctx}] ${level.toUpperCase()} ${message}`;
+    const base = `${timestamp} [PollyCasso] [${ctx}] ${level} ${message}`;
 
-    return stack ? `${timestamp} ${base}\n${stack}` : `${timestamp} ${base}`;
+    let stackStr = '';
+    if (info.stack) {
+      stackStr = typeof info.stack === 'string' ? info.stack : JSON.stringify(info.stack);
+      return `${base}\n${stackStr}`;
+    }
+
+    return base;
   });
 
-  const prodConsoleFormat = winston.format.printf((info: TransformableInfo) => {
-    const level = getString(info.level);
-    const message = getString(info.message);
-    const ctx = getString(info.context, 'APP');
-    const timestamp = getString(info.timestamp);
+  const prodFormat = winston.format.printf((info: TransformableInfo) => {
+    const ctx = getString(info.context) ?? DEFAULT_CONTEXT;
+    const level = info.level;
+    const message = String(info.message);
+    const timestamp = String(info.timestamp);
 
-    return `${timestamp} [PollyCasso] [${ctx}] ${level.toUpperCase()} ${message}`;
+    return `${timestamp} [PollyCasso] [${ctx}] ${level} ${message}`;
   });
 
   const transports: winston.transport[] = [
@@ -51,8 +58,8 @@ export function winstonConfig(configService: ConfigService) {
       level: nodeEnv === 'production' ? 'warn' : 'debug',
       format:
         nodeEnv === 'production'
-          ? winston.format.combine(timestampKST, removeStack(), prodConsoleFormat)
-          : winston.format.combine(timestampKST, devConsoleFormat),
+          ? winston.format.combine(timestampKST, removeStack(), prodFormat)
+          : winston.format.combine(timestampKST, winston.format.colorize(), devFormat),
     }),
   ];
 
