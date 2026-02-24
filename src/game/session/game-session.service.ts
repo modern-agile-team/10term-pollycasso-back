@@ -26,6 +26,7 @@ const THEME_SELECTING_DURATION_MS = 32000; // 32초
 const DRAWING_DURATION_MS = 92000; // 92초
 const EVALUATING_DURATION_MS = 60000; // 60초
 const ROUND_SUMMARY_DURATION_MS = 32000; // 32초
+const FINISHED_HOLD_MS = 8000; // 8초
 
 @Injectable()
 export class GameSessionService {
@@ -331,6 +332,9 @@ export class GameSessionService {
           ...patched,
           finalScoresByUserId,
         });
+
+        this.scheduleReturnToWaitingAfterFinished(roomId);
+
         return;
       }
 
@@ -357,6 +361,8 @@ export class GameSessionService {
 
   private readonly roundSummaryExitGuard = new Set<number>();
 
+  private readonly finishedReturnTimersByRoomId = new Map<number, NodeJS.Timeout>();
+
   private roomSocketRoom(roomId: number) {
     return `game:room:${roomId}`;
   }
@@ -367,6 +373,15 @@ export class GameSessionService {
     if (timer) {
       clearTimeout(timer);
       this.phaseTransitionTimersByRoomId.delete(roomId);
+    }
+  }
+
+  // FINISHED 복귀 타이머 해제
+  private clearFinishedReturnTimer(roomId: number) {
+    const timer = this.finishedReturnTimersByRoomId.get(roomId);
+    if (timer) {
+      clearTimeout(timer);
+      this.finishedReturnTimersByRoomId.delete(roomId);
     }
   }
 
@@ -502,5 +517,53 @@ export class GameSessionService {
     }
 
     return out;
+  }
+
+  private scheduleReturnToWaitingAfterFinished(roomId: number) {
+    // room당 1개만 유지
+    this.clearFinishedReturnTimer(roomId);
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const current = await this.gameStateStore.get(roomId);
+          if (!current) return;
+
+          // 아직 FINISHED일 때만 대기실로 전환
+          if (current.phase !== GamePhase.FINISHED) return;
+
+          // 다른 phase 전환 타이머가 남아있을 수 있으니 정리
+          this.clearPhaseTimer(roomId);
+
+          const patched = await this.gameStateStore.patch(roomId, {
+            phase: GamePhase.WAITING, // ✅ 실제 대기 phase로 변경(예: LOBBY)
+            endsAt: null,
+            phaseContext: null,
+            currentTheme: null,
+          });
+
+          if (!patched) return;
+
+          // eventPublisher가 내부적으로 server.to(...).emit(...) 하므로 server 인자 불필요
+          this.eventPublisher.broadcastGameState(roomId, patched);
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            this.logger.error(
+              { message: error.message, stack: error.stack, roomId },
+              'scheduleReturnToWaitingAfterFinished timeout handler failed',
+            );
+          } else {
+            this.logger.error(
+              { error, roomId },
+              'scheduleReturnToWaitingAfterFinished timeout handler failed (non-Error thrown)',
+            );
+          }
+        } finally {
+          this.clearFinishedReturnTimer(roomId);
+        }
+      })();
+    }, FINISHED_HOLD_MS);
+
+    this.finishedReturnTimersByRoomId.set(roomId, timer);
   }
 }

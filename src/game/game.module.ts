@@ -25,6 +25,7 @@ import { EvaluationService } from './evaluation/evaluation.service';
 import { EvaluationVoteRepository } from './evaluation/evaluation-vote.repository';
 import { EVALUATION_VOTE } from './evaluation/interfaces/evaluation-vote.interface';
 import { RoundSummaryService } from './round-summary/round-summary.service';
+import { FinishedGateway } from './finished/finished.gateway';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { RoundSummaryService } from './round-summary/round-summary.service';
     EvaluationService,
     { provide: EVALUATION_VOTE, useClass: EvaluationVoteRepository },
     RoundSummaryService,
+    FinishedGateway,
   ],
   exports: [],
 })
