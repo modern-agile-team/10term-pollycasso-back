@@ -46,16 +46,14 @@ export class SocketExceptionFilter extends BaseWsExceptionFilter {
     if (exception instanceof WsException) {
       raw = exception.getError?.() ?? exception;
       status = hasStatus(raw) ? raw.status : 500;
-    }
-
-    if (exception instanceof HttpException) {
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       raw = exception.getResponse();
     }
 
     const normalized = buildErrorResponse(raw as WsErrorPayload, status);
     const event = host.switchToWs().getPattern() || 'connection';
-  
+
     logException(this.logger, exception, status, {
       context: 'WS',
       namespace: client.nsp.name,

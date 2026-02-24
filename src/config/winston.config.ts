@@ -4,15 +4,22 @@ import { ConfigService } from '@nestjs/config';
 import type { TransformableInfo } from 'logform';
 
 const DEFAULT_CONTEXT = 'SYSTEM';
+const DEFAULT_SERVICE_NAME = 'PollyCasso';
 
 function getString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function getStringOrNumber(value: unknown): string | undefined {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return undefined;
+}
+
 export function winstonConfig(configService: ConfigService) {
   const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
   const awsRegion = configService.get<string>('AWS_REGION');
-  const serviceName = configService.get<string>('SERVICE_NAME') ?? 'UNKNOWN_SERVICE';
+  const serviceName = configService.get<string>('SERVICE_NAME') ?? DEFAULT_SERVICE_NAME;
+
   const timestampKST = winston.format.timestamp({
     format: () =>
       new Date().toLocaleString('ko-KR', {
@@ -21,37 +28,50 @@ export function winstonConfig(configService: ConfigService) {
   });
 
   const removeStack = winston.format((info: TransformableInfo) => {
-    if (info.level !== 'error') {
-      delete info.stack;
-    }
+    if (info.level !== 'error') delete info.stack;
     return info;
   });
 
-  const devFormat = winston.format.printf((info: TransformableInfo) => {
+  const buildContext = (info: TransformableInfo): string => {
+    const parts: string[] = [];
+
+    const status = getStringOrNumber(info.status);
+    const method = getString(info.method);
+    const url = getString(info.url);
+    const namespace = getString(info.namespace);
+    const event = getString(info.event);
+    const code = getString(info.code);
+
+    if (status) parts.push(status);
+    if (method && url) parts.push(`${method} ${url}`);
+    if (namespace) parts.push(namespace);
+    if (event) parts.push(event);
+    if (code) parts.push(code);
+
+    return parts.length ? ` | ${parts.join(' | ')}` : '';
+  };
+
+  const formatLog = (info: TransformableInfo): string => {
     const ctx = getString(info.context) ?? DEFAULT_CONTEXT;
     const level = info.level;
     const message = String(info.message);
     const timestamp = String(info.timestamp);
 
-    const base = `${timestamp} [PollyCasso] [${ctx}] ${level} ${message}`;
+    return `${timestamp} [${serviceName}] [${ctx}] ${level} ${message}${buildContext(info)}`;
+  };
 
-    let stackStr = '';
+  const devFormat = winston.format.printf((info) => {
+    const base = formatLog(info);
+
     if (info.stack) {
-      stackStr = typeof info.stack === 'string' ? info.stack : JSON.stringify(info.stack);
-      return `${base}\n${stackStr}`;
+      const stack = typeof info.stack === 'string' ? info.stack : JSON.stringify(info.stack);
+      return `${base}\n${stack}`;
     }
 
     return base;
   });
 
-  const prodFormat = winston.format.printf((info: TransformableInfo) => {
-    const ctx = getString(info.context) ?? DEFAULT_CONTEXT;
-    const level = info.level;
-    const message = String(info.message);
-    const timestamp = String(info.timestamp);
-
-    return `${timestamp} [PollyCasso] [${ctx}] ${level} ${message}`;
-  });
+  const prodFormat = winston.format.printf((info) => formatLog(info));
 
   const transports: winston.transport[] = [
     new winston.transports.Console({
@@ -59,7 +79,12 @@ export function winstonConfig(configService: ConfigService) {
       format:
         nodeEnv === 'production'
           ? winston.format.combine(timestampKST, removeStack(), prodFormat)
-          : winston.format.combine(timestampKST, winston.format.colorize(), devFormat),
+          : winston.format.combine(
+              timestampKST,
+              removeStack(),
+              winston.format.colorize(),
+              devFormat,
+            ),
     }),
   ];
 
@@ -76,6 +101,7 @@ export function winstonConfig(configService: ConfigService) {
             level: info.level ?? null,
             message: info.message ?? null,
             context: info.context ?? null,
+            status: info.status ?? null,
             stack: info.stack ?? null,
             userId: info.userId ?? null,
             socketId: info.socketId ?? null,
@@ -83,6 +109,7 @@ export function winstonConfig(configService: ConfigService) {
             url: info.url ?? null,
             namespace: info.namespace ?? null,
             event: info.event ?? null,
+            code: info.code ?? null,
             timestamp: info.timestamp ?? new Date().toISOString(),
           }),
       }),

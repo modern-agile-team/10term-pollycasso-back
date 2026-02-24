@@ -8,6 +8,7 @@ interface LogContext {
   url?: string;
   namespace?: string;
   event?: string;
+  code?: string;
 }
 
 export function logException(
@@ -24,16 +25,19 @@ export function logException(
       ? exception
       : safeStringify(exception);
 
-  const meta = {
-    message,
-    ...contextInfo,
-    stack: isError ? exception.stack : undefined,
-  };
-
   if (status >= 500) {
-    logger.error(meta);
+    logger.error({
+      message,
+      ...contextInfo,
+      status,
+      stack: isError ? exception.stack : undefined,
+    });
   } else if (status >= 400) {
-    logger.warn(meta);
+    logger.warn({
+      message,
+      ...contextInfo,
+      status,
+    });
   }
 }
 
