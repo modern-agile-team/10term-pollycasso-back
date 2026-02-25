@@ -3,7 +3,7 @@ import { FriendshipData, UserProfile } from './types/friend.type';
 import { IFriendRepository } from './interfaces/friend-repository.interface';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
-import { FriendSearchType, FRIEND_SEARCH_RULES } from './constants/friend.constant';
+import { FriendSearchType } from './constants/friend.constant';
 import { paginate } from 'src/common/utils/paginate.util';
 import { UserWithProfile } from 'src/user/types/user-with-profile.type';
 
@@ -137,32 +137,26 @@ export class FriendRepository implements IFriendRepository {
     return paginate(userProfiles, limit);
   }
 
-  async getRandomUsersForRecommendation(
-    userId: number,
+  async getRecommendationCandidates(
     excludeIds: number[],
+    limit: number,
+    offset: number,
   ): Promise<UserProfile[]> {
-    const allExcludeIds = [userId, ...excludeIds];
-    const count = await this.prisma.user.count({
-      where: { id: { notIn: allExcludeIds } },
-    });
-
-    if (count === 0) {
-      return [];
-    }
-
-    const takeLimit = Math.min(count, FRIEND_SEARCH_RULES.RECOMMENDED_FRIENDS_LIMIT);
-    const maxOffset = Math.max(0, count - takeLimit);
-    const randomOffset = count > takeLimit ? Math.floor(Math.random() * maxOffset) : 0;
-
     const users = await this.prisma.user.findMany({
-      where: { id: { notIn: allExcludeIds } },
+      where: { id: { notIn: excludeIds } },
       include: { profile: true },
-      skip: randomOffset,
-      take: takeLimit,
+      skip: offset,
+      take: limit,
       orderBy: { id: 'asc' },
     });
 
     return this.mapToUserProfiles(users);
+  }
+
+  async countRecommendationCandidates(excludeIds: number[]): Promise<number> {
+    return this.prisma.user.count({
+      where: { id: { notIn: excludeIds } },
+    });
   }
 
   async deleteFriendshipIfExists(userId: number, targetUserId: number): Promise<void> {
