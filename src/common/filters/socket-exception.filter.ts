@@ -1,10 +1,9 @@
 import { ArgumentsHost, Catch, Inject, HttpException } from '@nestjs/common';
-import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
-import type { LoggerService } from '@nestjs/common';
 import { BaseWsExceptionFilter, WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { buildErrorResponse } from '../utils/error-response.util';
 import { logException } from '../utils/log-exception.util';
+import { LOGGER_TOKEN, type ILogger } from 'src/config/winston.config';
 
 interface WsErrorPayload {
   status?: number;
@@ -31,8 +30,8 @@ function hasStatus(value: unknown): value is { status: number } {
 @Catch()
 export class SocketExceptionFilter extends BaseWsExceptionFilter {
   constructor(
-    @Inject(WINSTON_MODULE_NEST_PROVIDER)
-    private readonly logger: LoggerService,
+    @Inject(LOGGER_TOKEN)
+    private readonly logger: ILogger,
   ) {
     super();
   }
@@ -46,9 +45,7 @@ export class SocketExceptionFilter extends BaseWsExceptionFilter {
     if (exception instanceof WsException) {
       raw = exception.getError?.() ?? exception;
       status = hasStatus(raw) ? raw.status : 500;
-    }
-
-    if (exception instanceof HttpException) {
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       raw = exception.getResponse();
     }

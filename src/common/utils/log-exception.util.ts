@@ -1,4 +1,4 @@
-import type { LoggerService } from '@nestjs/common';
+import { ILogger } from 'src/config/winston.config';
 
 interface LogContext {
   context: string;
@@ -8,10 +8,11 @@ interface LogContext {
   url?: string;
   namespace?: string;
   event?: string;
+  code?: string;
 }
 
 export function logException(
-  logger: LoggerService,
+  logger: ILogger,
   exception: unknown,
   status: number,
   contextInfo: LogContext,
@@ -24,15 +25,19 @@ export function logException(
       ? exception
       : safeStringify(exception);
 
-  const meta = {
-    ...contextInfo,
-    stack: isError ? exception.stack : undefined,
-  };
-
   if (status >= 500) {
-    logger.error(message, meta);
+    logger.error({
+      message,
+      ...contextInfo,
+      status,
+      stack: isError ? exception.stack : undefined,
+    });
   } else if (status >= 400) {
-    logger.warn(message, meta);
+    logger.warn({
+      message,
+      ...contextInfo,
+      status,
+    });
   }
 }
 
