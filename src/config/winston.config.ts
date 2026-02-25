@@ -2,6 +2,10 @@ import * as winston from 'winston';
 import WinstonCloudwatch from 'winston-cloudwatch';
 import { ConfigService } from '@nestjs/config';
 import type { TransformableInfo } from 'logform';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+
+export const LOGGER_TOKEN = WINSTON_MODULE_PROVIDER;
+export type ILogger = winston.Logger;
 
 const DEFAULT_CONTEXT = 'SYSTEM';
 const DEFAULT_SERVICE_NAME = 'PollyCasso';

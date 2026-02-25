@@ -1,4 +1,4 @@
-import { Logger } from 'winston';
+import { ILogger } from 'src/config/winston.config';
 
 interface LogContext {
   context: string;
@@ -12,7 +12,7 @@ interface LogContext {
 }
 
 export function logException(
-  logger: Logger,
+  logger: ILogger,
   exception: unknown,
   status: number,
   contextInfo: LogContext,

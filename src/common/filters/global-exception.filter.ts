@@ -6,11 +6,10 @@ import {
   HttpStatus,
   Inject,
 } from '@nestjs/common';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Request, Response } from 'express';
 import { buildErrorResponse } from '../utils/error-response.util';
 import { logException } from '../utils/log-exception.util';
-import { Logger } from 'winston';
+import { LOGGER_TOKEN, type ILogger } from 'src/config/winston.config';
 
 interface AuthenticatedRequest extends Request {
   user?: { id: number };
@@ -19,8 +18,8 @@ interface AuthenticatedRequest extends Request {
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   constructor(
-    @Inject(WINSTON_MODULE_PROVIDER)
-    private readonly logger: Logger,
+    @Inject(LOGGER_TOKEN)
+    private readonly logger: ILogger,
   ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
