@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { RewardsGrantedEventPayload } from './interfaces/finished.interface';
 import { FinishedGateway } from './finished.gateway';
-import { FINISHED_EVENTS } from './constants/finished.constant';
+import { FINISHED_DOMAIN_EVENTS } from './constants/finished.constant';
 
 @Injectable()
 export class FinishedEventsListener {
   constructor(private readonly socket: FinishedGateway) {}
 
-  @OnEvent(FINISHED_EVENTS.REWARDS_GRANTED)
+  @OnEvent(FINISHED_DOMAIN_EVENTS.REWARDS_GRANTED)
   onRewardsGranted(event: RewardsGrantedEventPayload) {
     this.socket.unicastRewards(event.userId, {
       matchId: event.matchId,

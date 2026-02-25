@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { rewardByPlacement } from './policies/reward.policy';
-import { FINISHED_EVENTS } from './constants/finished.constant';
+import { FINISHED_DOMAIN_EVENTS } from './constants/finished.constant';
 import { FinishedRepository } from './finished.repository';
 import { MatchFinalizeParams, RewardsGrantedEventPayload } from './interfaces/finished.interface';
 import { FinalRewardsByUserId } from './types/finished.type';
@@ -18,8 +18,10 @@ export class MatchFinalizeService {
 
     const finalRewards: FinalRewardsByUserId = {};
     for (const result of finalResults) {
-      const { exp, coin } = rewardByPlacement(result.placement || 9999);
-      finalRewards[String(result.userId)] = { exp, coin };
+      const validPlacement = result.placement || undefined;
+      const { exp, coin } = rewardByPlacement(validPlacement);
+
+      finalRewards[result.userId] = { exp, coin };
     }
 
     const notifications = await this.finishedRepository.transaction(async (tx) => {
@@ -42,7 +44,7 @@ export class MatchFinalizeService {
 
         if (upserted.rewardedAt != null) continue;
 
-        const { exp, coin } = rewardByPlacement(placement || 9999);
+        const { exp, coin } = finalRewards[userId];
 
         const updated = await this.finishedRepository.confirmRewardOnce(tx, {
           matchResultId: upserted.id,
@@ -61,7 +63,7 @@ export class MatchFinalizeService {
     });
 
     for (const payload of notifications) {
-      this.eventEmitter.emit(FINISHED_EVENTS.REWARDS_GRANTED, payload);
+      this.eventEmitter.emit(FINISHED_DOMAIN_EVENTS.REWARDS_GRANTED, payload);
     }
 
     return finalRewards;

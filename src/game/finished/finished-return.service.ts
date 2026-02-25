@@ -62,8 +62,9 @@ export class FinishedReturnService {
           'returnToWaiting failed',
         );
       } else {
-        this.logger.error({ roomId, error }, 'returnToWaiting failed with unknown error');
+        this.logger.error({ roomId, error, message: String(error) }, 'returnToWaiting failed');
       }
+      throw error;
     } finally {
       this.cancel(roomId);
     }

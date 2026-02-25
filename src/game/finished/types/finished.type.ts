@@ -4,4 +4,4 @@ export type FinalResultItem = {
   placement: number;
 };
 
-export type FinalRewardsByUserId = Record<string, { exp: number; coin: number }>;
+export type FinalRewardsByUserId = Record<number, { exp: number; coin: number }>;

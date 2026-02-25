@@ -1,22 +1,18 @@
 export type Reward = { exp: number; coin: number };
 
-export function rewardByPlacement(placement?: number | null): Reward {
-  if (!placement) return { exp: 0, coin: 0 };
+const REWARD_TABLE: Record<number, Reward> = {
+  1: { exp: 120, coin: 80 },
+  2: { exp: 90, coin: 60 },
+  3: { exp: 70, coin: 45 },
+  4: { exp: 50, coin: 30 },
+  5: { exp: 40, coin: 25 },
+  6: { exp: 30, coin: 20 },
+};
 
-  switch (placement) {
-    case 1:
-      return { exp: 120, coin: 80 };
-    case 2:
-      return { exp: 90, coin: 60 };
-    case 3:
-      return { exp: 70, coin: 45 };
-    case 4:
-      return { exp: 50, coin: 30 };
-    case 5:
-      return { exp: 40, coin: 25 };
-    case 6:
-      return { exp: 30, coin: 20 };
-    default:
-      return { exp: 30, coin: 20 };
+export function rewardByPlacement(placement: number | undefined): Reward {
+  if (placement === undefined) {
+    return { exp: 0, coin: 0 };
   }
+
+  return REWARD_TABLE[placement] ?? { exp: 30, coin: 20 };
 }

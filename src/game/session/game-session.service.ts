@@ -526,31 +526,31 @@ export class GameSessionService {
     return out;
   }
 
-  private buildFinalResults(finalScoresByUserId: Record<string, number>) {
-    const items = Object.entries(finalScoresByUserId)
-      .map(([userId, score]) => ({ userId: Number(userId), score: Number(score) }))
+  // userId, score, placement 포함한 최종 결과 리스트 구성
+  private buildFinalResults(
+    finalScoresByUserId: Record<string, number>,
+  ): Array<{ userId: number; score: number; placement: number }> {
+    const sorted = Object.entries(finalScoresByUserId)
+      .map(([userId, score]) => ({
+        userId: Number(userId),
+        score: Number(score),
+      }))
       .sort((a, b) => b.score - a.score);
 
-    const out: Array<{ userId: number; score: number; placement: number }> = [];
+    let lastScore: number | null = null;
+    let lastPlacement = 0;
 
-    let prevScore: number | null = null;
-    let prevPlacement = 0;
-
-    for (let i = 0; i < items.length; i++) {
-      const { userId, score } = items[i];
-
-      let placement: number;
-      if (prevScore !== null && score === prevScore) {
-        placement = prevPlacement;
-      } else {
-        placement = i + 1;
-        prevScore = score;
-        prevPlacement = placement;
+    return sorted.map((item, index) => {
+      if (item.score !== lastScore) {
+        lastPlacement = index + 1;
+        lastScore = item.score;
       }
 
-      out.push({ userId, score, placement });
-    }
-
-    return out;
+      return {
+        userId: item.userId,
+        score: item.score,
+        placement: lastPlacement,
+      };
+    });
   }
 }

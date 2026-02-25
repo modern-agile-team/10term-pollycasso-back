@@ -1,5 +1,7 @@
-export const FINISHED_EVENTS = {
-  USER_REWARDS_GRANTED: 'user:rewardsGranted',
+export const FINISHED_DOMAIN_EVENTS = {
   REWARDS_GRANTED: 'game.rewardsGranted',
-  ROOM_STATE_CHANGED: 'game.roomStateChanged',
+} as const;
+
+export const FINISHED_SOCKET_EVENTS = {
+  USER_REWARDS_GRANTED: 'user:rewardsGranted',
 } as const;
