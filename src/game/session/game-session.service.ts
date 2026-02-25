@@ -19,6 +19,9 @@ import { DrawingService } from '../drawing/drawing.service';
 import { GameSocketData } from '../interfaces/gameSocket.interface';
 import { wsError } from 'src/common/utils/ws-error.util';
 import { EvaluationService } from '../evaluation/evaluation.service';
+import { MatchLifecycleService } from '../finished/match-lifecycle.service';
+import { FinishedReturnService } from '../finished/finished-return.service';
+import { FinalRewardsByUserId } from '../finished/types/finished.type';
 
 type GameRemoteSocket = RemoteSocket<DefaultEventsMap, GameSocketData>;
 
@@ -35,6 +38,8 @@ export class GameSessionService {
     private readonly topicService: TopicService,
     private readonly drawingService: DrawingService,
     private readonly evaluationService: EvaluationService,
+    private readonly matchLifecycleService: MatchLifecycleService,
+    private readonly finishedReturnService: FinishedReturnService,
     @Inject(GAME_STATE_STORE) private readonly gameStateStore: IGameStateStore,
     @Inject(GAME_EVENT_PUBLISHER) private readonly eventPublisher: IGameEventPublisher,
   ) {}
@@ -326,11 +331,28 @@ export class GameSessionService {
 
       if (patched.phase === GamePhase.FINISHED) {
         const finalScoresByUserId = this.computeFinalScoresByUserId(patched);
+        const finalResults = this.buildFinalResults(finalScoresByUserId);
+
+        let finalRewards: FinalRewardsByUserId = {};
+
+        if (typeof patched.matchId === 'number') {
+          finalRewards = await this.matchLifecycleService.onGameFinished({
+            roomId,
+            matchId: patched.matchId,
+            finalResults,
+            roomMemberIdByUserId: patched.roomMemberIdByUserId,
+          });
+        }
+
+        const { totalScores, ...rest } = patched;
 
         this.eventPublisher.broadcastGameState(roomId, {
-          ...patched,
-          finalScoresByUserId,
+          ...rest,
+          finalResults,
+          finalRewards,
         });
+
+        this.finishedReturnService.schedule(roomId);
         return;
       }
 
@@ -502,5 +524,33 @@ export class GameSessionService {
     }
 
     return out;
+  }
+
+  // userId, score, placement 포함한 최종 결과 리스트 구성
+  private buildFinalResults(
+    finalScoresByUserId: Record<string, number>,
+  ): Array<{ userId: number; score: number; placement: number }> {
+    const sorted = Object.entries(finalScoresByUserId)
+      .map(([userId, score]) => ({
+        userId: Number(userId),
+        score: Number(score),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    let lastScore: number | null = null;
+    let lastPlacement = 0;
+
+    return sorted.map((item, index) => {
+      if (item.score !== lastScore) {
+        lastPlacement = index + 1;
+        lastScore = item.score;
+      }
+
+      return {
+        userId: item.userId,
+        score: item.score,
+        placement: lastPlacement,
+      };
+    });
   }
 }

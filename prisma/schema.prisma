@@ -213,18 +213,28 @@ model Match {
 }
 
 model MatchResult {
-  id           Int      @id @default(autoincrement())
-  roomMemberId Int      @map("room_member_id")
-  matchId      Int      @map("match_id")
-  result       Result
-  recordedAt   DateTime @default(now()) @map("recorded_at")
+  id           Int         @id @default(autoincrement())
+  matchId      Int         @map("match_id")
+  roomMemberId Int         @map("room_member_id")
 
-  roomMember RoomMember @relation(fields: [roomMemberId], references: [id], onDelete: Restrict)
-  match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  score        Int?
+  placement    Int?
+  team         Team        @default(NONE)
+  outcome      Result?
+
+  awardedXp    Int         @default(0) @map("awarded_xp")
+  awardedCoin  Int         @default(0) @map("awarded_coin")
+  rewardedAt   DateTime?   @map("rewarded_at")
+
+  recordedAt   DateTime    @default(now()) @map("recorded_at")
+
+  roomMember   RoomMember  @relation(fields: [roomMemberId], references: [id], onDelete: Restrict)
+  match        Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
   @@unique([roomMemberId, matchId])
-  @@index([result])
+  @@index([outcome])
   @@index([recordedAt])
+  @@index([matchId])
   @@map("match_results")
 }
 

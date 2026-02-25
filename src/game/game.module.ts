@@ -25,6 +25,12 @@ import { EvaluationService } from './evaluation/evaluation.service';
 import { EvaluationVoteRepository } from './evaluation/evaluation-vote.repository';
 import { EVALUATION_VOTE } from './evaluation/interfaces/evaluation-vote.interface';
 import { RoundSummaryService } from './round-summary/round-summary.service';
+import { FinishedGateway } from './finished/finished.gateway';
+import { FinishedReturnService } from './finished/finished-return.service';
+import { MatchLifecycleService } from './finished/match-lifecycle.service';
+import { MatchFinalizeService } from './finished/match-finalize.service';
+import { FinishedRepository } from './finished/finished.repository';
+import { FinishedEventsListener } from './finished/socket-events.listener';
 
 @Module({
   imports: [
@@ -61,6 +67,12 @@ import { RoundSummaryService } from './round-summary/round-summary.service';
     EvaluationService,
     { provide: EVALUATION_VOTE, useClass: EvaluationVoteRepository },
     RoundSummaryService,
+    FinishedGateway,
+    FinishedReturnService,
+    MatchFinalizeService,
+    MatchLifecycleService,
+    FinishedEventsListener,
+    FinishedRepository,
   ],
   exports: [],
 })
