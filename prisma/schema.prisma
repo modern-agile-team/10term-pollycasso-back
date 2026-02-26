@@ -62,6 +62,12 @@ enum CosmeticSubCategory {
   EFFECT
 }
 
+enum StatsPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 model User {
   id             Int       @id @default(autoincrement())
   username       String?   @unique @db.VarChar(20)
@@ -74,7 +80,7 @@ model User {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   profile                UserProfile?
-  stats                  UserStats?
+  userStats              UserStats[]
   roomMembers            RoomMember[]
   cosmeticItems          UserCosmeticItem[]
   gameItems              UserGameItem[]
@@ -104,18 +110,28 @@ model UserProfile {
 }
 
 model UserStats {
-  userId             Int      @id @map("user_id")
-  totalMatches       Int      @default(0) @map("total_matches")
-  totalWins          Int      @default(0) @map("total_wins")
-  totalDraws         Int      @default(0) @map("total_draws")
-  totalLoses         Int      @default(0) @map("total_loses")
-  winRate            Float    @default(0) @map("win_rate")
-  totalVotesReceived Int      @default(0) @map("total_votes_received")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id          Int         @id @default(autoincrement())
+
+  userId      Int         @map("user_id")
+  period      StatsPeriod @map("period")
+
+  periodStart DateTime    @map("period_start")
+  periodEnd   DateTime    @map("period_end")
+
+
+  totalScore  Int         @default(0) @map("total_score")
+  coinBalance Int         @default(0) @map("coin_balance")
+  rank        Int?        
+
+  level       Int         @default(1) @map("level")
+
+  updatedAt   DateTime    @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([winRate(sort: Desc)])
+  @@unique([userId, period])
+  @@index([period, periodStart, totalScore(sort: Desc), level(sort: Desc), userId])
+  @@index([period, periodStart, coinBalance(sort: Desc), level(sort: Desc), userId])
   @@map("user_stats")
 }
 
