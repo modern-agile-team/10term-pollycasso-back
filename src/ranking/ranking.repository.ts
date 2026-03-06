@@ -1,17 +1,19 @@
 import { Injectable } from '@nestjs/common';
+import { MatchStatus, Prisma, StatsPeriod } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { StatsPeriod } from '@prisma/client';
 
 @Injectable()
 export class RankingRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
-  // 기간 내 matchResult (필요한 것만)
-  findMatchResultsForPeriod(periodStart: Date, periodEnd: Date) {
+  // 기간 내 matchResult 조회
+  findMatchResults(params: { periodStart: Date; periodEnd: Date; status: MatchStatus }) {
+    const { periodStart, periodEnd, status } = params;
+
     return this.prismaService.matchResult.findMany({
       where: {
         recordedAt: { gte: periodStart, lt: periodEnd },
-        match: { status: 'COMPLETED' },
+        match: { status },
         score: { not: null },
       },
       select: {
@@ -31,17 +33,26 @@ export class RankingRepository {
     });
   }
 
-  // 스냅샷 시점 코인 Top4 유저 가져오기
-  findCoinTop4UserProfiles() {
+  // 프로필 조회
+  findCoinUserProfiles(params: {
+    take: number;
+    orderBy: Prisma.UserProfileOrderByWithRelationInput[];
+  }) {
+    const { take, orderBy } = params;
+
     return this.prismaService.userProfile.findMany({
-      orderBy: [{ coin: 'desc' }, { level: 'desc' }, { userId: 'asc' }],
-      take: 4,
+      orderBy,
+      take,
       select: { userId: true, coin: true, level: true },
     });
   }
 
   // UserStats 덮어쓰기
-  replaceSnapshot(period: StatsPeriod, periodStart: Date, insertData: any[]) {
+  replaceSnapshot(
+    period: StatsPeriod,
+    periodStart: Date,
+    insertData: Prisma.UserStatsCreateManyInput[],
+  ) {
     return this.prismaService.$transaction(async (tx) => {
       await tx.userStats.deleteMany({
         where: { period, periodStart },
@@ -55,34 +66,50 @@ export class RankingRepository {
     });
   }
 
-  // 점수 Top4 조회
-  findScoreTop4(period: StatsPeriod) {
+  // 점수 랭킹 조회
+  findScoreRankings(params: {
+    period: StatsPeriod;
+    take: number;
+    orderBy: Prisma.UserStatsOrderByWithRelationInput[];
+  }) {
+    const { period, take, orderBy } = params;
+
     return this.prismaService.userStats.findMany({
       where: { period },
-      orderBy: [{ totalScore: 'desc' }, { level: 'desc' }, { userId: 'asc' }],
-      take: 4,
+      orderBy,
+      take,
       select: {
         userId: true,
         totalScore: true,
         level: true,
         periodStart: true,
-        user: { select: { id: true, username: true, nickname: true, tag: true } },
+        user: {
+          select: { id: true, username: true, nickname: true, tag: true },
+        },
       },
     });
   }
 
-  // 코인 Top4 조회
-  findCoinTop4(period: StatsPeriod) {
+  // 코인 랭킹 조회
+  findCoinRankings(params: {
+    period: StatsPeriod;
+    take: number;
+    orderBy: Prisma.UserStatsOrderByWithRelationInput[];
+  }) {
+    const { period, take, orderBy } = params;
+
     return this.prismaService.userStats.findMany({
       where: { period },
-      orderBy: [{ coinBalance: 'desc' }, { level: 'desc' }, { userId: 'asc' }],
-      take: 4,
+      orderBy,
+      take,
       select: {
         userId: true,
         coinBalance: true,
         level: true,
         periodStart: true,
-        user: { select: { id: true, username: true, nickname: true, tag: true } },
+        user: {
+          select: { id: true, username: true, nickname: true, tag: true },
+        },
       },
     });
   }

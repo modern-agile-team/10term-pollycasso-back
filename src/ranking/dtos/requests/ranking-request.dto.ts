@@ -1,22 +1,14 @@
 import { IsDefined, IsIn } from 'class-validator';
-import { StatsPeriod } from '@prisma/client';
+import { LOWER_PERIODS, type LowerPeriod } from 'src/ranking/constants/ranking.constant';
 
-const LOWER_PERIODS = ['daily', 'weekly', 'monthly'] as const;
-type LowerPeriod = (typeof LOWER_PERIODS)[number];
-
-export class RankingDto {
+export class ScoreRankingQueryDto {
   @IsDefined()
   @IsIn(LOWER_PERIODS)
   period: LowerPeriod;
+}
 
-  get periodEnum(): StatsPeriod {
-    switch (this.period) {
-      case 'daily':
-        return StatsPeriod.DAILY;
-      case 'weekly':
-        return StatsPeriod.WEEKLY;
-      case 'monthly':
-        return StatsPeriod.MONTHLY;
-    }
-  }
+export class CoinRankingQueryDto {
+  @IsDefined()
+  @IsIn(LOWER_PERIODS)
+  period: LowerPeriod;
 }

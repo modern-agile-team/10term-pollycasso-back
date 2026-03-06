@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { StatsPeriod } from '@prisma/client';
+import { MatchStatus, StatsPeriod } from '@prisma/client';
 import { RankingRepository } from './ranking.repository';
 import { dayjsKst } from './utils/dayjs.util';
 
@@ -12,10 +12,12 @@ export class RankingService {
     const { periodStart, periodEnd } = this.getBounds(period);
 
     // 점수 집계
-    const matchResults = await this.rankingRepository.findMatchResultsForPeriod(
+    const matchResults = await this.rankingRepository.findMatchResults({
       periodStart,
       periodEnd,
-    );
+      status: MatchStatus.COMPLETED,
+    });
+
     const scoreMap = new Map<number, number>();
     for (const r of matchResults) {
       const userId = r.roomMember.userId;
@@ -44,7 +46,10 @@ export class RankingService {
       .slice(0, 4)
       .map((x) => x.userId);
 
-    const coinTop4Profiles = await this.rankingRepository.findCoinTop4UserProfiles();
+    const coinTop4Profiles = await this.rankingRepository.findCoinUserProfiles({
+      take: 4,
+      orderBy: [{ coin: 'desc' }, { level: 'desc' }, { userId: 'asc' }],
+    });
     const coinTop4Ids = coinTop4Profiles.map((p) => p.userId);
 
     const targetIds = Array.from(new Set([...scoreTop4UserIds, ...coinTop4Ids]));
@@ -83,7 +88,12 @@ export class RankingService {
 
   // 점수 Top4 조회
   async getScoreTop4(period: StatsPeriod) {
-    const rows = await this.rankingRepository.findScoreTop4(period);
+    const rows = await this.rankingRepository.findScoreRankings({
+      period,
+      take: 4,
+      orderBy: [{ totalScore: 'desc' }, { level: 'desc' }, { userId: 'asc' }],
+    });
+
     return rows.map((r, idx) => ({
       rank: idx + 1,
       userId: r.user.id,
@@ -97,7 +107,12 @@ export class RankingService {
 
   // 코인 Top4 조회
   async getCoinTop4(period: StatsPeriod) {
-    const rows = await this.rankingRepository.findCoinTop4(period);
+    const rows = await this.rankingRepository.findCoinRankings({
+      period,
+      take: 4,
+      orderBy: [{ coinBalance: 'desc' }, { level: 'desc' }, { userId: 'asc' }],
+    });
+
     return rows.map((r, idx) => ({
       rank: idx + 1,
       userId: r.user.id,
